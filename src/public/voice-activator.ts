@@ -43,11 +43,16 @@ if (typeof setRuntimeStatusHandler === 'function') {
 }
 if (typeof setRuntimeErrorHandler === 'function') {
   setRuntimeErrorHandler((error) => {
-    runtimeStore.setStatus({
-      ...getCurrentStatus(),
-      lastError: error,
-    });
-    emitRuntimeEvent('error', error);
+    const latestStatus = resolveStatus(getCurrentStatus());
+    const nextStatus = latestStatus.lastError
+      ? latestStatus
+      : {
+          ...latestStatus,
+          lastError: error,
+        };
+
+    runtimeStore.setStatus(nextStatus);
+    runtimeStore.mergeLastError(nextStatus.lastError ?? error);
   });
 }
 if (typeof setRuntimeInterruptionHandler === 'function') {
@@ -102,6 +107,27 @@ function createRuntimeFailure(
   };
 }
 
+function resolveLatestKnownRuntimeError(
+  methodName: string,
+  cause: unknown
+): WakeWordError {
+  if (isWakeWordError(cause)) {
+    return cause;
+  }
+
+  const currentStatus = getCurrentStatus();
+  if (currentStatus.lastError) {
+    return currentStatus.lastError;
+  }
+
+  const latestStatus = resolveStatus(currentStatus);
+  if (latestStatus.lastError) {
+    return latestStatus.lastError;
+  }
+
+  return createRuntimeFailure(methodName, cause);
+}
+
 function isWakeWordError(value: unknown): value is WakeWordError {
   return (
     typeof value === 'object' &&
@@ -129,6 +155,32 @@ function applyRuntimeError(error: WakeWordError) {
     lastError: error,
   });
   emitRuntimeEvent('error', error);
+}
+
+function syncKnownRuntimeFailure(
+  methodName: string,
+  cause: unknown,
+  nextState: 'error' | undefined = 'error'
+) {
+  const currentStatus = getCurrentStatus();
+  if (currentStatus.lastError) {
+    runtimeStore.setStatus(currentStatus);
+    return;
+  }
+
+  const latestStatus = resolveStatus(currentStatus);
+  if (latestStatus.lastError) {
+    runtimeStore.setStatus(latestStatus);
+    return;
+  }
+
+  const runtimeError = resolveLatestKnownRuntimeError(methodName, cause);
+  runtimeStore.recordError(
+    runtimeError.category === 'configuration'
+      ? createConfigurationFailure(runtimeError)
+      : runtimeError,
+    nextState
+  );
 }
 
 function resolveEngineRuntime(): VoiceActivatorEngineRuntime {
@@ -184,16 +236,7 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
-      if (isWakeWordError(cause) && cause.category === 'configuration') {
-        runtimeStore.recordError(createConfigurationFailure(cause), 'error');
-      } else if (isWakeWordError(cause)) {
-        runtimeStore.recordError(cause, 'error');
-      } else {
-        runtimeStore.recordError(
-          createRuntimeFailure('initialize', cause),
-          'error'
-        );
-      }
+      syncKnownRuntimeFailure('initialize', cause);
       try {
         await activeRuntime.dispose?.();
       } catch {
@@ -233,12 +276,7 @@ export const voiceActivator: VoiceActivatorApi = {
       } catch {
         // Best-effort rollback when the engine-backed start path fails.
       }
-      runtimeStore.recordError(
-        isWakeWordError(cause)
-          ? cause
-          : createRuntimeFailure('startDetection', cause),
-        'error'
-      );
+      syncKnownRuntimeFailure('startDetection', cause);
       throw cause;
     }
   },
@@ -268,12 +306,7 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
-      runtimeStore.recordError(
-        isWakeWordError(cause)
-          ? cause
-          : createRuntimeFailure('stopDetection', cause),
-        'error'
-      );
+      syncKnownRuntimeFailure('stopDetection', cause);
       throw cause;
     }
   },
@@ -302,10 +335,7 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
-      runtimeStore.recordError(
-        isWakeWordError(cause) ? cause : createRuntimeFailure('dispose', cause),
-        'error'
-      );
+      syncKnownRuntimeFailure('dispose', cause);
       throw cause;
     }
   },

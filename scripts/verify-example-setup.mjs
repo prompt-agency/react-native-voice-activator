@@ -1,20 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-type PackageManifest = {
-  name?: string;
-  workspaces?: string[];
-};
-
 const root = process.cwd();
-const packageJson = JSON.parse(
-  readFileSync(join(root, 'package.json'), 'utf8')
-) as PackageManifest;
+const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const examplePackageJson = JSON.parse(
   readFileSync(join(root, 'example/package.json'), 'utf8')
-) as PackageManifest;
+);
 
-const errors: string[] = [];
+const errors = [];
 const exampleAppPath = join(root, 'example/src/App.tsx');
 
 if (packageJson.name !== 'react-native-voice-activator') {
@@ -26,9 +19,7 @@ if (!packageJson.workspaces?.includes('example')) {
 }
 
 if (examplePackageJson.name !== 'react-native-voice-activator-example') {
-  errors.push(
-    'Example package name is not react-native-voice-activator-example.'
-  );
+  errors.push('Example package name is not react-native-voice-activator-example.');
 }
 
 if (!existsSync(exampleAppPath)) {
@@ -55,9 +46,7 @@ if (!existsSync(exampleAppPath)) {
       'Real built-in wake word detection is scheduled for Epic 2.'
     )
   ) {
-    errors.push(
-      'Example app does not document the Epic 2 detection limitation.'
-    );
+    errors.push('Example app does not document the Epic 2 detection limitation.');
   }
 }
 

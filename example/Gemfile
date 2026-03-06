@@ -1,7 +1,9 @@
 source 'https://rubygems.org'
 
-# You may use http://rbenv.org/ or https://rvm.io/ to install and use this version
-ruby ">= 2.6.10"
+# CocoaPods 1.15.x / xcodeproj still break under Ruby 3.4 on this project
+# (`cannot load such file -- kconv`). Keep the supported range below 3.4 until
+# the upstream stack is compatible again.
+ruby ">= 2.6.10", "< 3.4"
 
 # Exclude problematic versions of cocoapods and activesupport that causes build failures.
 gem 'cocoapods', '>= 1.13', '!= 1.15.0', '!= 1.15.1'

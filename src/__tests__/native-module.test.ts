@@ -1,4 +1,5 @@
 import { createDefaultRuntimeConfiguration } from '../domain/detection-config';
+import type { WakeWordError, WakeWordStatus } from '../public/types';
 
 function createMockEngineRuntime() {
   return {
@@ -184,5 +185,121 @@ describe('native module bridge selection', () => {
       canStart: false,
       lastError: null,
     });
+  });
+
+  it('normalizes native runtime status and error events through the bridge boundary', async () => {
+    const runtimeStateListeners = new Set<(payload: unknown) => void>();
+    const runtimeErrorListeners = new Set<(payload: unknown) => void>();
+    const nativeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+
+    const nativeModule = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...nativeStatus })),
+      dispose: jest.fn(async () => undefined),
+      addListener: jest.fn(),
+      removeListeners: jest.fn(),
+    };
+
+    jest.doMock('../NativeVoiceActivator', () => ({
+      __esModule: true,
+      default: nativeModule,
+    }));
+
+    jest.doMock('react-native', () => ({
+      NativeEventEmitter: class {
+        addListener(eventName: string, listener: (payload: unknown) => void) {
+          if (eventName === 'VoiceActivatorOnRuntimeStateChanged') {
+            runtimeStateListeners.add(listener);
+          }
+          if (eventName === 'VoiceActivatorOnRuntimeError') {
+            runtimeErrorListeners.add(listener);
+          }
+          nativeModule.addListener(eventName);
+
+          return {
+            remove() {
+              runtimeStateListeners.delete(listener);
+              runtimeErrorListeners.delete(listener);
+              nativeModule.removeListeners(1);
+            },
+          };
+        }
+      },
+    }));
+
+    const VoiceActivator = await import('../index');
+    const stateEvents: Array<{ previousState?: string; state: string }> = [];
+    const errorEvents: WakeWordError[] = [];
+
+    const stateSubscription = VoiceActivator.addWakeWordListener(
+      'stateChanged',
+      (payload) => {
+        stateEvents.push(payload);
+      }
+    );
+    const errorSubscription = VoiceActivator.addWakeWordListener(
+      'error',
+      (payload) => {
+        errorEvents.push(payload);
+      }
+    );
+
+    nativeStatus.state = 'unsupported';
+    nativeStatus.isAvailable = false;
+    nativeStatus.canStart = false;
+    nativeStatus.lastError = {
+      category: 'platform',
+      code: 'runtime_unsupported',
+      message: 'Android foreground runtime ownership could not be established.',
+      recoverable: false,
+      platform: 'android',
+    };
+
+    for (const listener of runtimeStateListeners) {
+      listener({ ...nativeStatus });
+    }
+    for (const listener of runtimeErrorListeners) {
+      listener({ ...(nativeStatus.lastError as WakeWordError) });
+    }
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      lastError: {
+        category: 'platform',
+        code: 'runtime_unsupported',
+        message:
+          'Android foreground runtime ownership could not be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    });
+    expect(stateEvents).toContainEqual({
+      previousState: 'idle',
+      state: 'unsupported',
+    });
+    expect(errorEvents).toEqual([
+      {
+        category: 'platform',
+        code: 'runtime_unsupported',
+        message:
+          'Android foreground runtime ownership could not be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    ]);
+
+    stateSubscription.remove();
+    errorSubscription.remove();
   });
 });

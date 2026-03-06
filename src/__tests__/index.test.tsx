@@ -705,4 +705,172 @@ describe('public runtime state and event contract', () => {
     interruptionSubscription.remove();
     errorSubscription.remove();
   });
+
+  it.each([
+    ['ios' as const, 'The iOS audio session was interrupted.'],
+    [
+      'android' as const,
+      'Android foreground runtime ownership could not be established.',
+    ],
+  ])(
+    'prefers native categorized %s runtime errors over generic promise failures',
+    async (platform, message) => {
+      const runtimeStatus: WakeWordStatus = {
+        state: 'ready',
+        isAvailable: true,
+        isListening: false,
+        canStart: true,
+        lastError: null,
+      };
+      let runtimeErrorHandler:
+        | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+        | null = null;
+
+      const runtimeBridge = {
+        initialize: jest.fn(async () => undefined),
+        startDetection: jest.fn(async () => {
+          runtimeStatus.state = 'unsupported';
+          runtimeStatus.isAvailable = false;
+          runtimeStatus.isListening = false;
+          runtimeStatus.canStart = false;
+          runtimeStatus.lastError = {
+            category: 'platform',
+            code: 'runtime_failure',
+            message,
+            recoverable: false,
+            platform,
+          };
+          runtimeErrorHandler?.({ ...runtimeStatus.lastError });
+          throw new Error('generic native rejection');
+        }),
+        stopDetection: jest.fn(async () => undefined),
+        getStatus: jest.fn(() => ({ ...runtimeStatus })),
+        dispose: jest.fn(async () => undefined),
+      };
+
+      jest.doMock('../internal/native-module', () => ({
+        nativeVoiceActivatorModule: runtimeBridge,
+        getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+        setWakeWordDetectedHandler: jest.fn(),
+        setRuntimeStatusHandler: jest.fn(),
+        setRuntimeErrorHandler: jest.fn(
+          (
+            handler:
+              | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+              | null
+          ) => {
+            runtimeErrorHandler = handler;
+          }
+        ),
+        setRuntimeInterruptionHandler: jest.fn(),
+      }));
+
+      const VoiceActivator = await import('../index');
+      const errorEvents: NonNullable<WakeWordStatus['lastError']>[] = [];
+      const errorSubscription = VoiceActivator.addWakeWordListener(
+        'error',
+        (payload) => {
+          errorEvents.push(payload);
+        }
+      );
+
+      await expect(VoiceActivator.startDetection()).rejects.toThrow(
+        'generic native rejection'
+      );
+      expect(VoiceActivator.getStatus()).toEqual({
+        state: 'unsupported',
+        isAvailable: false,
+        isListening: false,
+        canStart: false,
+        lastError: {
+          category: 'platform',
+          code: 'runtime_failure',
+          message,
+          recoverable: false,
+          platform,
+        },
+      });
+      expect(errorEvents).toEqual([
+        {
+          category: 'platform',
+          code: 'runtime_failure',
+          message,
+          recoverable: false,
+          platform,
+        },
+      ]);
+      errorSubscription.remove();
+    }
+  );
+
+  it('keeps runtime status coherent when the engine runtime reports an error while running', async () => {
+    const engineRuntime = {
+      initialize: jest.fn(
+        async (
+          _configuration,
+          handlers: {
+            onError(error: NonNullable<WakeWordStatus['lastError']>): void;
+          }
+        ) => {
+          engineRuntime.reportError = handlers.onError;
+        }
+      ),
+      start: jest.fn(async () => undefined),
+      stop: jest.fn(async () => undefined),
+      dispose: jest.fn(async () => undefined),
+      reportError: null as
+        | ((error: NonNullable<WakeWordStatus['lastError']>) => void)
+        | null,
+    };
+
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtime = jest
+      .requireActual('../internal/local-foreground-runtime')
+      .createLocalForegroundRuntime();
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: null,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtime),
+      setWakeWordDetectedHandler: jest.fn((handler) => {
+        runtime.setWakeWordDetectedHandler(handler);
+      }),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      engineConfig: {
+        metadata: {
+          accessKey: 'test-access-key',
+        },
+      },
+    });
+    await VoiceActivator.startDetection();
+
+    engineRuntime.reportError?.({
+      category: 'engine',
+      code: 'engine_runtime_failed',
+      message: 'The built-in wake word engine failed while running.',
+      recoverable: true,
+    });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'error',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: {
+        category: 'engine',
+        code: 'engine_runtime_failed',
+        message: 'The built-in wake word engine failed while running.',
+        recoverable: true,
+      },
+    });
+  });
 });

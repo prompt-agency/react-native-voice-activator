@@ -202,7 +202,6 @@ internal class WakeWordRuntimeCoordinator(
 
   private fun hasInconsistentRuntimeOwnership(): Boolean =
     audioCaptureThread.isCapturing() != serviceLauncher.hasRuntimeOwnership()
-  }
 
   private fun lifecycleFailure(
     code: String,

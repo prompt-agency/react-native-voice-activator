@@ -10,6 +10,23 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+Pod::Executable.execute_command(
+  'node',
+  [File.join(__dir__, '..', '..', 'scripts', 'ensure-react-app-dependency-provider.mjs'), File.join(__dir__, '..')]
+)
+Pod::Executable.execute_command(
+  'node',
+  [
+    File.join(__dir__, '..', 'node_modules', 'react-native', 'scripts', 'generate-codegen-artifacts.js'),
+    '-p',
+    File.join(__dir__, '..'),
+    '-o',
+    __dir__,
+    '-t',
+    'ios',
+  ]
+)
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green

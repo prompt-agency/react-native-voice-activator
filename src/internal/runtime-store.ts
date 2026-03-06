@@ -59,5 +59,13 @@ export function createRuntimeStore(initialStatus: WakeWordStatus) {
 
       emitRuntimeEvent('error', { ...error });
     },
+    mergeLastError(error: WakeWordError) {
+      currentStatus = cloneStatus({
+        ...currentStatus,
+        lastError: error,
+      });
+
+      emitRuntimeEvent('error', { ...error });
+    },
   };
 }
