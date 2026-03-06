@@ -568,4 +568,128 @@ describe('public runtime state and event contract', () => {
       },
     });
   });
+
+  it('surfaces Android service-failure states through normalized runtime handlers', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+    let runtimeErrorHandler:
+      | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+      | null = null;
+    let runtimeInterruptionHandler:
+      | ((payload: WakeWordInterruptionEvent) => void)
+      | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(
+        (
+          handler:
+            | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+            | null
+        ) => {
+          runtimeErrorHandler = handler;
+        }
+      ),
+      setRuntimeInterruptionHandler: jest.fn(
+        (handler: ((payload: WakeWordInterruptionEvent) => void) | null) => {
+          runtimeInterruptionHandler = handler;
+        }
+      ),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const interruptions: WakeWordInterruptionEvent[] = [];
+    const errors: Array<WakeWordStatus['lastError']> = [];
+
+    const interruptionSubscription = VoiceActivator.addWakeWordListener(
+      'interruption',
+      (payload) => {
+        interruptions.push(payload);
+      }
+    );
+    const errorSubscription = VoiceActivator.addWakeWordListener(
+      'error',
+      (payload) => {
+        errors.push(payload);
+      }
+    );
+
+    runtimeStatus.state = 'unsupported';
+    runtimeStatus.isAvailable = false;
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'Android foreground runtime ownership could not be established.';
+    runtimeStatus.lastError = {
+      category: 'platform',
+      code: 'runtime_unsupported',
+      message: 'Android foreground runtime ownership could not be established.',
+      recoverable: false,
+      platform: 'android',
+    };
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    runtimeErrorHandler!({ ...runtimeStatus.lastError });
+    runtimeInterruptionHandler!({
+      reason: 'Android foreground runtime ownership could not be established.',
+      recoverable: false,
+    });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      reason: 'Android foreground runtime ownership could not be established.',
+      lastError: {
+        category: 'platform',
+        code: 'runtime_unsupported',
+        message:
+          'Android foreground runtime ownership could not be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    });
+    expect(errors).toEqual([
+      {
+        category: 'platform',
+        code: 'runtime_unsupported',
+        message:
+          'Android foreground runtime ownership could not be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    ]);
+    expect(interruptions).toEqual([
+      {
+        reason:
+          'Android foreground runtime ownership could not be established.',
+        recoverable: false,
+      },
+    ]);
+
+    interruptionSubscription.remove();
+    errorSubscription.remove();
+  });
 });
