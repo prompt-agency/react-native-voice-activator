@@ -52,6 +52,9 @@ describe('public runtime state and event contract', () => {
       nativeVoiceActivatorModule: runtimeBridge,
       getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
       setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -111,6 +114,9 @@ describe('public runtime state and event contract', () => {
       nativeVoiceActivatorModule: runtimeBridge,
       getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
       setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -147,6 +153,9 @@ describe('public runtime state and event contract', () => {
       nativeVoiceActivatorModule: runtimeBridge,
       getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
       setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -230,6 +239,9 @@ describe('public runtime state and event contract', () => {
       nativeVoiceActivatorModule: runtimeBridge,
       getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
       setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -272,6 +284,9 @@ describe('public runtime state and event contract', () => {
       nativeVoiceActivatorModule: runtimeBridge,
       getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
       setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -314,6 +329,242 @@ describe('public runtime state and event contract', () => {
           customKeywordAssets: true,
           runtimeConfigurationUpdates: true,
         },
+      },
+    });
+  });
+
+  it('surfaces interrupted and unsupported native states through registered runtime handlers', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+    let runtimeErrorHandler:
+      | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+      | null = null;
+    let runtimeInterruptionHandler:
+      | ((payload: WakeWordInterruptionEvent) => void)
+      | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(
+        (
+          handler:
+            | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+            | null
+        ) => {
+          runtimeErrorHandler = handler;
+        }
+      ),
+      setRuntimeInterruptionHandler: jest.fn(
+        (handler: ((payload: WakeWordInterruptionEvent) => void) | null) => {
+          runtimeInterruptionHandler = handler;
+        }
+      ),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const interruptions: WakeWordInterruptionEvent[] = [];
+    const errors: Array<WakeWordStatus['lastError']> = [];
+
+    const interruptionSubscription = VoiceActivator.addWakeWordListener(
+      'interruption',
+      (payload) => {
+        interruptions.push(payload);
+      }
+    );
+    const errorSubscription = VoiceActivator.addWakeWordListener(
+      'error',
+      (payload) => {
+        errors.push(payload);
+      }
+    );
+
+    expect(runtimeStatusHandler).not.toBeNull();
+    expect(runtimeErrorHandler).not.toBeNull();
+    expect(runtimeInterruptionHandler).not.toBeNull();
+
+    runtimeStatus.state = 'interrupted';
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = {
+      category: 'lifecycle',
+      code: 'audio_interrupted',
+      message: 'The iOS audio session was interrupted.',
+      recoverable: true,
+      platform: 'ios',
+    };
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    runtimeErrorHandler!({ ...runtimeStatus.lastError });
+    runtimeInterruptionHandler!({
+      reason: 'audio_session_interrupted',
+      recoverable: true,
+    });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'interrupted',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: {
+        category: 'lifecycle',
+        code: 'audio_interrupted',
+        message: 'The iOS audio session was interrupted.',
+        recoverable: true,
+        platform: 'ios',
+      },
+    });
+
+    runtimeStatus.state = 'unsupported';
+    runtimeStatus.isAvailable = false;
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'The iOS audio session interruption cannot be resumed automatically.';
+    runtimeStatus.lastError = {
+      category: 'platform',
+      code: 'audio_interruption_not_resumable',
+      message:
+        'The iOS audio session interruption cannot be resumed automatically.',
+      recoverable: true,
+      platform: 'ios',
+    };
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    runtimeErrorHandler!({ ...runtimeStatus.lastError });
+    runtimeInterruptionHandler!({
+      reason: 'audio_session_interruption_not_resumable',
+      recoverable: false,
+    });
+
+    interruptionSubscription.remove();
+    errorSubscription.remove();
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      reason:
+        'The iOS audio session interruption cannot be resumed automatically.',
+      lastError: {
+        category: 'platform',
+        code: 'audio_interruption_not_resumable',
+        message:
+          'The iOS audio session interruption cannot be resumed automatically.',
+        recoverable: true,
+        platform: 'ios',
+      },
+    });
+    expect(interruptions).toEqual([
+      {
+        reason: 'audio_session_interrupted',
+        recoverable: true,
+      },
+      {
+        reason: 'audio_session_interruption_not_resumable',
+        recoverable: false,
+      },
+    ]);
+    expect(errors).toEqual([
+      {
+        category: 'lifecycle',
+        code: 'audio_interrupted',
+        message: 'The iOS audio session was interrupted.',
+        recoverable: true,
+        platform: 'ios',
+      },
+      {
+        category: 'platform',
+        code: 'audio_interruption_not_resumable',
+        message:
+          'The iOS audio session interruption cannot be resumed automatically.',
+        recoverable: true,
+        platform: 'ios',
+      },
+    ]);
+  });
+
+  it('updates lastError from the native runtime error handler even without a status event', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'ready',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    let runtimeErrorHandler:
+      | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+      | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(
+        (
+          handler:
+            | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+            | null
+        ) => {
+          runtimeErrorHandler = handler;
+        }
+      ),
+      setRuntimeInterruptionHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    expect(runtimeErrorHandler).not.toBeNull();
+
+    runtimeErrorHandler!({
+      category: 'platform',
+      code: 'audio_session_deactivation_failed',
+      message: 'The iOS audio session failed to deactivate.',
+      recoverable: true,
+      platform: 'ios',
+    });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'ready',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: {
+        category: 'platform',
+        code: 'audio_session_deactivation_failed',
+        message: 'The iOS audio session failed to deactivate.',
+        recoverable: true,
+        platform: 'ios',
       },
     });
   });

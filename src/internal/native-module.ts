@@ -1,7 +1,12 @@
 import NativeVoiceActivator from '../NativeVoiceActivator';
 import { NativeEventEmitter, type TurboModule } from 'react-native';
 
-import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
+import type {
+  WakeWordDetectedEvent,
+  WakeWordError,
+  WakeWordInterruptionEvent,
+  WakeWordStatus,
+} from '../public/types';
 import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
 import { createLocalForegroundRuntime } from './local-foreground-runtime';
 import type { VoiceActivatorRuntimeBridge } from './runtime-bridge';
@@ -15,12 +20,19 @@ export interface NativeVoiceActivatorSpec extends TurboModule {
 }
 
 const NATIVE_WAKE_WORD_DETECTED_EVENT = 'VoiceActivatorOnWakeWordDetected';
+const NATIVE_RUNTIME_STATE_CHANGED_EVENT =
+  'VoiceActivatorOnRuntimeStateChanged';
+const NATIVE_RUNTIME_ERROR_EVENT = 'VoiceActivatorOnRuntimeError';
+const NATIVE_RUNTIME_INTERRUPTION_EVENT = 'VoiceActivatorOnRuntimeInterruption';
 
 export const nativeVoiceActivatorModule =
   NativeVoiceActivator as NativeVoiceActivatorSpec | null;
 
 const localForegroundRuntime = createLocalForegroundRuntime();
 let nativeWakeWordDetectedSubscription: { remove(): void } | null = null;
+let nativeRuntimeStateSubscription: { remove(): void } | null = null;
+let nativeRuntimeErrorSubscription: { remove(): void } | null = null;
+let nativeRuntimeInterruptionSubscription: { remove(): void } | null = null;
 
 type NativeEventEmitterModule = TurboModule & {
   addListener(eventName: string): void;
@@ -104,6 +116,75 @@ export function setWakeWordDetectedHandler(
     NATIVE_WAKE_WORD_DETECTED_EVENT,
     (...args: readonly unknown[]) => {
       const [payload] = args as [WakeWordDetectedEvent];
+      handler(payload);
+    }
+  );
+}
+
+export function setRuntimeStatusHandler(
+  handler: ((payload: WakeWordStatus) => void) | null
+) {
+  nativeRuntimeStateSubscription?.remove();
+  nativeRuntimeStateSubscription = null;
+
+  if (!handler || !nativeVoiceActivatorModule) {
+    return;
+  }
+
+  const eventEmitter = new NativeEventEmitter(
+    nativeVoiceActivatorModule as unknown as NativeEventEmitterModule
+  );
+
+  nativeRuntimeStateSubscription = eventEmitter.addListener(
+    NATIVE_RUNTIME_STATE_CHANGED_EVENT,
+    (...args: readonly unknown[]) => {
+      const [payload] = args as [WakeWordStatus];
+      handler(payload);
+    }
+  );
+}
+
+export function setRuntimeErrorHandler(
+  handler: ((payload: WakeWordError) => void) | null
+) {
+  nativeRuntimeErrorSubscription?.remove();
+  nativeRuntimeErrorSubscription = null;
+
+  if (!handler || !nativeVoiceActivatorModule) {
+    return;
+  }
+
+  const eventEmitter = new NativeEventEmitter(
+    nativeVoiceActivatorModule as unknown as NativeEventEmitterModule
+  );
+
+  nativeRuntimeErrorSubscription = eventEmitter.addListener(
+    NATIVE_RUNTIME_ERROR_EVENT,
+    (...args: readonly unknown[]) => {
+      const [payload] = args as [WakeWordError];
+      handler(payload);
+    }
+  );
+}
+
+export function setRuntimeInterruptionHandler(
+  handler: ((payload: WakeWordInterruptionEvent) => void) | null
+) {
+  nativeRuntimeInterruptionSubscription?.remove();
+  nativeRuntimeInterruptionSubscription = null;
+
+  if (!handler || !nativeVoiceActivatorModule) {
+    return;
+  }
+
+  const eventEmitter = new NativeEventEmitter(
+    nativeVoiceActivatorModule as unknown as NativeEventEmitterModule
+  );
+
+  nativeRuntimeInterruptionSubscription = eventEmitter.addListener(
+    NATIVE_RUNTIME_INTERRUPTION_EVENT,
+    (...args: readonly unknown[]) => {
+      const [payload] = args as [WakeWordInterruptionEvent];
       handler(payload);
     }
   );

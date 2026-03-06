@@ -1,5 +1,8 @@
 import {
   getVoiceActivatorRuntimeBridge,
+  setRuntimeErrorHandler,
+  setRuntimeInterruptionHandler,
+  setRuntimeStatusHandler,
   setWakeWordDetectedHandler,
 } from '../internal/native-module';
 import { createRuntimeConfiguration } from '../domain/detection-config';
@@ -29,6 +32,25 @@ const runtimeStore = createRuntimeStore(
 setWakeWordDetectedHandler((payload) => {
   emitRuntimeEvent('wakeWordDetected', payload);
 });
+if (typeof setRuntimeStatusHandler === 'function') {
+  setRuntimeStatusHandler((status) => {
+    runtimeStore.setStatus(status);
+  });
+}
+if (typeof setRuntimeErrorHandler === 'function') {
+  setRuntimeErrorHandler((error) => {
+    runtimeStore.setStatus({
+      ...getCurrentStatus(),
+      lastError: error,
+    });
+    emitRuntimeEvent('error', error);
+  });
+}
+if (typeof setRuntimeInterruptionHandler === 'function') {
+  setRuntimeInterruptionHandler((payload) => {
+    emitRuntimeEvent('interruption', payload);
+  });
+}
 
 function createUnsupportedRuntimeError(methodName: string) {
   return new Error(

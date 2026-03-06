@@ -1,14 +1,16 @@
 #import "VoiceActivator.h"
 
+#import "Runtime/WakeWordSessionCoordinator.h"
+
 namespace {
 NSString *const kWakeWordDetectedEventName = @"VoiceActivatorOnWakeWordDetected";
-NSString *const kDefaultDetectedPhrase = @"hey react native";
+NSString *const kRuntimeStateChangedEventName = @"VoiceActivatorOnRuntimeStateChanged";
+NSString *const kRuntimeErrorEventName = @"VoiceActivatorOnRuntimeError";
+NSString *const kRuntimeInterruptionEventName = @"VoiceActivatorOnRuntimeInterruption";
 }
 
 @implementation VoiceActivator {
-  NSDictionary *_status;
-  NSString *_detectedPhrase;
-  NSTimer *_detectionTimer;
+  WakeWordSessionCoordinator *_sessionCoordinator;
 }
 
 RCT_EXPORT_MODULE()
@@ -22,13 +24,20 @@ RCT_EXPORT_MODULE()
 {
   self = [super init];
   if (self) {
-    _detectedPhrase = kDefaultDetectedPhrase;
-    _status = @{
-      @"state" : @"idle",
-      @"isAvailable" : @YES,
-      @"isListening" : @NO,
-      @"canStart" : @NO,
-      @"lastError" : [NSNull null]
+    _sessionCoordinator = [WakeWordSessionCoordinator new];
+
+    __weak __typeof(self) weakSelf = self;
+    _sessionCoordinator.wakeWordDetectedHandler = ^(NSDictionary *payload) {
+      [weakSelf sendEventWithName:kWakeWordDetectedEventName body:payload];
+    };
+    _sessionCoordinator.runtimeStatusHandler = ^(NSDictionary *status) {
+      [weakSelf sendEventWithName:kRuntimeStateChangedEventName body:status];
+    };
+    _sessionCoordinator.runtimeErrorHandler = ^(NSDictionary *errorPayload) {
+      [weakSelf sendEventWithName:kRuntimeErrorEventName body:errorPayload];
+    };
+    _sessionCoordinator.interruptionHandler = ^(NSDictionary *payload) {
+      [weakSelf sendEventWithName:kRuntimeInterruptionEventName body:payload];
     };
   }
   return self;
@@ -36,61 +45,31 @@ RCT_EXPORT_MODULE()
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ kWakeWordDetectedEventName ];
+  return @[
+    kWakeWordDetectedEventName,
+    kRuntimeStateChangedEventName,
+    kRuntimeErrorEventName,
+    kRuntimeInterruptionEventName
+  ];
 }
 
-- (NSDictionary *)currentStatus
+- (void)reject:(RCTPromiseRejectBlock)reject
+      withCode:(NSString *)code
+         error:(NSError *)error
 {
-  return [_status copy];
-}
-
-- (void)updateStatus:(NSDictionary *)overrides
-{
-  NSMutableDictionary *nextStatus = [_status mutableCopy];
-  [nextStatus addEntriesFromDictionary:overrides];
-  _status = [nextStatus copy];
-}
-
-- (void)clearDetectionTimer
-{
-  if (_detectionTimer != nil) {
-    [_detectionTimer invalidate];
-    _detectionTimer = nil;
-  }
-}
-
-- (void)emitWakeWordDetected
-{
-  _detectionTimer = nil;
-
-  if (![[_status objectForKey:@"state"] isEqual:@"running"]) {
-    return;
-  }
-
-  [self sendEventWithName:kWakeWordDetectedEventName
-                     body:@{
-                       @"detectedPhrase" : _detectedPhrase,
-                       @"detectedAt" : [NSISO8601DateFormatter stringFromDate:[NSDate date]
-                                                                    timeZone:[NSTimeZone timeZoneWithAbbreviation:@"UTC"]
-                                                                 formatOptions:NSISO8601DateFormatWithInternetDateTime]
-                     }];
+  reject(code, error.localizedDescription, error);
 }
 
 RCT_EXPORT_METHOD(initialize
-                  : (__unused NSDictionary *)options resolve
+                  : (NSDictionary *)options resolve
                   : (RCTPromiseResolveBlock)resolve reject
-                  : (__unused RCTPromiseRejectBlock)reject)
+                  : (RCTPromiseRejectBlock)reject)
 {
-  [self clearDetectionTimer];
-  _detectedPhrase = kDefaultDetectedPhrase;
-
-  [self updateStatus:@{
-    @"state" : @"ready",
-    @"isAvailable" : @YES,
-    @"isListening" : @NO,
-    @"canStart" : @YES,
-    @"lastError" : [NSNull null]
-  }];
+  NSError *error = nil;
+  if (![_sessionCoordinator initializeWithOptions:options error:&error]) {
+    [self reject:reject withCode:@"initialize_failed" error:error];
+    return;
+  }
 
   resolve(nil);
 }
@@ -99,73 +78,42 @@ RCT_EXPORT_METHOD(startDetection
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
-  if (![[_status objectForKey:@"canStart"] boolValue]) {
-    reject(
-        @"runtime_not_ready",
-        @"VoiceActivator.startDetection requires initialize() to complete before detection can begin.",
-        nil);
+  NSError *error = nil;
+  if (![_sessionCoordinator startDetection:&error]) {
+    [self reject:reject withCode:@"start_detection_failed" error:error];
     return;
   }
-
-  [self updateStatus:@{
-    @"state" : @"running",
-    @"isAvailable" : @YES,
-    @"isListening" : @YES,
-    @"canStart" : @NO,
-    @"lastError" : [NSNull null]
-  }];
-
-  [self clearDetectionTimer];
-  _detectionTimer =
-      [NSTimer scheduledTimerWithTimeInterval:0.0
-                                       target:self
-                                     selector:@selector(emitWakeWordDetected)
-                                     userInfo:nil
-                                      repeats:NO];
 
   resolve(nil);
 }
 
 RCT_EXPORT_METHOD(stopDetection
                   : (RCTPromiseResolveBlock)resolve reject
-                  : (__unused RCTPromiseRejectBlock)reject)
+                  : (RCTPromiseRejectBlock)reject)
 {
-  [self clearDetectionTimer];
-
-  NSString *currentState = [_status objectForKey:@"state"];
-  BOOL shouldRemainStartable =
-      [currentState isEqual:@"running"] || [currentState isEqual:@"starting"] ||
-      [currentState isEqual:@"ready"] || [currentState isEqual:@"stopped"];
-  NSString *nextState = shouldRemainStartable ? @"stopped" : @"idle";
-
-  [self updateStatus:@{
-    @"state" : nextState,
-    @"isAvailable" : @YES,
-    @"isListening" : @NO,
-    @"canStart" : @(shouldRemainStartable),
-    @"lastError" : [NSNull null]
-  }];
+  NSError *error = nil;
+  if (![_sessionCoordinator stopDetection:&error]) {
+    [self reject:reject withCode:@"stop_detection_failed" error:error];
+    return;
+  }
 
   resolve(nil);
 }
 
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(getStatus)
 {
-  return [self currentStatus];
+  return [_sessionCoordinator currentStatus];
 }
 
 RCT_EXPORT_METHOD(dispose
                   : (RCTPromiseResolveBlock)resolve reject
-                  : (__unused RCTPromiseRejectBlock)reject)
+                  : (RCTPromiseRejectBlock)reject)
 {
-  [self clearDetectionTimer];
-  [self updateStatus:@{
-    @"state" : @"idle",
-    @"isAvailable" : @YES,
-    @"isListening" : @NO,
-    @"canStart" : @NO,
-    @"lastError" : [NSNull null]
-  }];
+  NSError *error = nil;
+  if (![_sessionCoordinator dispose:&error]) {
+    [self reject:reject withCode:@"dispose_failed" error:error];
+    return;
+  }
 
   resolve(nil);
 }

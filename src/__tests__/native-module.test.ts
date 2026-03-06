@@ -38,6 +38,9 @@ describe('native module bridge selection', () => {
 
   it('uses the full native bridge and forwards native wake-word events', async () => {
     const wakeWordListeners = new Set<(payload: unknown) => void>();
+    const runtimeStateListeners = new Set<(payload: unknown) => void>();
+    const runtimeErrorListeners = new Set<(payload: unknown) => void>();
+    const runtimeInterruptionListeners = new Set<(payload: unknown) => void>();
     const nativeStatus = {
       state: 'idle',
       isAvailable: true,
@@ -86,12 +89,26 @@ describe('native module bridge selection', () => {
     jest.doMock('react-native', () => ({
       NativeEventEmitter: class {
         addListener(eventName: string, listener: (payload: unknown) => void) {
-          wakeWordListeners.add(listener);
+          if (eventName === 'VoiceActivatorOnWakeWordDetected') {
+            wakeWordListeners.add(listener);
+          }
+          if (eventName === 'VoiceActivatorOnRuntimeStateChanged') {
+            runtimeStateListeners.add(listener);
+          }
+          if (eventName === 'VoiceActivatorOnRuntimeError') {
+            runtimeErrorListeners.add(listener);
+          }
+          if (eventName === 'VoiceActivatorOnRuntimeInterruption') {
+            runtimeInterruptionListeners.add(listener);
+          }
           nativeModule.addListener(eventName);
 
           return {
             remove() {
               wakeWordListeners.delete(listener);
+              runtimeStateListeners.delete(listener);
+              runtimeErrorListeners.delete(listener);
+              runtimeInterruptionListeners.delete(listener);
               nativeModule.removeListeners(1);
             },
           };
@@ -135,6 +152,18 @@ describe('native module bridge selection', () => {
     expect(nativeModule.addListener).toHaveBeenCalledWith(
       'VoiceActivatorOnWakeWordDetected'
     );
+    expect(nativeModule.addListener).toHaveBeenCalledWith(
+      'VoiceActivatorOnRuntimeStateChanged'
+    );
+    expect(nativeModule.addListener).toHaveBeenCalledWith(
+      'VoiceActivatorOnRuntimeError'
+    );
+    expect(nativeModule.addListener).toHaveBeenCalledWith(
+      'VoiceActivatorOnRuntimeInterruption'
+    );
+    expect(runtimeStateListeners.size).toBeGreaterThan(0);
+    expect(runtimeErrorListeners.size).toBeGreaterThan(0);
+    expect(runtimeInterruptionListeners.size).toBeGreaterThan(0);
     expect(VoiceActivator.getStatus()).toEqual({
       state: 'idle',
       isAvailable: true,
