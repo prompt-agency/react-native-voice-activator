@@ -1,3 +1,5 @@
+import { createDefaultRuntimeConfiguration } from '../domain/detection-config';
+
 describe('native module bridge selection', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -27,7 +29,9 @@ describe('native module bridge selection', () => {
       lastError: null,
     });
 
-    await expect(runtimeBridge.initialize({})).rejects.toThrow(
+    await expect(
+      runtimeBridge.initialize(createDefaultRuntimeConfiguration())
+    ).rejects.toThrow(
       'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling the native path.'
     );
   });

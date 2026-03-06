@@ -2,6 +2,7 @@ import {
   getVoiceActivatorRuntimeBridge,
   setWakeWordDetectedHandler,
 } from '../internal/native-module';
+import { createRuntimeConfiguration } from '../domain/detection-config';
 import {
   addRuntimeListener,
   emitRuntimeEvent,
@@ -83,6 +84,7 @@ export const voiceActivator: VoiceActivatorApi = {
     if (!activeRuntime?.initialize) {
       return rejectUnsupportedRuntime('initialize');
     }
+    const runtimeConfiguration = createRuntimeConfiguration(options);
 
     runtimeStore.transitionToState('initializing', {
       canStart: false,
@@ -91,7 +93,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
-      await activeRuntime.initialize(options);
+      await activeRuntime.initialize(runtimeConfiguration);
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),

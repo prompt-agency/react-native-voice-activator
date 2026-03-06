@@ -251,4 +251,70 @@ describe('public runtime state and event contract', () => {
       lastError: null,
     });
   });
+
+  it('forwards normalized engine selection, config, and metadata through initialize', async () => {
+    const initialize = jest.fn(async () => undefined);
+    const runtimeBridge = {
+      initialize,
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'idle',
+        isAvailable: true,
+        isListening: false,
+        canStart: false,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      profile: 'accuracy',
+      enableDebugLogging: true,
+      engine: {
+        id: 'custom-engine',
+        variant: 'preview',
+      },
+      engineConfig: {
+        sensitivity: 0.72,
+        metadata: {
+          locale: 'en-US',
+        },
+      },
+    });
+
+    expect(initialize).toHaveBeenCalledWith({
+      profile: 'accuracy',
+      enableDebugLogging: true,
+      engine: {
+        id: 'custom-engine',
+        variant: 'preview',
+      },
+      engineConfig: {
+        sensitivity: 0.72,
+        metadata: {
+          locale: 'en-US',
+        },
+      },
+      engineMetadata: {
+        id: 'default',
+        displayName: 'Default built-in wake word engine',
+        assetRequirement: 'bundled',
+        capabilities: {
+          onDeviceDetection: true,
+          backgroundDetection: false,
+          customKeywordAssets: true,
+          runtimeConfigurationUpdates: true,
+        },
+      },
+    });
+  });
 });

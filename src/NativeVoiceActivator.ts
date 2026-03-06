@@ -1,13 +1,11 @@
 import type { TurboModule } from 'react-native';
 import { TurboModuleRegistry } from 'react-native';
 
-import type {
-  WakeWordInitializationOptions,
-  WakeWordStatus,
-} from './public/types';
+import type { WakeWordStatus } from './public/types';
+import type { WakeWordRuntimeConfiguration } from './domain/detection-config';
 
 export interface Spec extends TurboModule {
-  initialize(options: WakeWordInitializationOptions): Promise<void>;
+  initialize(options: WakeWordRuntimeConfiguration): Promise<void>;
   startDetection(): Promise<void>;
   stopDetection(): Promise<void>;
   getStatus(): WakeWordStatus;

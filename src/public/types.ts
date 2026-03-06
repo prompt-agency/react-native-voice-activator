@@ -21,6 +21,40 @@ export type WakeWordErrorCategory =
   | 'platform'
   | 'internal';
 
+export type WakeWordEngineId = 'default' | (string & {});
+export type WakeWordEngineMetadataValue = string | number | boolean;
+export type WakeWordEngineAssetRequirement = 'none' | 'bundled' | 'optional';
+
+export interface WakeWordEngineSelection {
+  id: WakeWordEngineId;
+  variant?: string;
+}
+
+export interface WakeWordEngineAssetKeys {
+  modelAssetKey?: string;
+  keywordAssetKey?: string;
+}
+
+export interface WakeWordEngineConfiguration {
+  assetKeys?: WakeWordEngineAssetKeys;
+  sensitivity?: number;
+  metadata?: Record<string, WakeWordEngineMetadataValue>;
+}
+
+export interface WakeWordEngineCapabilities {
+  onDeviceDetection: boolean;
+  backgroundDetection: boolean;
+  customKeywordAssets: boolean;
+  runtimeConfigurationUpdates: boolean;
+}
+
+export interface WakeWordEngineMetadata {
+  id: WakeWordEngineId;
+  displayName: string;
+  assetRequirement: WakeWordEngineAssetRequirement;
+  capabilities: WakeWordEngineCapabilities;
+}
+
 export interface WakeWordError {
   code: string;
   category: WakeWordErrorCategory;
@@ -32,6 +66,8 @@ export interface WakeWordError {
 export interface WakeWordInitializationOptions {
   profile?: 'balanced' | 'accuracy' | 'power-save';
   enableDebugLogging?: boolean;
+  engine?: WakeWordEngineSelection;
+  engineConfig?: WakeWordEngineConfiguration;
 }
 
 export interface WakeWordStatus {

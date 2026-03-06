@@ -1,10 +1,8 @@
-import type {
-  WakeWordDetectedEvent,
-  WakeWordInitializationOptions,
-} from '../public/types';
+import type { WakeWordDetectedEvent } from '../public/types';
+import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
 
 export interface LocalForegroundEngine {
-  configure(options: WakeWordInitializationOptions): void;
+  configure(options: WakeWordRuntimeConfiguration): void;
   scheduleDetection(
     onDetected: (event: WakeWordDetectedEvent) => void
   ): ReturnType<typeof setTimeout>;

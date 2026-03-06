@@ -10,6 +10,13 @@ export {
 export { wakeWordStates } from './public/types';
 export type {
   VoiceActivatorApi,
+  WakeWordEngineAssetKeys,
+  WakeWordEngineCapabilities,
+  WakeWordEngineConfiguration,
+  WakeWordEngineId,
+  WakeWordEngineMetadata,
+  WakeWordEngineMetadataValue,
+  WakeWordEngineSelection,
   VoiceActivatorEventMap,
   WakeWordAudioRouteChangedEvent,
   WakeWordDetectedEvent,

@@ -1,16 +1,13 @@
 import NativeVoiceActivator from '../NativeVoiceActivator';
 import { NativeEventEmitter, type TurboModule } from 'react-native';
 
-import type {
-  WakeWordDetectedEvent,
-  WakeWordInitializationOptions,
-  WakeWordStatus,
-} from '../public/types';
+import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
+import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
 import { createLocalForegroundRuntime } from './local-foreground-runtime';
 import type { VoiceActivatorRuntimeBridge } from './runtime-bridge';
 
 export interface NativeVoiceActivatorSpec extends TurboModule {
-  initialize?(options: WakeWordInitializationOptions): Promise<void>;
+  initialize?(options: WakeWordRuntimeConfiguration): Promise<void>;
   startDetection?(): Promise<void>;
   stopDetection?(): Promise<void>;
   getStatus?(): ReturnType<VoiceActivatorRuntimeBridge['getStatus']>;

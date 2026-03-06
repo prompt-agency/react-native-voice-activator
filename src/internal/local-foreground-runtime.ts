@@ -1,8 +1,5 @@
-import type {
-  WakeWordDetectedEvent,
-  WakeWordInitializationOptions,
-  WakeWordStatus,
-} from '../public/types';
+import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
+import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
 import { createLocalForegroundEngine } from './local-foreground-engine';
 import type { VoiceActivatorRuntimeBridge } from './runtime-bridge';
 
@@ -50,7 +47,7 @@ export function createLocalForegroundRuntime(): LocalForegroundRuntime {
   }
 
   return {
-    async initialize(options: WakeWordInitializationOptions) {
+    async initialize(options: WakeWordRuntimeConfiguration) {
       clearDetectionTimer();
       engine.configure(options);
       status = {
