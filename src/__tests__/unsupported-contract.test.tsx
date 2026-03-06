@@ -1,9 +1,49 @@
 import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
 
+function createMockEngineRuntime() {
+  let detectionTimer: ReturnType<typeof setTimeout> | null = null;
+  let detectionCallback: ((event: WakeWordDetectedEvent) => void) | null = null;
+
+  function clearDetectionTimer() {
+    if (detectionTimer) {
+      clearTimeout(detectionTimer);
+      detectionTimer = null;
+    }
+  }
+
+  return {
+    initialize: jest.fn(
+      async (
+        _configuration,
+        handlers: { onDetected(event: WakeWordDetectedEvent): void }
+      ) => {
+        detectionCallback = handlers.onDetected;
+      }
+    ),
+    start: jest.fn(async () => {
+      clearDetectionTimer();
+      detectionTimer = setTimeout(() => {
+        detectionTimer = null;
+        detectionCallback?.({
+          detectedPhrase: 'porcupine',
+          detectedAt: '2026-03-06T12:00:00.000Z',
+        });
+      }, 0);
+    }),
+    stop: jest.fn(async () => {
+      clearDetectionTimer();
+    }),
+    dispose: jest.fn(async () => {
+      clearDetectionTimer();
+    }),
+  };
+}
+
 function mockLocalRuntimeBridge() {
   const runtime = jest
     .requireActual('../internal/local-foreground-runtime')
     .createLocalForegroundRuntime();
+  const engineRuntime = createMockEngineRuntime();
 
   jest.doMock('../internal/native-module', () => ({
     nativeVoiceActivatorModule: null,
@@ -11,6 +51,10 @@ function mockLocalRuntimeBridge() {
     setWakeWordDetectedHandler: jest.fn((handler) => {
       runtime.setWakeWordDetectedHandler(handler);
     }),
+  }));
+
+  jest.doMock('../engines', () => ({
+    createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
   }));
 }
 
@@ -59,8 +103,8 @@ describe('foreground fallback runtime behavior', () => {
 
     expect(detectedEvents).toEqual([
       {
-        detectedPhrase: 'hey react native',
-        detectedAt: expect.any(String),
+        detectedPhrase: 'porcupine',
+        detectedAt: '2026-03-06T12:00:00.000Z',
       },
     ]);
 
@@ -99,13 +143,11 @@ describe('foreground fallback runtime behavior', () => {
     await VoiceActivator.startDetection();
     await VoiceActivator.stopDetection();
 
-    jest.runOnlyPendingTimers();
     expect(listener).not.toHaveBeenCalled();
 
     await VoiceActivator.startDetection();
     await VoiceActivator.dispose();
 
-    jest.runOnlyPendingTimers();
     expect(listener).not.toHaveBeenCalled();
 
     subscription.remove();

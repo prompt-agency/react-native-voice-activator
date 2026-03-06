@@ -6,9 +6,22 @@ import type {
   WakeWordStatus,
 } from '../public/types';
 
+function createMockEngineRuntime() {
+  return {
+    initialize: jest.fn(async () => undefined),
+    start: jest.fn(async () => undefined),
+    stop: jest.fn(async () => undefined),
+    dispose: jest.fn(async () => undefined),
+  };
+}
+
 describe('public runtime state and event contract', () => {
   beforeEach(() => {
     jest.resetModules();
+    const engineRuntime = createMockEngineRuntime();
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
   });
 
   it('emits typed state transitions for initialize, start, stop, and dispose', async () => {

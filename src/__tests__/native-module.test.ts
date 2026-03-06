@@ -1,8 +1,21 @@
 import { createDefaultRuntimeConfiguration } from '../domain/detection-config';
 
+function createMockEngineRuntime() {
+  return {
+    initialize: jest.fn(async () => undefined),
+    start: jest.fn(async () => undefined),
+    stop: jest.fn(async () => undefined),
+    dispose: jest.fn(async () => undefined),
+  };
+}
+
 describe('native module bridge selection', () => {
   beforeEach(() => {
     jest.resetModules();
+    const engineRuntime = createMockEngineRuntime();
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
   });
 
   it('fails explicitly instead of silently falling back when a native module is partially implemented', async () => {

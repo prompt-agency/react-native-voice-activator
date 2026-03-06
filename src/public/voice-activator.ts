@@ -11,6 +11,8 @@ import {
   emitRuntimeEvent,
 } from '../internal/runtime-events';
 import { createRuntimeStore } from '../internal/runtime-store';
+import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
+import { createPorcupineEngineRuntime } from '../engines';
 import type {
   VoiceActivatorApi,
   WakeWordError,
@@ -18,6 +20,8 @@ import type {
   WakeWordInitializationOptions,
   WakeWordStatus,
 } from './types';
+
+let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 
 const runtimeStore = createRuntimeStore(
   getVoiceActivatorRuntimeBridge().getStatus() ?? {
@@ -98,6 +102,48 @@ function createRuntimeFailure(
   };
 }
 
+function isWakeWordError(value: unknown): value is WakeWordError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'category' in value &&
+    'code' in value &&
+    'message' in value &&
+    'recoverable' in value
+  );
+}
+
+function createConfigurationFailure(error: WakeWordError): WakeWordError {
+  return {
+    ...error,
+    recoverable: true,
+  };
+}
+
+function applyRuntimeError(error: WakeWordError) {
+  runtimeStore.setStatus({
+    ...getCurrentStatus(),
+    state: 'error',
+    isListening: false,
+    canStart: false,
+    lastError: error,
+  });
+  emitRuntimeEvent('error', error);
+}
+
+function resolveEngineRuntime(): VoiceActivatorEngineRuntime {
+  return createPorcupineEngineRuntime();
+}
+
+async function disposeEngineRuntime() {
+  if (!activeEngineRuntime) {
+    return;
+  }
+
+  await activeEngineRuntime.dispose();
+  activeEngineRuntime = null;
+}
+
 const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
 
 export const voiceActivator: VoiceActivatorApi = {
@@ -107,6 +153,7 @@ export const voiceActivator: VoiceActivatorApi = {
       return rejectUnsupportedRuntime('initialize');
     }
     const runtimeConfiguration = createRuntimeConfiguration(options);
+    const nextEngineRuntime = resolveEngineRuntime();
 
     runtimeStore.transitionToState('initializing', {
       canStart: false,
@@ -115,7 +162,17 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
+      await disposeEngineRuntime();
       await activeRuntime.initialize(runtimeConfiguration);
+      await nextEngineRuntime.initialize(runtimeConfiguration, {
+        onDetected(payload) {
+          emitRuntimeEvent('wakeWordDetected', payload);
+        },
+        onError(error) {
+          applyRuntimeError(error);
+        },
+      });
+      activeEngineRuntime = nextEngineRuntime;
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -127,10 +184,21 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
-      runtimeStore.recordError(
-        createRuntimeFailure('initialize', cause),
-        'error'
-      );
+      if (isWakeWordError(cause) && cause.category === 'configuration') {
+        runtimeStore.recordError(createConfigurationFailure(cause), 'error');
+      } else if (isWakeWordError(cause)) {
+        runtimeStore.recordError(cause, 'error');
+      } else {
+        runtimeStore.recordError(
+          createRuntimeFailure('initialize', cause),
+          'error'
+        );
+      }
+      try {
+        await activeRuntime.dispose?.();
+      } catch {
+        // Best-effort rollback when engine initialization fails.
+      }
       throw cause;
     }
   },
@@ -148,6 +216,7 @@ export const voiceActivator: VoiceActivatorApi = {
 
     try {
       await activeRuntime.startDetection();
+      await activeEngineRuntime?.start();
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -159,8 +228,15 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
+      try {
+        await activeRuntime.stopDetection?.();
+      } catch {
+        // Best-effort rollback when the engine-backed start path fails.
+      }
       runtimeStore.recordError(
-        createRuntimeFailure('startDetection', cause),
+        isWakeWordError(cause)
+          ? cause
+          : createRuntimeFailure('startDetection', cause),
         'error'
       );
       throw cause;
@@ -179,6 +255,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
+      await activeEngineRuntime?.stop();
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
         resolveStatus({
@@ -192,7 +269,9 @@ export const voiceActivator: VoiceActivatorApi = {
       );
     } catch (cause) {
       runtimeStore.recordError(
-        createRuntimeFailure('stopDetection', cause),
+        isWakeWordError(cause)
+          ? cause
+          : createRuntimeFailure('stopDetection', cause),
         'error'
       );
       throw cause;
@@ -210,6 +289,7 @@ export const voiceActivator: VoiceActivatorApi = {
     }
 
     try {
+      await disposeEngineRuntime();
       await activeRuntime.dispose();
       runtimeStore.setStatus(
         resolveStatus({
@@ -222,7 +302,10 @@ export const voiceActivator: VoiceActivatorApi = {
         })
       );
     } catch (cause) {
-      runtimeStore.recordError(createRuntimeFailure('dispose', cause), 'error');
+      runtimeStore.recordError(
+        isWakeWordError(cause) ? cause : createRuntimeFailure('dispose', cause),
+        'error'
+      );
       throw cause;
     }
   },

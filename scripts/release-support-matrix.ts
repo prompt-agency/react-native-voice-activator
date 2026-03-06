@@ -6,3 +6,5 @@ const supportMatrix = {
 };
 
 console.log(JSON.stringify(supportMatrix, null, 2));
+
+export {};

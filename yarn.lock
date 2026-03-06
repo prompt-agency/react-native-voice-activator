@@ -2690,6 +2690,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@picovoice/porcupine-react-native@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@picovoice/porcupine-react-native@npm:4.0.0"
+  peerDependencies:
+    "@picovoice/react-native-voice-processor": ">= 1.2.3"
+    react: ">= 18.0"
+    react-native: ">= 0.73"
+  checksum: c61c7a66b66352224350fcbf4329fc48216fa2bc2ba2e0badc1f29b5b516f45c704ac6ba7f5e01868a7a82b22f575520ae455a5d692aac8363ddd40676ba169b
+  languageName: node
+  linkType: hard
+
+"@picovoice/react-native-voice-processor@npm:^1.2.3":
+  version: 1.2.3
+  resolution: "@picovoice/react-native-voice-processor@npm:1.2.3"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 444088a83adf9ff72d854255b0f6eeef178dec035c2dfcbe970c225c7103b379bef8bb88dbfa71d00b20acade7d33ed33fdf5fb9b2e5622cbbc01d6a33ffb19b
+  languageName: node
+  linkType: hard
+
 "@pkgjs/parseargs@npm:^0.11.0":
   version: 0.11.0
   resolution: "@pkgjs/parseargs@npm:0.11.0"
@@ -10261,6 +10282,8 @@ __metadata:
     "@eslint/eslintrc": ^3.3.1
     "@eslint/js": ^9.35.0
     "@evilmartians/lefthook": ^1.12.3
+    "@picovoice/porcupine-react-native": ^4.0.0
+    "@picovoice/react-native-voice-processor": ^1.2.3
     "@react-native-community/cli": 20.0.1
     "@react-native/babel-preset": 0.83.2
     "@react-native/eslint-config": ^0.81.1

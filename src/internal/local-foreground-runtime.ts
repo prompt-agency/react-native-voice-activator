@@ -1,9 +1,6 @@
-import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
+import type { WakeWordStatus } from '../public/types';
 import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
-import { createLocalForegroundEngine } from './local-foreground-engine';
 import type { VoiceActivatorRuntimeBridge } from './runtime-bridge';
-
-type WakeWordDetectedHandler = (event: WakeWordDetectedEvent) => void;
 
 function cloneStatus(status: WakeWordStatus): WakeWordStatus {
   return {
@@ -13,11 +10,14 @@ function cloneStatus(status: WakeWordStatus): WakeWordStatus {
 }
 
 export interface LocalForegroundRuntime extends VoiceActivatorRuntimeBridge {
-  setWakeWordDetectedHandler(handler: WakeWordDetectedHandler | null): void;
+  setWakeWordDetectedHandler(
+    handler:
+      | ((payload: import('../public/types').WakeWordDetectedEvent) => void)
+      | null
+  ): void;
 }
 
 export function createLocalForegroundRuntime(): LocalForegroundRuntime {
-  const engine = createLocalForegroundEngine();
   let status: WakeWordStatus = {
     state: 'idle',
     isAvailable: true,
@@ -25,31 +25,9 @@ export function createLocalForegroundRuntime(): LocalForegroundRuntime {
     canStart: false,
     lastError: null,
   };
-  let wakeWordDetectedHandler: WakeWordDetectedHandler | null = null;
-  let detectionTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function clearDetectionTimer() {
-    if (detectionTimer) {
-      clearTimeout(detectionTimer);
-      detectionTimer = null;
-    }
-  }
-
-  function scheduleForegroundDetection() {
-    clearDetectionTimer();
-    detectionTimer = engine.scheduleDetection((payload) => {
-      detectionTimer = null;
-
-      if (status.state === 'running' && wakeWordDetectedHandler) {
-        wakeWordDetectedHandler(payload);
-      }
-    });
-  }
 
   return {
-    async initialize(options: WakeWordRuntimeConfiguration) {
-      clearDetectionTimer();
-      engine.configure(options);
+    async initialize(_options: WakeWordRuntimeConfiguration) {
       status = {
         state: 'ready',
         isAvailable: true,
@@ -73,12 +51,9 @@ export function createLocalForegroundRuntime(): LocalForegroundRuntime {
         canStart: false,
         lastError: null,
       };
-      scheduleForegroundDetection();
     },
 
     async stopDetection() {
-      clearDetectionTimer();
-
       if (
         status.state !== 'running' &&
         status.state !== 'starting' &&
@@ -107,7 +82,6 @@ export function createLocalForegroundRuntime(): LocalForegroundRuntime {
     },
 
     async dispose() {
-      clearDetectionTimer();
       status = {
         state: 'idle',
         isAvailable: true,
@@ -117,8 +91,8 @@ export function createLocalForegroundRuntime(): LocalForegroundRuntime {
       };
     },
 
-    setWakeWordDetectedHandler(handler: WakeWordDetectedHandler | null) {
-      wakeWordDetectedHandler = handler;
+    setWakeWordDetectedHandler(_handler) {
+      // Local fallback runtime no longer simulates detection events.
     },
   };
 }
