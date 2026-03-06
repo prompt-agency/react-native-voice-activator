@@ -1,7 +1,8 @@
-import { TurboModuleRegistry, type TurboModule } from 'react-native';
+import {
+  nativeVoiceActivatorModule,
+  type NativeVoiceActivatorSpec,
+} from './internal/native-module';
 
-export interface Spec extends TurboModule {
-  multiply(a: number, b: number): number;
-}
+export type Spec = NativeVoiceActivatorSpec;
 
-export default TurboModuleRegistry.getEnforcing<Spec>('VoiceActivator');
+export default nativeVoiceActivatorModule;

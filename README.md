@@ -2,7 +2,7 @@
 
 React Native and Expo wake word detection library
 
-This repository is currently at Story `1.1` bootstrap state. The scaffold is in place, but the real wake word API has not been implemented yet.
+This repository is currently at Story `1.2` contract-definition state. The public TypeScript API exists, but the real native wake word runtime is still being implemented in later stories.
 
 ## Installation
 
@@ -16,14 +16,31 @@ npm install react-native-voice-activator
 
 
 ```ts
-import { multiply } from 'react-native-voice-activator';
+import {
+  addWakeWordListener,
+  getStatus,
+  initialize,
+  startDetection,
+  stopDetection,
+  dispose,
+} from 'react-native-voice-activator';
 
-// Temporary scaffold smoke test only.
+const status = getStatus();
+const subscription = addWakeWordListener('stateChanged', (event) => {
+  console.log('state changed', event.state);
+});
 
-const result = multiply(3, 7);
+if (status.canStart) {
+  await initialize();
+  await startDetection();
+  await stopDetection();
+  await dispose();
+}
+
+subscription.remove();
 ```
 
-The `multiply` export is starter-generated placeholder behavior used only to verify the native module scaffold. It will be replaced by the actual wake word API in later stories.
+At this stage the package exposes the intended lifecycle contract, but `getStatus()` may report `unsupported` until later native runtime stories land. In that state, lifecycle methods reject with a consistent bootstrap-stage error and listeners remain safe to register or remove.
 
 
 ## Contributing
