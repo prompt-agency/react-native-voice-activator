@@ -35,9 +35,10 @@
   ],
   "scripts": {
     "example": "yarn workspace react-native-voice-activator-example",
+    "verify:contracts": "node scripts/verify-example-setup.ts && node scripts/verify-doc-links.ts",
     "test": "jest",
     "typecheck": "tsc",
-    "lint": "eslint \"**/*.{js,ts,tsx}\"",
+    "lint": "eslint \"**/*.{js,ts,tsx}\" && yarn verify:contracts",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
     "release": "release-it --only-version"

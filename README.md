@@ -1,47 +1,92 @@
 # react-native-voice-activator
 
-React Native and Expo wake word detection library
+React Native and Expo wake word runtime library.
 
-This repository is currently at Story `1.2` contract-definition state. The public TypeScript API exists, but the real native wake word runtime is still being implemented in later stories.
+Current Epic 1 status:
+
+- the public lifecycle API is implemented
+- typed runtime state and detection events are implemented
+- a supported foreground runtime flow exists
+- real built-in wake word detection is not finished yet
+
+Real engine-backed local wake word detection lands in Epic 2 integration work. The current foreground flow is still useful for validating app integration, lifecycle handling, and event wiring.
 
 ## Installation
-
 
 ```sh
 npm install react-native-voice-activator
 ```
 
-
-## Usage
-
+## Quickstart
 
 ```ts
 import {
   addWakeWordListener,
+  dispose,
   getStatus,
   initialize,
   startDetection,
   stopDetection,
-  dispose,
 } from 'react-native-voice-activator';
 
-const status = getStatus();
-const subscription = addWakeWordListener('stateChanged', (event) => {
-  console.log('state changed', event.state);
-});
+async function runQuickstart() {
+  const stateSubscription = addWakeWordListener('stateChanged', (event) => {
+    console.log('state changed:', event.state);
+  });
 
-if (status.canStart) {
-  await initialize();
-  await startDetection();
-  await stopDetection();
-  await dispose();
+  const detectionSubscription = addWakeWordListener(
+    'wakeWordDetected',
+    (event) => {
+      console.log('detection event:', event.detectedPhrase, event.detectedAt);
+    }
+  );
+
+  const status = getStatus();
+
+  if (status.state === 'unsupported') {
+    console.log(status.reason);
+    stateSubscription.remove();
+    detectionSubscription.remove();
+    return;
+  }
+
+  try {
+    await initialize();
+    await startDetection();
+    await stopDetection();
+    await dispose();
+  } finally {
+    stateSubscription.remove();
+    detectionSubscription.remove();
+  }
 }
 
-subscription.remove();
+runQuickstart().catch((error) => {
+  console.error('quickstart failed:', error);
+});
 ```
 
-At this stage the package exposes the intended lifecycle contract, but `getStatus()` may report `unsupported` until later native runtime stories land. In that state, lifecycle methods reject with a consistent bootstrap-stage error and listeners remain safe to register or remove.
+## What This Quickstart Proves Today
 
+- your app can import the public package API
+- lifecycle methods work through the current supported foreground runtime path
+- `stateChanged` and `wakeWordDetected` events are wired correctly
+- `getStatus()` reflects runtime state transitions
+
+## Current Limitations
+
+- Epic 1 does not yet provide real built-in wake word detection
+- the current foreground flow should be treated as integration and lifecycle validation
+- native runtime hardening and real engine-backed detection are part of Epic 2
+- background behavior, Expo automation, and production detection quality are later stories
+
+## Compatibility Notes
+
+- use the package through the public API exported from `src/index.ts`
+- check `getStatus()` before assuming lifecycle methods are available in your environment
+- if `getStatus().state === 'unsupported'`, the runtime is not available and lifecycle methods will reject with a consistent error message
+- today, the supported validation path is the repo example app and equivalent bare React Native consumers using the current library scaffold
+- this quickstart is not a claim of production-ready engine detection or Expo-ready runtime support yet
 
 ## Contributing
 

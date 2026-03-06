@@ -1,8 +1,19 @@
-import {
-  nativeVoiceActivatorModule,
-  type NativeVoiceActivatorSpec,
-} from './internal/native-module';
+import type { TurboModule } from 'react-native';
+import { TurboModuleRegistry } from 'react-native';
 
-export type Spec = NativeVoiceActivatorSpec;
+import type {
+  WakeWordInitializationOptions,
+  WakeWordStatus,
+} from './public/types';
 
-export default nativeVoiceActivatorModule;
+export interface Spec extends TurboModule {
+  initialize(options: WakeWordInitializationOptions): Promise<void>;
+  startDetection(): Promise<void>;
+  stopDetection(): Promise<void>;
+  getStatus(): WakeWordStatus;
+  dispose(): Promise<void>;
+  addListener(eventName: string): void;
+  removeListeners(count: number): void;
+}
+
+export default TurboModuleRegistry.get<Spec>('VoiceActivator');

@@ -40,14 +40,18 @@ describe('public runtime state and event contract', () => {
       mockStatus.canStart = true;
     });
 
+    const runtimeBridge = {
+      initialize,
+      startDetection,
+      stopDetection,
+      getStatus: jest.fn(() => ({ ...mockStatus })),
+      dispose,
+    };
+
     jest.doMock('../internal/native-module', () => ({
-      nativeVoiceActivatorModule: {
-        initialize,
-        startDetection,
-        stopDetection,
-        getStatus: jest.fn(() => ({ ...mockStatus })),
-        dispose,
-      },
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -93,13 +97,20 @@ describe('public runtime state and event contract', () => {
       lastError: null,
     };
 
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        mockStatus.state = 'ready';
+      }),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...mockStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
     jest.doMock('../internal/native-module', () => ({
-      nativeVoiceActivatorModule: {
-        initialize: jest.fn(async () => {
-          mockStatus.state = 'ready';
-        }),
-        getStatus: jest.fn(() => ({ ...mockStatus })),
-      },
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -118,16 +129,24 @@ describe('public runtime state and event contract', () => {
   });
 
   it('delivers typed payloads for the remaining event channels', async () => {
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'ready',
+        isAvailable: true,
+        isListening: false,
+        canStart: true,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+
     jest.doMock('../internal/native-module', () => ({
-      nativeVoiceActivatorModule: {
-        getStatus: jest.fn(() => ({
-          state: 'ready',
-          isAvailable: true,
-          isListening: false,
-          canStart: true,
-          lastError: null,
-        })),
-      },
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -193,16 +212,24 @@ describe('public runtime state and event contract', () => {
   });
 
   it('protects the canonical runtime status from consumer mutation', async () => {
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'ready',
+        isAvailable: true,
+        isListening: false,
+        canStart: true,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+
     jest.doMock('../internal/native-module', () => ({
-      nativeVoiceActivatorModule: {
-        getStatus: jest.fn(() => ({
-          state: 'ready',
-          isAvailable: true,
-          isListening: false,
-          canStart: true,
-          lastError: null,
-        })),
-      },
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');

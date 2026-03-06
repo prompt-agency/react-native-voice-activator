@@ -1,5 +1,6 @@
+#import <React/RCTEventEmitter.h>
 #import <VoiceActivatorSpec/VoiceActivatorSpec.h>
 
-@interface VoiceActivator : NSObject <NativeVoiceActivatorSpec>
+@interface VoiceActivator : RCTEventEmitter <NativeVoiceActivatorSpec>
 
 @end

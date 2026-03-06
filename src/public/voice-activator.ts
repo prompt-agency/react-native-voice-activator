@@ -1,5 +1,11 @@
-import { nativeVoiceActivatorModule } from '../internal/native-module';
-import { addRuntimeListener } from '../internal/runtime-events';
+import {
+  getVoiceActivatorRuntimeBridge,
+  setWakeWordDetectedHandler,
+} from '../internal/native-module';
+import {
+  addRuntimeListener,
+  emitRuntimeEvent,
+} from '../internal/runtime-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type {
   VoiceActivatorApi,
@@ -9,21 +15,19 @@ import type {
   WakeWordStatus,
 } from './types';
 
-const unsupportedReason =
-  'The native wake word runtime is not implemented yet. Story 1.2 defines the public TypeScript contract only.';
-
-const unsupportedStatus: WakeWordStatus = {
-  state: 'unsupported',
-  isAvailable: false,
-  isListening: false,
-  canStart: false,
-  reason: unsupportedReason,
-  lastError: null,
-};
-
 const runtimeStore = createRuntimeStore(
-  nativeVoiceActivatorModule?.getStatus?.() ?? unsupportedStatus
+  getVoiceActivatorRuntimeBridge().getStatus() ?? {
+    state: 'unsupported',
+    isAvailable: false,
+    isListening: false,
+    canStart: false,
+    reason: 'No runtime is available.',
+    lastError: null,
+  }
 );
+setWakeWordDetectedHandler((payload) => {
+  emitRuntimeEvent('wakeWordDetected', payload);
+});
 
 function createUnsupportedRuntimeError(methodName: string) {
   return new Error(
@@ -51,7 +55,7 @@ function getCurrentStatus(): WakeWordStatus {
 }
 
 function resolveStatus(fallback: WakeWordStatus): WakeWordStatus {
-  return nativeVoiceActivatorModule?.getStatus?.() ?? fallback;
+  return getVoiceActivatorRuntimeBridge().getStatus?.() ?? fallback;
 }
 
 function createRuntimeFailure(
@@ -75,7 +79,8 @@ const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
 
 export const voiceActivator: VoiceActivatorApi = {
   async initialize(options: WakeWordInitializationOptions = {}) {
-    if (!nativeVoiceActivatorModule?.initialize) {
+    const activeRuntime = getVoiceActivatorRuntimeBridge();
+    if (!activeRuntime?.initialize) {
       return rejectUnsupportedRuntime('initialize');
     }
 
@@ -86,7 +91,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
-      await nativeVoiceActivatorModule.initialize(options);
+      await activeRuntime.initialize(options);
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -107,7 +112,8 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 
   async startDetection() {
-    if (!nativeVoiceActivatorModule?.startDetection) {
+    const activeRuntime = getVoiceActivatorRuntimeBridge();
+    if (!activeRuntime?.startDetection) {
       return rejectUnsupportedRuntime('startDetection');
     }
 
@@ -117,7 +123,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
-      await nativeVoiceActivatorModule.startDetection();
+      await activeRuntime.startDetection();
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -138,7 +144,8 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 
   async stopDetection() {
-    if (!nativeVoiceActivatorModule?.stopDetection) {
+    const activeRuntime = getVoiceActivatorRuntimeBridge();
+    if (!activeRuntime?.stopDetection) {
       return rejectUnsupportedRuntime('stopDetection');
     }
 
@@ -148,7 +155,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
-      await nativeVoiceActivatorModule.stopDetection();
+      await activeRuntime.stopDetection();
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -173,12 +180,13 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 
   async dispose() {
-    if (!nativeVoiceActivatorModule?.dispose) {
+    const activeRuntime = getVoiceActivatorRuntimeBridge();
+    if (!activeRuntime?.dispose) {
       return rejectUnsupportedRuntime('dispose');
     }
 
     try {
-      await nativeVoiceActivatorModule.dispose();
+      await activeRuntime.dispose();
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
