@@ -1,0 +1,10 @@
+name: Example Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Example build workflow placeholder created during Story 1.1 bootstrap."
