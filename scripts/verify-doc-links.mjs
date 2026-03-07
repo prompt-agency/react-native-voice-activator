@@ -29,12 +29,30 @@ if (!existsSync(readmePath)) {
     'startDetection',
     'stopDetection',
     'dispose',
-    'Real engine-backed local wake word detection lands in Epic 2 integration work.',
+    'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter',
+    'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
   ];
 
   for (const text of requiredReadmeText) {
     if (!readme.includes(text)) {
       errors.push(`README missing required text: ${text}`);
+    }
+  }
+}
+
+const backgroundBehaviorPath = join(root, 'docs/background-behavior.md');
+
+if (existsSync(backgroundBehaviorPath)) {
+  const backgroundBehavior = readFileSync(backgroundBehaviorPath, 'utf8');
+  const requiredBackgroundBehaviorText = [
+    'force-quit continuation',
+    'background_audio_mode_required',
+    'event-driven consumers do not need to poll `getStatus()`',
+  ];
+
+  for (const text of requiredBackgroundBehaviorText) {
+    if (!backgroundBehavior.includes(text)) {
+      errors.push(`background-behavior missing required text: ${text}`);
     }
   }
 }

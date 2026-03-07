@@ -518,6 +518,257 @@ describe('public runtime state and event contract', () => {
     ]);
   });
 
+  it('surfaces supported iOS background continuation and explicit unsupported background states', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+    let runtimeErrorHandler:
+      | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+      | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(
+        (
+          handler:
+            | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+            | null
+        ) => {
+          runtimeErrorHandler = handler;
+        }
+      ),
+      setRuntimeInterruptionHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const errors: Array<WakeWordStatus['lastError']> = [];
+
+    const errorSubscription = VoiceActivator.addWakeWordListener(
+      'error',
+      (payload) => {
+        errors.push(payload);
+      }
+    );
+
+    expect(runtimeStatusHandler).not.toBeNull();
+    expect(runtimeErrorHandler).not.toBeNull();
+
+    runtimeStatus.reason =
+      'Wake word detection is continuing in a supported iOS background audio state.';
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      reason:
+        'Wake word detection is continuing in a supported iOS background audio state.',
+      lastError: null,
+    });
+
+    runtimeStatus.state = 'unsupported';
+    runtimeStatus.isAvailable = false;
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.';
+    runtimeStatus.lastError = {
+      category: 'platform',
+      code: 'background_audio_mode_required',
+      message:
+        'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+      recoverable: true,
+      platform: 'ios',
+    };
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    runtimeErrorHandler!({ ...runtimeStatus.lastError });
+
+    errorSubscription.remove();
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      reason:
+        'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+      lastError: {
+        category: 'platform',
+        code: 'background_audio_mode_required',
+        message:
+          'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+        recoverable: true,
+        platform: 'ios',
+      },
+    });
+    expect(errors).toEqual([
+      {
+        category: 'platform',
+        code: 'background_audio_mode_required',
+        message:
+          'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+        recoverable: true,
+        platform: 'ios',
+      },
+    ]);
+  });
+
+  it('emits observable stateChanged events when supported iOS background continuation starts and ends', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const stateEvents: WakeWordStateChangedEvent[] = [];
+    const subscription = VoiceActivator.addWakeWordListener(
+      'stateChanged',
+      (payload) => {
+        stateEvents.push(payload);
+      }
+    );
+
+    runtimeStatus.reason =
+      'Wake word detection is continuing in a supported iOS background audio state.';
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    delete runtimeStatus.reason;
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    subscription.remove();
+
+    expect(stateEvents).toEqual([
+      { previousState: 'running', state: 'running' },
+      { previousState: 'running', state: 'running' },
+    ]);
+  });
+
+  it('disposes the active engine runtime when native iOS transitions to an unsupported background state', async () => {
+    jest.resetModules();
+    const engineRuntime = createMockEngineRuntime();
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => {
+        runtimeStatus.state = 'idle';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = false;
+      }),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize();
+    await VoiceActivator.startDetection();
+
+    runtimeStatus.state = 'unsupported';
+    runtimeStatus.isAvailable = false;
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.';
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    await Promise.resolve();
+
+    expect(engineRuntime.dispose).toHaveBeenCalledTimes(1);
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      reason:
+        'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+      lastError: null,
+    });
+  });
+
   it('updates lastError from the native runtime error handler even without a status event', async () => {
     const runtimeStatus: WakeWordStatus = {
       state: 'ready',

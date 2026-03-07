@@ -154,7 +154,8 @@ export default function App() {
           <Text style={styles.label}>Important note</Text>
           <Text style={styles.meta}>
             This example validates the current API, lifecycle, and typed event
-            path. Real built-in wake word detection is scheduled for Epic 2.
+            path. iOS background continuation still requires the audio
+            background mode and does not survive force-quit.
           </Text>
         </View>
       </ScrollView>

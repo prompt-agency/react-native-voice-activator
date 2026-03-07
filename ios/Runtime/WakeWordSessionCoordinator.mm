@@ -1,6 +1,7 @@
 #import "WakeWordSessionCoordinator.h"
 
 #import "VoiceActivatorAudioSessionController.h"
+#import "VoiceActivatorAppLifecycleObserver.h"
 #import "VoiceActivatorInterruptionObserver.h"
 #import "VoiceActivatorRuntimeStateStore.h"
 
@@ -27,7 +28,9 @@ static NSDictionary *VoiceActivatorMakeError(
   VoiceActivatorAudioSessionController *_audioSessionController;
   VoiceActivatorRuntimeStateStore *_runtimeStateStore;
   VoiceActivatorInterruptionObserver *_interruptionObserver;
+  VoiceActivatorAppLifecycleObserver *_appLifecycleObserver;
   BOOL _isObservingInterruptions;
+  BOOL _isObservingAppLifecycle;
 }
 
 - (instancetype)init
@@ -49,12 +52,20 @@ static NSDictionary *VoiceActivatorMakeError(
         initWithHandler:^(BOOL began, BOOL shouldResume) {
           [weakSelf handleInterruptionBegan:began shouldResume:shouldResume];
         }];
+    _appLifecycleObserver = [[VoiceActivatorAppLifecycleObserver alloc]
+        initWithDidEnterBackgroundHandler:^{
+          [weakSelf handleDidEnterBackground];
+        }
+                 willEnterForegroundHandler:^{
+                   [weakSelf handleWillEnterForeground];
+                 }];
   }
   return self;
 }
 
 - (void)dealloc
 {
+  [self stopObservingAppLifecycle];
   [self stopObservingInterruptions];
 }
 
@@ -86,6 +97,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   [self stopObservingInterruptions];
+  [self startObservingAppLifecycle];
 
   [self setStatus:@{
     @"state" : @"ready",
@@ -190,6 +202,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   [self stopObservingInterruptions];
+  [self stopObservingAppLifecycle];
 
   [self setStatus:@{
     @"state" : @"idle",
@@ -242,18 +255,10 @@ static NSDictionary *VoiceActivatorMakeError(
     });
   }
   [self stopObservingInterruptions];
-  [self setStatus:@{
-    @"state" : @"unsupported",
-    @"isAvailable" : @NO,
-    @"isListening" : @NO,
-    @"canStart" : @NO,
-    @"reason" : @"The iOS audio session interruption cannot be resumed automatically.",
-    @"lastError" : VoiceActivatorMakeError(
-        @"platform",
-        @"audio_interruption_not_resumable",
-        @"The iOS audio session interruption cannot be resumed automatically.",
-        YES)
-  }];
+  [self setUnsupportedStateWithCode:@"audio_interruption_not_resumable"
+                            message:
+                                @"The iOS audio session interruption cannot be resumed automatically."
+                        isAvailable:NO];
 }
 
 - (void)setErrorStateWithCategory:(NSString *)category
@@ -267,6 +272,26 @@ static NSDictionary *VoiceActivatorMakeError(
     @"isAvailable" : @YES,
     @"isListening" : @NO,
     @"canStart" : @(canStart),
+    @"lastError" : runtimeError
+  }];
+
+  if (self.runtimeErrorHandler != nil) {
+    self.runtimeErrorHandler(runtimeError);
+  }
+}
+
+- (void)setUnsupportedStateWithCode:(NSString *)code
+                            message:(NSString *)message
+                        isAvailable:(BOOL)isAvailable
+{
+  NSDictionary *runtimeError =
+      VoiceActivatorMakeError(@"platform", code, message, YES);
+  [self setStatus:@{
+    @"state" : @"unsupported",
+    @"isAvailable" : @(isAvailable),
+    @"isListening" : @NO,
+    @"canStart" : @NO,
+    @"reason" : message,
     @"lastError" : runtimeError
   }];
 
@@ -302,6 +327,83 @@ static NSDictionary *VoiceActivatorMakeError(
 
   _isObservingInterruptions = NO;
   [_interruptionObserver stopObserving];
+}
+
+- (void)startObservingAppLifecycle
+{
+  if (_isObservingAppLifecycle) {
+    return;
+  }
+
+  _isObservingAppLifecycle = YES;
+  [_appLifecycleObserver startObserving];
+}
+
+- (void)stopObservingAppLifecycle
+{
+  if (!_isObservingAppLifecycle) {
+    return;
+  }
+
+  _isObservingAppLifecycle = NO;
+  [_appLifecycleObserver stopObserving];
+}
+
+- (void)handleDidEnterBackground
+{
+  NSDictionary *status = [self currentStatus];
+  if (![status[@"isListening"] boolValue]) {
+    return;
+  }
+
+  if ([_audioSessionController supportsBackgroundAudio]) {
+    NSMutableDictionary *nextStatus = [status mutableCopy];
+    nextStatus[@"state"] = @"running";
+    nextStatus[@"isAvailable"] = @YES;
+    nextStatus[@"isListening"] = @YES;
+    nextStatus[@"canStart"] = @NO;
+    nextStatus[@"reason"] =
+        @"Wake word detection is continuing in a supported iOS background audio state.";
+    nextStatus[@"lastError"] = [NSNull null];
+    [self setStatus:nextStatus];
+    return;
+  }
+
+  NSError *audioSessionError = nil;
+  [_audioSessionController deactivateSession:&audioSessionError];
+  [self stopObservingInterruptions];
+  if (audioSessionError != nil) {
+    [self setErrorStateWithCategory:@"platform"
+                               code:@"audio_session_deactivation_failed"
+                            message:audioSessionError.localizedDescription
+                           canStart:NO];
+    return;
+  }
+
+  [self setUnsupportedStateWithCode:@"background_audio_mode_required"
+                            message:
+                                @"iOS background wake word detection requires the audio background mode to remain active after the app enters the background."
+                        isAvailable:NO];
+}
+
+- (void)handleWillEnterForeground
+{
+  NSDictionary *status = [self currentStatus];
+  if (![status[@"state"] isEqual:@"running"]) {
+    return;
+  }
+
+  if (![status[@"isListening"] boolValue]) {
+    return;
+  }
+
+  if (!status[@"reason"]) {
+    return;
+  }
+
+  NSMutableDictionary *nextStatus = [status mutableCopy];
+  [nextStatus removeObjectForKey:@"reason"];
+  [self setStatus:nextStatus];
 }
 
 @end

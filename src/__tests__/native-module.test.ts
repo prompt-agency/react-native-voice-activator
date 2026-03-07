@@ -302,4 +302,75 @@ describe('native module bridge selection', () => {
     stateSubscription.remove();
     errorSubscription.remove();
   });
+
+  it('forwards runtime status events when the visible background status changes without a state enum change', async () => {
+    const runtimeStateListeners = new Set<(payload: unknown) => void>();
+    const nativeStatus: WakeWordStatus = {
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      lastError: null,
+    };
+
+    const nativeModule = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...nativeStatus })),
+      dispose: jest.fn(async () => undefined),
+      addListener: jest.fn(),
+      removeListeners: jest.fn(),
+    };
+
+    jest.doMock('../NativeVoiceActivator', () => ({
+      __esModule: true,
+      default: nativeModule,
+    }));
+
+    jest.doMock('react-native', () => ({
+      NativeEventEmitter: class {
+        addListener(eventName: string, listener: (payload: unknown) => void) {
+          if (eventName === 'VoiceActivatorOnRuntimeStateChanged') {
+            runtimeStateListeners.add(listener);
+          }
+          nativeModule.addListener(eventName);
+
+          return {
+            remove() {
+              runtimeStateListeners.delete(listener);
+              nativeModule.removeListeners(1);
+            },
+          };
+        }
+      },
+    }));
+
+    const VoiceActivator = await import('../index');
+    const stateEvents: Array<{ previousState?: string; state: string }> = [];
+    const subscription = VoiceActivator.addWakeWordListener(
+      'stateChanged',
+      (payload) => {
+        stateEvents.push(payload);
+      }
+    );
+
+    nativeStatus.reason =
+      'Wake word detection is continuing in a supported iOS background audio state.';
+    for (const listener of runtimeStateListeners) {
+      listener({ ...nativeStatus });
+    }
+
+    delete nativeStatus.reason;
+    for (const listener of runtimeStateListeners) {
+      listener({ ...nativeStatus });
+    }
+
+    subscription.remove();
+
+    expect(stateEvents).toEqual([
+      { previousState: 'running', state: 'running' },
+      { previousState: 'running', state: 'running' },
+    ]);
+  });
 });

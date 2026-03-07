@@ -6,6 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)activateSession:(NSError * _Nullable * _Nullable)error;
 - (BOOL)deactivateSession:(NSError * _Nullable * _Nullable)error;
+- (BOOL)supportsBackgroundAudio;
 
 @end
 

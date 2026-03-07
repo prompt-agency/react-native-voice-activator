@@ -26,4 +26,15 @@
           error:error];
 }
 
+- (BOOL)supportsBackgroundAudio
+{
+  NSArray<NSString *> *backgroundModes =
+      [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UIBackgroundModes"];
+  if (![backgroundModes isKindOfClass:[NSArray class]]) {
+    return NO;
+  }
+
+  return [backgroundModes containsObject:@"audio"];
+}
+
 @end

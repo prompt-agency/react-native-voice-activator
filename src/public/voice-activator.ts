@@ -36,8 +36,26 @@ const runtimeStore = createRuntimeStore(
 setWakeWordDetectedHandler((payload) => {
   emitRuntimeEvent('wakeWordDetected', payload);
 });
+
+function syncEngineRuntimeWithNativeStatus(status: WakeWordStatus) {
+  if (
+    status.state === 'unsupported' &&
+    !status.isListening &&
+    activeEngineRuntime
+  ) {
+    disposeEngineRuntime().catch((cause) => {
+      const runtimeError = createRuntimeFailure(
+        'disposeEngineRuntimeForUnsupportedState',
+        cause
+      );
+      runtimeStore.mergeLastError(runtimeError);
+    });
+  }
+}
+
 if (typeof setRuntimeStatusHandler === 'function') {
   setRuntimeStatusHandler((status) => {
+    syncEngineRuntimeWithNativeStatus(status);
     runtimeStore.setStatus(status);
   });
 }

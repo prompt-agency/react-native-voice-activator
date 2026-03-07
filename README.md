@@ -2,14 +2,16 @@
 
 React Native and Expo wake word runtime library.
 
-Current Epic 1 status:
+Current implementation status:
 
 - the public lifecycle API is implemented
 - typed runtime state and detection events are implemented
+- real engine-backed local wake word detection is implemented through the built-in Porcupine adapter
 - a supported foreground runtime flow exists
-- real built-in wake word detection is not finished yet
+- iOS background continuation is supported only when the app declares the audio background mode and remains alive
+- Android background continuation is not finished yet
 
-Real engine-backed local wake word detection lands in Epic 2 integration work. The current foreground flow is still useful for validating app integration, lifecycle handling, and event wiring.
+The current runtime is useful for validating app integration, lifecycle handling, engine-backed detection, and the constrained iOS background continuation model.
 
 ## Installation
 
@@ -75,10 +77,9 @@ runQuickstart().catch((error) => {
 
 ## Current Limitations
 
-- Epic 1 does not yet provide real built-in wake word detection
-- the current foreground flow should be treated as integration and lifecycle validation
-- native runtime hardening and real engine-backed detection are part of Epic 2
-- background behavior, Expo automation, and production detection quality are later stories
+- iOS background continuation still depends on the host app staying alive after explicit activation
+- iOS background continuation only works in apps that declare the audio background mode and keep the app alive; force-quit and cold relaunch are still unsupported
+- Android background behavior, Expo automation, and production detection quality are later stories
 
 ## Compatibility Notes
 
@@ -86,6 +87,7 @@ runQuickstart().catch((error) => {
 - check `getStatus()` before assuming lifecycle methods are available in your environment
 - if `getStatus().state === 'unsupported'`, the runtime is not available and lifecycle methods will reject with a consistent error message
 - today, the supported validation path is the repo example app and equivalent bare React Native consumers using the current library scaffold
+- supported iOS background continuation requires `UIBackgroundModes` to include `audio`; without it, the runtime will surface an explicit `unsupported` state after the app backgrounds
 - this quickstart is not a claim of production-ready engine detection or Expo-ready runtime support yet
 
 ## Contributing

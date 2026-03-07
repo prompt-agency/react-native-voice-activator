@@ -16,12 +16,18 @@ export function createRuntimeStore(initialStatus: WakeWordStatus) {
   let currentStatus = cloneStatus(initialStatus);
 
   function setStatus(nextStatus: WakeWordStatus) {
-    const previousState = currentStatus.state;
+    const previousStatus = currentStatus;
     currentStatus = cloneStatus(nextStatus);
 
-    if (previousState !== nextStatus.state) {
+    if (
+      previousStatus.state !== nextStatus.state ||
+      previousStatus.reason !== nextStatus.reason ||
+      previousStatus.isListening !== nextStatus.isListening ||
+      previousStatus.isAvailable !== nextStatus.isAvailable ||
+      previousStatus.canStart !== nextStatus.canStart
+    ) {
       emitRuntimeEvent('stateChanged', {
-        previousState,
+        previousState: previousStatus.state,
         state: nextStatus.state,
       });
     }

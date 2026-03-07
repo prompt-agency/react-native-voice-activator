@@ -41,12 +41,17 @@ if (!existsSync(exampleAppPath)) {
     }
   }
 
-  if (
-    !exampleAppSource.includes(
-      'Real built-in wake word detection is scheduled for Epic 2.'
-    )
-  ) {
-    errors.push('Example app does not document the Epic 2 detection limitation.');
+  const requiredExampleLimitationText = [
+    'iOS background continuation still requires the audio',
+    'background mode and does not survive force-quit.',
+  ];
+
+  for (const text of requiredExampleLimitationText) {
+    if (!exampleAppSource.includes(text)) {
+      errors.push(
+        `Example app does not document the current iOS background limitation text: ${text}`
+      );
+    }
   }
 }
 

@@ -14,9 +14,28 @@ describe('documentation and example contract', () => {
     expect(readme).toContain('stopDetection');
     expect(readme).toContain('dispose');
     expect(readme).toContain(
-      'Real engine-backed local wake word detection lands in Epic 2 integration work.'
+      'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter'
+    );
+    expect(readme).toContain(
+      'supported iOS background continuation requires `UIBackgroundModes` to include `audio`'
     );
     expect(readme).not.toContain('\nawait initialize();\n');
+  });
+
+  it('documents the current background behavior contract truthfully', () => {
+    const backgroundBehavior = readFileSync(
+      join(root, 'docs/background-behavior.md'),
+      'utf8'
+    );
+
+    expect(backgroundBehavior).toContain('force-quit continuation');
+    expect(backgroundBehavior).toContain('background_audio_mode_required');
+    expect(backgroundBehavior).toContain(
+      'event-driven consumers do not need to poll `getStatus()`'
+    );
+    expect(backgroundBehavior).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {
@@ -29,7 +48,10 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('stopDetection');
     expect(exampleApp).toContain('dispose');
     expect(exampleApp).toContain(
-      'Real built-in wake word detection is scheduled for Epic 2.'
+      'iOS background continuation still requires the audio'
+    );
+    expect(exampleApp).toContain(
+      'background mode and does not survive force-quit.'
     );
   });
 });
