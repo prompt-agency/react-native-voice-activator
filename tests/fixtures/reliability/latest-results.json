@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "updatedAt": "2026-03-07",
+  "summary": {
+    "status": "pending-physical-device-validation",
+    "notes": [
+      "Fixture definitions and evaluation tooling are present.",
+      "Android native compile validation is green on the host path.",
+      "Physical-device quiet/noisy and endurance runs are still pending."
+    ]
+  },
+  "results": [
+    {
+      "scenario": "android-native-compile",
+      "deviceId": "android-build-host",
+      "status": "passed",
+      "evidenceType": "compile-only",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "Kotlin native module compile succeeded via ./gradlew :react-native-voice-activator:compileDebugKotlin."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical iOS reference device was available in the current environment."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical iOS reference device was available in the current environment."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "The 30-minute endurance requirement is still pending physical-device execution."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical Android reference device was available in the current environment."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical Android reference device was available in the current environment."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "The 30-minute endurance requirement is still pending physical-device execution."
+    }
+  ]
+}

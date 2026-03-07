@@ -7,6 +7,7 @@ const requiredDocs = [
   'docs/bare-react-native-setup.md',
   'docs/expo-setup.md',
   'docs/background-behavior.md',
+  'docs/reliability-validation.md',
   'docs/troubleshooting.md',
   'docs/migration.md',
 ];
@@ -30,6 +31,8 @@ if (!existsSync(readmePath)) {
     'stopDetection',
     'dispose',
     'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter',
+    'Reliability evaluation artifacts',
+    'tests/fixtures/reliability/latest-results.json',
     'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
   ];
@@ -37,6 +40,26 @@ if (!existsSync(readmePath)) {
   for (const text of requiredReadmeText) {
     if (!readme.includes(text)) {
       errors.push(`README missing required text: ${text}`);
+    }
+  }
+}
+
+const reliabilityValidationPath = join(root, 'docs/reliability-validation.md');
+
+if (existsSync(reliabilityValidationPath)) {
+  const reliabilityValidation = readFileSync(reliabilityValidationPath, 'utf8');
+  const requiredReliabilityText = [
+    'tests/fixtures/reliability/reference-device-matrix.json',
+    'tests/fixtures/reliability/latest-results.json',
+    'The PRD requires a 30-minute continuous detection endurance test',
+    'compile-only validation is not the same as device validation',
+    'There is no automated runner yet that executes quiet/noisy or endurance scenarios for you',
+    'A passed physical-device run must replace those null placeholders with measured values',
+  ];
+
+  for (const text of requiredReliabilityText) {
+    if (!reliabilityValidation.includes(text)) {
+      errors.push(`reliability-validation missing required text: ${text}`);
     }
   }
 }

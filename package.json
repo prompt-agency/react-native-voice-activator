@@ -35,7 +35,7 @@
   ],
   "scripts": {
     "example": "yarn workspace react-native-voice-activator-example",
-    "verify:contracts": "node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs",
+    "verify:contracts": "node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-reliability-evidence.mjs",
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\" && yarn verify:contracts",

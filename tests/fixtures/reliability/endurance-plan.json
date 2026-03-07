@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "scenario": "endurance-30m",
+  "requiredDurationMinutes": 30,
+  "description": "Continuous runtime endurance plan aligned with the PRD reliability requirement.",
+  "requiredChecks": [
+    "runtime-remains-active-without-unrecoverable-failure",
+    "explicit-errors-or-unsupported-transitions-are-recorded",
+    "stop-and-dispose-cleanup-remain-coherent-after-the-run"
+  ],
+  "resultFields": [
+    "deviceId",
+    "scenario",
+    "durationMinutes",
+    "completed",
+    "latencyMsP95",
+    "falseTriggerCount",
+    "interruptionCount",
+    "unsupportedTransitionCount",
+    "teardownIssueCount",
+    "unrecoverableFailureCount",
+    "notes"
+  ]
+}

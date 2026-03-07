@@ -13,6 +13,24 @@ Current implementation status:
 
 The current runtime is useful for validating app integration, lifecycle handling, engine-backed detection, and the constrained iOS background continuation model.
 
+## Reliability evaluation artifacts
+
+The current evaluation harness for quiet/noisy and endurance validation is tracked in:
+
+- `tests/fixtures/reliability/reference-device-matrix.json`
+- `tests/fixtures/reliability/quiet-acceptance-set.json`
+- `tests/fixtures/reliability/noisy-acceptance-set.json`
+- `tests/fixtures/reliability/endurance-plan.json`
+- `tests/fixtures/reliability/latest-results.json`
+
+Today those artifacts prove:
+
+- the evaluation contract and fixture manifests exist
+- Android native compile evidence is recorded
+- physical-device quiet/noisy and 30-minute endurance runs are still pending and must not be overstated
+- there is not yet an automated runner that executes those scenarios end-to-end
+- completed physical-device runs must replace placeholder null metrics in `latest-results.json` with measured values
+
 ## Installation
 
 ```sh

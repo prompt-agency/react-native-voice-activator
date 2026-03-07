@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "updatedAt": "2026-03-07",
+  "referenceDevices": [
+    {
+      "id": "ios-physical-primary",
+      "platform": "ios",
+      "class": "physical-device",
+      "description": "Primary iPhone reference device for background, interruption, and endurance validation.",
+      "requiredScenarios": [
+        "quiet-acceptance",
+        "noisy-acceptance",
+        "endurance-30m"
+      ],
+      "validationStatus": "pending-device-run"
+    },
+    {
+      "id": "android-physical-primary",
+      "platform": "android",
+      "class": "physical-device",
+      "description": "Primary Android reference device for foreground-service, interruption, and endurance validation.",
+      "requiredScenarios": [
+        "quiet-acceptance",
+        "noisy-acceptance",
+        "endurance-30m"
+      ],
+      "validationStatus": "pending-device-run"
+    },
+    {
+      "id": "android-build-host",
+      "platform": "android",
+      "class": "build-host",
+      "description": "Host-only Android compile validation path used in CI and local development.",
+      "requiredScenarios": [
+        "android-native-compile"
+      ],
+      "validationStatus": "compile-verified"
+    }
+  ]
+}

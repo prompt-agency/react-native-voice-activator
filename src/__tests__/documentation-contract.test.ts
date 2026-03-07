@@ -16,6 +16,8 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter'
     );
+    expect(readme).toContain('Reliability evaluation artifacts');
+    expect(readme).toContain('tests/fixtures/reliability/latest-results.json');
     expect(readme).toContain(
       'supported iOS background continuation requires `UIBackgroundModes` to include `audio`'
     );
@@ -44,6 +46,26 @@ describe('documentation and example contract', () => {
     expect(backgroundBehavior).toContain('interrupted');
     expect(backgroundBehavior).not.toContain(
       'Placeholder created during Story 1.1 bootstrap.'
+    );
+  });
+
+  it('documents the current reliability validation contract truthfully', () => {
+    const reliabilityValidation = readFileSync(
+      join(root, 'docs/reliability-validation.md'),
+      'utf8'
+    );
+
+    expect(reliabilityValidation).toContain(
+      'tests/fixtures/reliability/reference-device-matrix.json'
+    );
+    expect(reliabilityValidation).toContain(
+      'tests/fixtures/reliability/latest-results.json'
+    );
+    expect(reliabilityValidation).toContain(
+      'The PRD requires a 30-minute continuous detection endurance test'
+    );
+    expect(reliabilityValidation).toContain(
+      'compile-only validation is not the same as device validation'
     );
   });
 

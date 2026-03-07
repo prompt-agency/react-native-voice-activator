@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "scenario": "noisy-acceptance",
+  "description": "Higher-noise wake word validation set for the current Porcupine-backed runtime.",
+  "expectedBehavior": {
+    "minimumDetections": 1,
+    "maximumFalseTriggers": 1,
+    "requiredRuntimeStates": [
+      "running",
+      "stopped"
+    ]
+  },
+  "fixtures": [
+    {
+      "id": "noisy-primary-wake-word",
+      "environment": "noisy",
+      "playbackSource": "external-device-or-manual-capture",
+      "notes": "Use representative background noise and record detection success, false triggers, and any route/interruption anomalies."
+    }
+  ]
+}
