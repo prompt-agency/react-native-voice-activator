@@ -31,6 +31,7 @@ internal class WakeWordRuntimeCoordinator(
   var runtimeStatusHandler: ((WritableMap) -> Unit)? = null
   var runtimeErrorHandler: ((WritableMap) -> Unit)? = null
   var interruptionHandler: ((WritableMap) -> Unit)? = null
+  var audioRouteChangedHandler: ((WritableMap) -> Unit)? = null
 
   fun currentStatus(): WritableMap = runtimeStateStore.currentStatus()
 
@@ -133,7 +134,9 @@ internal class WakeWordRuntimeCoordinator(
       )
     }
 
-    audioRouteMonitor.startMonitoring()
+    audioRouteMonitor.startMonitoring { route, previousRoute ->
+      handleAudioRouteChanged(route, previousRoute)
+    }
 
     setStatus(
       mapOf(
@@ -318,6 +321,16 @@ internal class WakeWordRuntimeCoordinator(
   private fun setStatus(nextStatus: Map<String, Any?>) {
     runtimeStateStore.updateStatus(nextStatus)
     runtimeStatusHandler?.invoke(runtimeStateStore.currentStatus())
+  }
+
+  private fun handleAudioRouteChanged(route: String, previousRoute: String?) {
+    val payload = Arguments.createMap().apply {
+      putString("route", route)
+      if (previousRoute != null) {
+        putString("previousRoute", previousRoute)
+      }
+    }
+    audioRouteChangedHandler?.invoke(payload)
   }
 
   private fun createError(

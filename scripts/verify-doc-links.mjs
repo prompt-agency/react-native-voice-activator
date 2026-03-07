@@ -51,6 +51,8 @@ if (existsSync(backgroundBehaviorPath)) {
     'event-driven consumers do not need to poll `getStatus()`',
     'visible activity context',
     'foreground_service_visible_context_required',
+    'audioRouteChanged',
+    'interrupted',
   ];
 
   for (const text of requiredBackgroundBehaviorText) {

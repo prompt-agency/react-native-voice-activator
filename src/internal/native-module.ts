@@ -2,6 +2,7 @@ import NativeVoiceActivator from '../NativeVoiceActivator';
 import { NativeEventEmitter, type TurboModule } from 'react-native';
 
 import type {
+  WakeWordAudioRouteChangedEvent,
   WakeWordDetectedEvent,
   WakeWordError,
   WakeWordInterruptionEvent,
@@ -24,6 +25,8 @@ const NATIVE_RUNTIME_STATE_CHANGED_EVENT =
   'VoiceActivatorOnRuntimeStateChanged';
 const NATIVE_RUNTIME_ERROR_EVENT = 'VoiceActivatorOnRuntimeError';
 const NATIVE_RUNTIME_INTERRUPTION_EVENT = 'VoiceActivatorOnRuntimeInterruption';
+const NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT =
+  'VoiceActivatorOnAudioRouteChanged';
 
 export const nativeVoiceActivatorModule =
   NativeVoiceActivator as NativeVoiceActivatorSpec | null;
@@ -33,6 +36,9 @@ let nativeWakeWordDetectedSubscription: { remove(): void } | null = null;
 let nativeRuntimeStateSubscription: { remove(): void } | null = null;
 let nativeRuntimeErrorSubscription: { remove(): void } | null = null;
 let nativeRuntimeInterruptionSubscription: { remove(): void } | null = null;
+let nativeRuntimeAudioRouteChangedSubscription: {
+  remove(): void;
+} | null = null;
 
 type NativeEventEmitterModule = TurboModule & {
   addListener(eventName: string): void;
@@ -185,6 +191,29 @@ export function setRuntimeInterruptionHandler(
     NATIVE_RUNTIME_INTERRUPTION_EVENT,
     (...args: readonly unknown[]) => {
       const [payload] = args as [WakeWordInterruptionEvent];
+      handler(payload);
+    }
+  );
+}
+
+export function setRuntimeAudioRouteChangedHandler(
+  handler: ((payload: WakeWordAudioRouteChangedEvent) => void) | null
+) {
+  nativeRuntimeAudioRouteChangedSubscription?.remove();
+  nativeRuntimeAudioRouteChangedSubscription = null;
+
+  if (!handler || !nativeVoiceActivatorModule) {
+    return;
+  }
+
+  const eventEmitter = new NativeEventEmitter(
+    nativeVoiceActivatorModule as unknown as NativeEventEmitterModule
+  );
+
+  nativeRuntimeAudioRouteChangedSubscription = eventEmitter.addListener(
+    NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT,
+    (...args: readonly unknown[]) => {
+      const [payload] = args as [WakeWordAudioRouteChangedEvent];
       handler(payload);
     }
   );

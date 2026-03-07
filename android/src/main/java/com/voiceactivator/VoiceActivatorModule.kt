@@ -8,6 +8,7 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
 import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
 
@@ -16,6 +17,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
     serviceLauncher = ServiceLauncher(reactContext.applicationContext),
+    audioRouteMonitor = AudioRouteMonitor(reactContext.applicationContext),
     hasVisibleActivityContext = {
       reactApplicationContext.currentActivity != null
     },
@@ -33,6 +35,9 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     }
     interruptionHandler = { payload ->
       emitEvent(NATIVE_RUNTIME_INTERRUPTION_EVENT, payload)
+    }
+    audioRouteChangedHandler = { payload ->
+      emitEvent(NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT, payload)
     }
   }
 
@@ -93,5 +98,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     private const val NATIVE_RUNTIME_ERROR_EVENT = "VoiceActivatorOnRuntimeError"
     private const val NATIVE_RUNTIME_INTERRUPTION_EVENT =
       "VoiceActivatorOnRuntimeInterruption"
+    private const val NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT =
+      "VoiceActivatorOnAudioRouteChanged"
   }
 }

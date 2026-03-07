@@ -1,5 +1,6 @@
 import {
   getVoiceActivatorRuntimeBridge,
+  setRuntimeAudioRouteChangedHandler,
   setRuntimeErrorHandler,
   setRuntimeInterruptionHandler,
   setRuntimeStatusHandler,
@@ -22,6 +23,8 @@ import type {
 } from './types';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
+let engineRuntimeRunning = false;
+let nativeStatusUpdateQueue: Promise<void> = Promise.resolve();
 
 const runtimeStore = createRuntimeStore(
   getVoiceActivatorRuntimeBridge().getStatus() ?? {
@@ -37,26 +40,90 @@ setWakeWordDetectedHandler((payload) => {
   emitRuntimeEvent('wakeWordDetected', payload);
 });
 
-function syncEngineRuntimeWithNativeStatus(status: WakeWordStatus) {
+async function stopEngineRuntime() {
+  if (!activeEngineRuntime || !engineRuntimeRunning) {
+    return;
+  }
+
+  await activeEngineRuntime.stop();
+  engineRuntimeRunning = false;
+}
+
+async function startEngineRuntime() {
+  if (!activeEngineRuntime || engineRuntimeRunning) {
+    return;
+  }
+
+  await activeEngineRuntime.start();
+  engineRuntimeRunning = true;
+}
+
+async function syncEngineRuntimeWithNativeStatus(
+  status: WakeWordStatus,
+  previousStatus: WakeWordStatus
+) {
   if (
     status.state === 'unsupported' &&
     !status.isListening &&
     activeEngineRuntime
   ) {
-    disposeEngineRuntime().catch((cause) => {
-      const runtimeError = createRuntimeFailure(
-        'disposeEngineRuntimeForUnsupportedState',
-        cause
-      );
-      runtimeStore.mergeLastError(runtimeError);
-    });
+    await disposeEngineRuntime();
+  }
+
+  if (status.state === 'interrupted') {
+    await stopEngineRuntime();
+    return;
+  }
+
+  if (
+    previousStatus.state === 'interrupted' &&
+    status.state === 'running' &&
+    status.isListening
+  ) {
+    await startEngineRuntime();
+    return;
+  }
+
+  if (
+    (status.state === 'stopped' ||
+      status.state === 'idle' ||
+      status.state === 'error') &&
+    !status.isListening
+  ) {
+    await stopEngineRuntime();
   }
 }
 
 if (typeof setRuntimeStatusHandler === 'function') {
   setRuntimeStatusHandler((status) => {
-    syncEngineRuntimeWithNativeStatus(status);
-    runtimeStore.setStatus(status);
+    nativeStatusUpdateQueue = nativeStatusUpdateQueue
+      .catch(() => {
+        // Keep the queue alive after a prior failure.
+      })
+      .then(async () => {
+        const previousStatus = getCurrentStatus();
+
+        try {
+          await syncEngineRuntimeWithNativeStatus(status, previousStatus);
+          runtimeStore.setStatus(status);
+        } catch (cause) {
+          applyRuntimeError(
+            createRuntimeFailure('syncEngineRuntimeWithNativeStatus', cause)
+          );
+
+          if (
+            previousStatus.state === 'interrupted' &&
+            status.state === 'running' &&
+            status.isListening
+          ) {
+            try {
+              await getVoiceActivatorRuntimeBridge().stopDetection?.();
+            } catch {
+              // Best-effort rollback when native recovery cannot be matched by the engine runtime.
+            }
+          }
+        }
+      });
   });
 }
 if (typeof setRuntimeErrorHandler === 'function') {
@@ -76,6 +143,11 @@ if (typeof setRuntimeErrorHandler === 'function') {
 if (typeof setRuntimeInterruptionHandler === 'function') {
   setRuntimeInterruptionHandler((payload) => {
     emitRuntimeEvent('interruption', payload);
+  });
+}
+if (typeof setRuntimeAudioRouteChangedHandler === 'function') {
+  setRuntimeAudioRouteChangedHandler((payload) => {
+    emitRuntimeEvent('audioRouteChanged', payload);
   });
 }
 
@@ -212,6 +284,7 @@ async function disposeEngineRuntime() {
 
   await activeEngineRuntime.dispose();
   activeEngineRuntime = null;
+  engineRuntimeRunning = false;
 }
 
 const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
@@ -243,6 +316,7 @@ export const voiceActivator: VoiceActivatorApi = {
         },
       });
       activeEngineRuntime = nextEngineRuntime;
+      engineRuntimeRunning = false;
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -277,7 +351,7 @@ export const voiceActivator: VoiceActivatorApi = {
 
     try {
       await activeRuntime.startDetection();
-      await activeEngineRuntime?.start();
+      await startEngineRuntime();
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -311,7 +385,7 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
-      await activeEngineRuntime?.stop();
+      await stopEngineRuntime();
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
         resolveStatus({

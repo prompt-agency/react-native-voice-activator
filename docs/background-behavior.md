@@ -26,6 +26,9 @@ Foreground return:
 
 - when the app returns to the foreground from a supported background audio state, the runtime remains `running`
 - the package emits a visible runtime update so event-driven consumers do not need to poll `getStatus()` to notice the transition
+- supported iOS audio-session interruptions transition the runtime to `interrupted` and, when resumable, back to `running` without requiring undocumented manual re-arming
+- non-resumable iOS interruptions surface explicit `unsupported` or `error` outcomes instead of pretending detection continued
+- supported iOS audio-route changes emit `audioRouteChanged` events so apps can react to route movement without polling
 
 ## Android
 
@@ -52,6 +55,8 @@ Permission and notification requirements:
 - Android background continuation requires `RECORD_AUDIO`
 - the package also requires foreground-service permissions and an active foreground-service notification while detection is running
 - if microphone permission is missing, the runtime surfaces a normalized `permission` error instead of pretending background continuation is available
+- supported Android audio-device topology changes emit `audioRouteChanged` events through the shared JS contract
+- interruption and service/runtime recovery still require device validation before the package should claim production-proven Android resilience
 
 ## Developer Guidance
 

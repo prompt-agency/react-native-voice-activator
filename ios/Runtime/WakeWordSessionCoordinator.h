@@ -6,6 +6,7 @@ typedef void (^VoiceActivatorWakeWordDetectedHandler)(NSDictionary *payload);
 typedef void (^VoiceActivatorRuntimeStatusHandler)(NSDictionary *status);
 typedef void (^VoiceActivatorRuntimeErrorHandler)(NSDictionary *error);
 typedef void (^VoiceActivatorInterruptionEventHandler)(NSDictionary *payload);
+typedef void (^VoiceActivatorAudioRouteChangedHandler)(NSDictionary *payload);
 
 @interface WakeWordSessionCoordinator : NSObject
 
@@ -17,6 +18,8 @@ typedef void (^VoiceActivatorInterruptionEventHandler)(NSDictionary *payload);
     runtimeErrorHandler;
 @property(nonatomic, copy, nullable) VoiceActivatorInterruptionEventHandler
     interruptionHandler;
+@property(nonatomic, copy, nullable) VoiceActivatorAudioRouteChangedHandler
+    audioRouteChangedHandler;
 
 - (NSDictionary *)currentStatus;
 - (BOOL)initializeWithOptions:(NSDictionary *)options

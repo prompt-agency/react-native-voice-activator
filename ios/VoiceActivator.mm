@@ -7,6 +7,7 @@ NSString *const kWakeWordDetectedEventName = @"VoiceActivatorOnWakeWordDetected"
 NSString *const kRuntimeStateChangedEventName = @"VoiceActivatorOnRuntimeStateChanged";
 NSString *const kRuntimeErrorEventName = @"VoiceActivatorOnRuntimeError";
 NSString *const kRuntimeInterruptionEventName = @"VoiceActivatorOnRuntimeInterruption";
+NSString *const kRuntimeAudioRouteChangedEventName = @"VoiceActivatorOnAudioRouteChanged";
 }
 
 @implementation VoiceActivator {
@@ -39,6 +40,9 @@ RCT_EXPORT_MODULE()
     _sessionCoordinator.interruptionHandler = ^(NSDictionary *payload) {
       [weakSelf sendEventWithName:kRuntimeInterruptionEventName body:payload];
     };
+    _sessionCoordinator.audioRouteChangedHandler = ^(NSDictionary *payload) {
+      [weakSelf sendEventWithName:kRuntimeAudioRouteChangedEventName body:payload];
+    };
   }
   return self;
 }
@@ -49,7 +53,8 @@ RCT_EXPORT_MODULE()
     kWakeWordDetectedEventName,
     kRuntimeStateChangedEventName,
     kRuntimeErrorEventName,
-    kRuntimeInterruptionEventName
+    kRuntimeInterruptionEventName,
+    kRuntimeAudioRouteChangedEventName
   ];
 }
 

@@ -40,6 +40,8 @@ describe('documentation and example contract', () => {
     expect(backgroundBehavior).toContain(
       'foreground_service_visible_context_required'
     );
+    expect(backgroundBehavior).toContain('audioRouteChanged');
+    expect(backgroundBehavior).toContain('interrupted');
     expect(backgroundBehavior).not.toContain(
       'Placeholder created during Story 1.1 bootstrap.'
     );

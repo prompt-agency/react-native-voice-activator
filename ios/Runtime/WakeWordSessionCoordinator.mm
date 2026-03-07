@@ -3,6 +3,7 @@
 #import "VoiceActivatorAudioSessionController.h"
 #import "VoiceActivatorAppLifecycleObserver.h"
 #import "VoiceActivatorInterruptionObserver.h"
+#import "VoiceActivatorRouteChangeObserver.h"
 #import "VoiceActivatorRuntimeStateStore.h"
 
 namespace {
@@ -28,8 +29,10 @@ static NSDictionary *VoiceActivatorMakeError(
   VoiceActivatorAudioSessionController *_audioSessionController;
   VoiceActivatorRuntimeStateStore *_runtimeStateStore;
   VoiceActivatorInterruptionObserver *_interruptionObserver;
+  VoiceActivatorRouteChangeObserver *_routeChangeObserver;
   VoiceActivatorAppLifecycleObserver *_appLifecycleObserver;
   BOOL _isObservingInterruptions;
+  BOOL _isObservingRouteChanges;
   BOOL _isObservingAppLifecycle;
 }
 
@@ -52,6 +55,10 @@ static NSDictionary *VoiceActivatorMakeError(
         initWithHandler:^(BOOL began, BOOL shouldResume) {
           [weakSelf handleInterruptionBegan:began shouldResume:shouldResume];
         }];
+    _routeChangeObserver = [[VoiceActivatorRouteChangeObserver alloc]
+        initWithHandler:^(NSString *route, NSString *previousRoute) {
+          [weakSelf handleAudioRouteChanged:route previousRoute:previousRoute];
+        }];
     _appLifecycleObserver = [[VoiceActivatorAppLifecycleObserver alloc]
         initWithDidEnterBackgroundHandler:^{
           [weakSelf handleDidEnterBackground];
@@ -67,6 +74,7 @@ static NSDictionary *VoiceActivatorMakeError(
 {
   [self stopObservingAppLifecycle];
   [self stopObservingInterruptions];
+  [self stopObservingRouteChanges];
 }
 
 - (NSDictionary *)currentStatus
@@ -97,6 +105,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   [self stopObservingInterruptions];
+  [self startObservingRouteChanges];
   [self startObservingAppLifecycle];
 
   [self setStatus:@{
@@ -175,6 +184,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   [self stopObservingInterruptions];
+  [self stopObservingRouteChanges];
 
   [self setStatus:@{
     @"state" : nextState,
@@ -203,6 +213,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   [self stopObservingInterruptions];
   [self stopObservingAppLifecycle];
+  [self stopObservingRouteChanges];
 
   [self setStatus:@{
     @"state" : @"idle",
@@ -238,11 +249,20 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   if (shouldResume) {
+    NSError *audioSessionError = nil;
+    if (![_audioSessionController activateSession:&audioSessionError]) {
+      [self setErrorStateWithCategory:@"platform"
+                                 code:@"audio_session_activation_failed"
+                              message:audioSessionError.localizedDescription
+                             canStart:YES];
+      return;
+    }
+
     [self setStatus:@{
-      @"state" : @"ready",
+      @"state" : @"running",
       @"isAvailable" : @YES,
-      @"isListening" : @NO,
-      @"canStart" : @YES,
+      @"isListening" : @YES,
+      @"canStart" : @NO,
       @"lastError" : [NSNull null]
     }];
     return;
@@ -349,6 +369,26 @@ static NSDictionary *VoiceActivatorMakeError(
   [_appLifecycleObserver stopObserving];
 }
 
+- (void)startObservingRouteChanges
+{
+  if (_isObservingRouteChanges) {
+    return;
+  }
+
+  _isObservingRouteChanges = YES;
+  [_routeChangeObserver startObserving];
+}
+
+- (void)stopObservingRouteChanges
+{
+  if (!_isObservingRouteChanges) {
+    return;
+  }
+
+  _isObservingRouteChanges = NO;
+  [_routeChangeObserver stopObserving];
+}
+
 - (void)handleDidEnterBackground
 {
   NSDictionary *status = [self currentStatus];
@@ -404,6 +444,25 @@ static NSDictionary *VoiceActivatorMakeError(
   NSMutableDictionary *nextStatus = [status mutableCopy];
   [nextStatus removeObjectForKey:@"reason"];
   [self setStatus:nextStatus];
+}
+
+- (void)handleAudioRouteChanged:(NSString *)route previousRoute:(NSString *)previousRoute
+{
+  NSDictionary *status = [self currentStatus];
+  NSString *state = status[@"state"];
+  if (![status[@"isListening"] boolValue] &&
+      ![state isEqual:@"interrupted"] &&
+      ![state isEqual:@"running"]) {
+    return;
+  }
+
+  if (self.audioRouteChangedHandler != nil) {
+    NSMutableDictionary *payload = [@{ @"route" : route ?: @"unknown" } mutableCopy];
+    if (previousRoute != nil) {
+      payload[@"previousRoute"] = previousRoute;
+    }
+    self.audioRouteChangedHandler(payload);
+  }
 }
 
 @end

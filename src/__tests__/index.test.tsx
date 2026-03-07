@@ -15,6 +15,25 @@ function createMockEngineRuntime() {
   };
 }
 
+async function flushRuntimeUpdate() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+}
+
 describe('public runtime state and event contract', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -68,6 +87,7 @@ describe('public runtime state and event contract', () => {
       setRuntimeStatusHandler: jest.fn(),
       setRuntimeErrorHandler: jest.fn(),
       setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -130,6 +150,7 @@ describe('public runtime state and event contract', () => {
       setRuntimeStatusHandler: jest.fn(),
       setRuntimeErrorHandler: jest.fn(),
       setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
@@ -518,6 +539,284 @@ describe('public runtime state and event contract', () => {
     ]);
   });
 
+  it('re-arms the engine runtime when a native interruption resumes into running', async () => {
+    const engineRuntime = createMockEngineRuntime();
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      engineConfig: {
+        metadata: {
+          accessKey: 'test-access-key',
+        },
+      },
+    });
+    await VoiceActivator.startDetection();
+
+    expect(engineRuntime.start).toHaveBeenCalledTimes(1);
+
+    runtimeStatus.state = 'interrupted';
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = {
+      category: 'lifecycle',
+      code: 'audio_interrupted',
+      message: 'The iOS audio session was interrupted.',
+      recoverable: true,
+      platform: 'ios',
+    };
+    runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
+
+    expect(engineRuntime.stop).toHaveBeenCalledTimes(1);
+    expect(VoiceActivator.getStatus().state).toBe('interrupted');
+
+    runtimeStatus.state = 'running';
+    runtimeStatus.isListening = true;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = null;
+    runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
+
+    expect(engineRuntime.start).toHaveBeenCalledTimes(2);
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      lastError: null,
+    });
+  });
+
+  it('does not publish running if native interruption recovery cannot restart the engine runtime', async () => {
+    const engineRuntime = createMockEngineRuntime();
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      engineConfig: {
+        metadata: {
+          accessKey: 'test-access-key',
+        },
+      },
+    });
+    await VoiceActivator.startDetection();
+
+    runtimeStatus.state = 'interrupted';
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = {
+      category: 'lifecycle',
+      code: 'audio_interrupted',
+      message: 'The iOS audio session was interrupted.',
+      recoverable: true,
+      platform: 'ios',
+    };
+    runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
+
+    engineRuntime.start.mockRejectedValueOnce(new Error('resume failed'));
+
+    runtimeStatus.state = 'running';
+    runtimeStatus.isListening = true;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = null;
+    runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
+
+    expect(engineRuntime.start).toHaveBeenCalledTimes(2);
+    expect(VoiceActivator.getStatus()).toMatchObject({
+      isListening: false,
+      canStart: false,
+    });
+    expect(VoiceActivator.getStatus().state).not.toBe('running');
+  });
+
+  it('does not let an older async native status update overwrite a newer one', async () => {
+    const engineRuntime = createMockEngineRuntime();
+    const stopDeferred = createDeferred();
+
+    engineRuntime.stop.mockImplementationOnce(async () => {
+      await stopDeferred.promise;
+    });
+
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      engineConfig: {
+        metadata: {
+          accessKey: 'test-access-key',
+        },
+      },
+    });
+    await VoiceActivator.startDetection();
+
+    runtimeStatus.state = 'interrupted';
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = {
+      category: 'lifecycle',
+      code: 'audio_interrupted',
+      message: 'The iOS audio session was interrupted.',
+      recoverable: true,
+      platform: 'ios',
+    };
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    runtimeStatus.state = 'running';
+    runtimeStatus.isListening = true;
+    runtimeStatus.canStart = false;
+    runtimeStatus.lastError = null;
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    stopDeferred.resolve();
+    await flushRuntimeUpdate();
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      lastError: null,
+    });
+  });
+
   it('surfaces supported iOS background continuation and explicit unsupported background states', async () => {
     const runtimeStatus: WakeWordStatus = {
       state: 'running',
@@ -576,6 +875,7 @@ describe('public runtime state and event contract', () => {
     runtimeStatus.reason =
       'Wake word detection is continuing in a supported iOS background audio state.';
     runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
 
     expect(VoiceActivator.getStatus()).toEqual({
       state: 'running',
@@ -604,6 +904,7 @@ describe('public runtime state and event contract', () => {
 
     runtimeStatusHandler!({ ...runtimeStatus });
     runtimeErrorHandler!({ ...runtimeStatus.lastError });
+    await flushRuntimeUpdate();
 
     errorSubscription.remove();
 
@@ -717,6 +1018,7 @@ describe('public runtime state and event contract', () => {
     runtimeStatus.lastError = null;
 
     runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
 
     expect(VoiceActivator.getStatus()).toEqual({
       state: 'running',
@@ -750,6 +1052,7 @@ describe('public runtime state and event contract', () => {
         'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
       recoverable: false,
     });
+    await flushRuntimeUpdate();
 
     expect(VoiceActivator.getStatus()).toEqual({
       state: 'unsupported',
@@ -841,15 +1144,80 @@ describe('public runtime state and event contract', () => {
     runtimeStatus.reason =
       'Wake word detection is continuing in a supported iOS background audio state.';
     runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
 
     delete runtimeStatus.reason;
     runtimeStatusHandler!({ ...runtimeStatus });
+    await flushRuntimeUpdate();
 
     subscription.remove();
 
     expect(stateEvents).toEqual([
       { previousState: 'running', state: 'running' },
       { previousState: 'running', state: 'running' },
+    ]);
+  });
+
+  it('forwards native audio-route changes through the shared JS listener contract', async () => {
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'running',
+        isAvailable: true,
+        isListening: true,
+        canStart: false,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+    let runtimeAudioRouteChangedHandler:
+      | ((payload: WakeWordAudioRouteChangedEvent) => void)
+      | null = null;
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(
+        (
+          handler: ((payload: WakeWordAudioRouteChangedEvent) => void) | null
+        ) => {
+          runtimeAudioRouteChangedHandler = handler;
+        }
+      ),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const routeChanges: WakeWordAudioRouteChangedEvent[] = [];
+    const subscription = VoiceActivator.addWakeWordListener(
+      'audioRouteChanged',
+      (payload) => {
+        routeChanges.push(payload);
+      }
+    );
+
+    const routeChangedHandler = runtimeAudioRouteChangedHandler as
+      | ((payload: WakeWordAudioRouteChangedEvent) => void)
+      | null;
+    if (routeChangedHandler) {
+      routeChangedHandler({
+        route: 'bluetooth',
+        previousRoute: 'speaker',
+      });
+    }
+
+    subscription.remove();
+
+    expect(routeChanges).toEqual([
+      {
+        route: 'bluetooth',
+        previousRoute: 'speaker',
+      },
     ]);
   });
 
@@ -918,7 +1286,7 @@ describe('public runtime state and event contract', () => {
       'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.';
 
     runtimeStatusHandler!({ ...runtimeStatus });
-    await Promise.resolve();
+    await flushRuntimeUpdate();
 
     expect(engineRuntime.dispose).toHaveBeenCalledTimes(1);
     expect(VoiceActivator.getStatus()).toEqual({
@@ -928,6 +1296,96 @@ describe('public runtime state and event contract', () => {
       canStart: false,
       reason:
         'iOS background wake word detection requires the audio background mode to remain active after the app enters the background.',
+      lastError: null,
+    });
+  });
+
+  it('re-arms the engine runtime when native interrupted and running updates arrive back-to-back', async () => {
+    jest.resetModules();
+    const stopDeferred = createDeferred();
+    const engineRuntime = {
+      initialize: jest.fn(async () => undefined),
+      start: jest.fn(async () => undefined),
+      stop: jest.fn(() => stopDeferred.promise),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../engines', () => ({
+      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize();
+    await VoiceActivator.startDetection();
+
+    expect(engineRuntime.start).toHaveBeenCalledTimes(1);
+
+    runtimeStatus.state = 'interrupted';
+    runtimeStatus.isListening = false;
+    runtimeStatus.reason = 'Audio interruption in progress.';
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    runtimeStatus.state = 'running';
+    runtimeStatus.isListening = true;
+    delete runtimeStatus.reason;
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    await flushRuntimeUpdate();
+    expect(engineRuntime.start).toHaveBeenCalledTimes(1);
+
+    stopDeferred.resolve();
+    await flushRuntimeUpdate();
+
+    expect(engineRuntime.stop).toHaveBeenCalledTimes(1);
+    expect(engineRuntime.start).toHaveBeenCalledTimes(2);
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
       lastError: null,
     });
   });
