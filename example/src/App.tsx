@@ -95,9 +95,10 @@ export default function App() {
   }
 
   const availabilityText =
-    status.state === 'unsupported'
-      ? (status.reason ?? 'Runtime is not available in this environment.')
-      : 'Foreground runtime path is available for integration validation.';
+    status.reason ??
+    (status.state === 'unsupported'
+      ? 'Runtime is not available in this environment.'
+      : 'Foreground runtime path is available for integration validation.');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -155,7 +156,9 @@ export default function App() {
           <Text style={styles.meta}>
             This example validates the current API, lifecycle, and typed event
             path. iOS background continuation still requires the audio
-            background mode and does not survive force-quit.
+            background mode and does not survive force-quit. Android background
+            continuation requires a visible app context for start and an active
+            foreground-service notification while detection is running.
           </Text>
         </View>
       </ScrollView>

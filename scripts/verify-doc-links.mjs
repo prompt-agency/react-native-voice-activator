@@ -31,6 +31,7 @@ if (!existsSync(readmePath)) {
     'dispose',
     'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter',
     'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
+    'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
   ];
 
   for (const text of requiredReadmeText) {
@@ -48,6 +49,8 @@ if (existsSync(backgroundBehaviorPath)) {
     'force-quit continuation',
     'background_audio_mode_required',
     'event-driven consumers do not need to poll `getStatus()`',
+    'visible activity context',
+    'foreground_service_visible_context_required',
   ];
 
   for (const text of requiredBackgroundBehaviorText) {

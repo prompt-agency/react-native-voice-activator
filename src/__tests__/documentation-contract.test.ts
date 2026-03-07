@@ -19,6 +19,9 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'supported iOS background continuation requires `UIBackgroundModes` to include `audio`'
     );
+    expect(readme).toContain(
+      'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.'
+    );
     expect(readme).not.toContain('\nawait initialize();\n');
   });
 
@@ -33,6 +36,10 @@ describe('documentation and example contract', () => {
     expect(backgroundBehavior).toContain(
       'event-driven consumers do not need to poll `getStatus()`'
     );
+    expect(backgroundBehavior).toContain('visible activity context');
+    expect(backgroundBehavior).toContain(
+      'foreground_service_visible_context_required'
+    );
     expect(backgroundBehavior).not.toContain(
       'Placeholder created during Story 1.1 bootstrap.'
     );
@@ -40,6 +47,7 @@ describe('documentation and example contract', () => {
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {
     const exampleApp = readFileSync(join(root, 'example/src/App.tsx'), 'utf8');
+    const normalizedExampleApp = exampleApp.replace(/\s+/g, ' ');
 
     expect(exampleApp).toContain('addWakeWordListener');
     expect(exampleApp).toContain('getStatus');
@@ -52,6 +60,9 @@ describe('documentation and example contract', () => {
     );
     expect(exampleApp).toContain(
       'background mode and does not survive force-quit.'
+    );
+    expect(normalizedExampleApp).toContain(
+      'Android background continuation requires a visible app context'
     );
   });
 });

@@ -26,6 +26,7 @@ if (!existsSync(exampleAppPath)) {
   errors.push('Example app entrypoint does not exist at example/src/App.tsx.');
 } else {
   const exampleAppSource = readFileSync(exampleAppPath, 'utf8');
+  const normalizedExampleAppSource = exampleAppSource.replace(/\s+/g, ' ');
   const requiredApiUsage = [
     'addWakeWordListener',
     'getStatus',
@@ -44,12 +45,13 @@ if (!existsSync(exampleAppPath)) {
   const requiredExampleLimitationText = [
     'iOS background continuation still requires the audio',
     'background mode and does not survive force-quit.',
+    'Android background continuation requires a visible app context',
   ];
 
   for (const text of requiredExampleLimitationText) {
-    if (!exampleAppSource.includes(text)) {
+    if (!normalizedExampleAppSource.includes(text)) {
       errors.push(
-        `Example app does not document the current iOS background limitation text: ${text}`
+        `Example app does not document the current runtime limitation text: ${text}`
       );
     }
   }

@@ -635,6 +635,169 @@ describe('public runtime state and event contract', () => {
     ]);
   });
 
+  it('surfaces supported Android foreground-service continuation and explicit unsupported runtime states', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: false,
+      lastError: null,
+    };
+    let runtimeStatusHandler: ((payload: WakeWordStatus) => void) | null = null;
+    let runtimeErrorHandler:
+      | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+      | null = null;
+    let runtimeInterruptionHandler:
+      | ((payload: WakeWordInterruptionEvent) => void)
+      | null = null;
+
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(
+        (handler: ((payload: WakeWordStatus) => void) | null) => {
+          runtimeStatusHandler = handler;
+        }
+      ),
+      setRuntimeErrorHandler: jest.fn(
+        (
+          handler:
+            | ((payload: NonNullable<WakeWordStatus['lastError']>) => void)
+            | null
+        ) => {
+          runtimeErrorHandler = handler;
+        }
+      ),
+      setRuntimeInterruptionHandler: jest.fn(
+        (handler: ((payload: WakeWordInterruptionEvent) => void) | null) => {
+          runtimeInterruptionHandler = handler;
+        }
+      ),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const stateEvents: WakeWordStateChangedEvent[] = [];
+    const errors: Array<WakeWordStatus['lastError']> = [];
+    const interruptions: WakeWordInterruptionEvent[] = [];
+
+    const stateSubscription = VoiceActivator.addWakeWordListener(
+      'stateChanged',
+      (payload) => {
+        stateEvents.push(payload);
+      }
+    );
+    const errorSubscription = VoiceActivator.addWakeWordListener(
+      'error',
+      (payload) => {
+        errors.push(payload);
+      }
+    );
+    const interruptionSubscription = VoiceActivator.addWakeWordListener(
+      'interruption',
+      (payload) => {
+        interruptions.push(payload);
+      }
+    );
+
+    runtimeStatus.state = 'running';
+    runtimeStatus.isAvailable = true;
+    runtimeStatus.isListening = true;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'Wake word detection is continuing in a supported Android foreground-service runtime.';
+    runtimeStatus.lastError = null;
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'running',
+      isAvailable: true,
+      isListening: true,
+      canStart: false,
+      reason:
+        'Wake word detection is continuing in a supported Android foreground-service runtime.',
+      lastError: null,
+    });
+
+    runtimeStatus.state = 'unsupported';
+    runtimeStatus.isAvailable = false;
+    runtimeStatus.isListening = false;
+    runtimeStatus.canStart = false;
+    runtimeStatus.reason =
+      'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.';
+    runtimeStatus.lastError = {
+      category: 'platform',
+      code: 'foreground_service_visible_context_required',
+      message:
+        'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+      recoverable: false,
+      platform: 'android',
+    };
+
+    runtimeStatusHandler!({ ...runtimeStatus });
+    runtimeErrorHandler!({ ...runtimeStatus.lastError });
+    runtimeInterruptionHandler!({
+      reason:
+        'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+      recoverable: false,
+    });
+
+    expect(VoiceActivator.getStatus()).toEqual({
+      state: 'unsupported',
+      isAvailable: false,
+      isListening: false,
+      canStart: false,
+      reason:
+        'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+      lastError: {
+        category: 'platform',
+        code: 'foreground_service_visible_context_required',
+        message:
+          'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    });
+    expect(errors).toEqual([
+      {
+        category: 'platform',
+        code: 'foreground_service_visible_context_required',
+        message:
+          'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+        recoverable: false,
+        platform: 'android',
+      },
+    ]);
+    expect(interruptions).toEqual([
+      {
+        reason:
+          'Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established.',
+        recoverable: false,
+      },
+    ]);
+    expect(stateEvents).toContainEqual({
+      previousState: 'idle',
+      state: 'running',
+    });
+    expect(stateEvents).toContainEqual({
+      previousState: 'running',
+      state: 'unsupported',
+    });
+
+    stateSubscription.remove();
+    errorSubscription.remove();
+    interruptionSubscription.remove();
+  });
+
   it('emits observable stateChanged events when supported iOS background continuation starts and ends', async () => {
     const runtimeStatus: WakeWordStatus = {
       state: 'running',

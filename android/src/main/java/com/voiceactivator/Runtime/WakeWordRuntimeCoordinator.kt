@@ -5,6 +5,12 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 
 private const val PLATFORM = "android"
+private const val ANDROID_FOREGROUND_SERVICE_REASON =
+  "Wake word detection is continuing in a supported Android foreground-service runtime."
+private const val ANDROID_VISIBLE_CONTEXT_REQUIRED_REASON =
+  "Android wake word detection must be started from a visible activity context so the foreground-service runtime can be established."
+private const val ANDROID_AUDIO_PERMISSION_REQUIRED_REASON =
+  "Android wake word detection requires RECORD_AUDIO permission before the foreground-service runtime can start."
 
 internal class WakeWordRuntimeCoordinator(
   private val runtimeStateStore: RuntimeStateStore = RuntimeStateStore(
@@ -19,6 +25,8 @@ internal class WakeWordRuntimeCoordinator(
   private val serviceLauncher: ServiceLauncher = ServiceLauncher(),
   private val audioCaptureThread: AudioCaptureThread = AudioCaptureThread(),
   private val audioRouteMonitor: AudioRouteMonitor = AudioRouteMonitor(),
+  private val hasVisibleActivityContext: () -> Boolean = { true },
+  private val hasRecordAudioPermission: () -> Boolean = { true },
 ) {
   var runtimeStatusHandler: ((WritableMap) -> Unit)? = null
   var runtimeErrorHandler: ((WritableMap) -> Unit)? = null
@@ -39,7 +47,8 @@ internal class WakeWordRuntimeCoordinator(
 
     if (hasInconsistentRuntimeOwnership()) {
       surfaceUnsupportedState(
-        "Android runtime ownership became inconsistent during initialize()."
+        reason = "Android runtime ownership became inconsistent during initialize().",
+        code = "runtime_ownership_inconsistent",
       )
       throw IllegalStateException(
         "Android runtime ownership became inconsistent during initialize()."
@@ -52,6 +61,7 @@ internal class WakeWordRuntimeCoordinator(
         "isAvailable" to true,
         "isListening" to false,
         "canStart" to true,
+        "reason" to null,
         "lastError" to null,
       )
     )
@@ -63,7 +73,8 @@ internal class WakeWordRuntimeCoordinator(
 
     if (hasInconsistentRuntimeOwnership()) {
       surfaceUnsupportedState(
-        "Android runtime ownership is inconsistent and cannot start detection."
+        reason = "Android runtime ownership is inconsistent and cannot start detection.",
+        code = "runtime_ownership_inconsistent",
       )
       throw IllegalStateException(
         "Android runtime ownership is inconsistent and cannot start detection."
@@ -78,12 +89,29 @@ internal class WakeWordRuntimeCoordinator(
       )
     }
 
+    if (!hasVisibleActivityContext()) {
+      surfaceUnsupportedState(
+        reason = ANDROID_VISIBLE_CONTEXT_REQUIRED_REASON,
+        code = "foreground_service_visible_context_required",
+      )
+      throw IllegalStateException(ANDROID_VISIBLE_CONTEXT_REQUIRED_REASON)
+    }
+
+    if (!hasRecordAudioPermission()) {
+      throw permissionFailure(
+        code = "record_audio_permission_required",
+        message = ANDROID_AUDIO_PERMISSION_REQUIRED_REASON,
+        canStart = true,
+      )
+    }
+
     setStatus(
       mapOf(
         "state" to "starting",
         "isAvailable" to true,
         "isListening" to false,
         "canStart" to false,
+        "reason" to null,
         "lastError" to null,
       )
     )
@@ -113,6 +141,7 @@ internal class WakeWordRuntimeCoordinator(
         "isAvailable" to true,
         "isListening" to true,
         "canStart" to false,
+        "reason" to ANDROID_FOREGROUND_SERVICE_REASON,
         "lastError" to null,
       )
     )
@@ -143,6 +172,7 @@ internal class WakeWordRuntimeCoordinator(
         "isAvailable" to true,
         "isListening" to false,
         "canStart" to shouldRemainStartable,
+        "reason" to null,
         "lastError" to null,
       )
     )
@@ -163,18 +193,32 @@ internal class WakeWordRuntimeCoordinator(
         "isAvailable" to true,
         "isListening" to false,
         "canStart" to false,
+        "reason" to null,
         "lastError" to null,
       )
     )
   }
 
-  fun surfaceUnsupportedState(reason: String) {
-    stopOwnedRuntime()
+  fun surfaceUnsupportedState(
+    reason: String,
+    code: String = "runtime_unsupported",
+  ) {
+    val ownershipReleased = stopOwnedRuntime()
     val payload = Arguments.createMap().apply {
       putString("reason", reason)
       putBoolean("recoverable", false)
     }
     interruptionHandler?.invoke(payload)
+
+    if (!ownershipReleased) {
+      setErrorState(
+        category = "platform",
+        code = "runtime_teardown_failed",
+        message = "Android runtime ownership could not be released while surfacing an unsupported state.",
+        canStart = false,
+      )
+      return
+    }
 
     setStatus(
       mapOf(
@@ -185,7 +229,7 @@ internal class WakeWordRuntimeCoordinator(
         "reason" to reason,
         "lastError" to createError(
           category = "platform",
-          code = "runtime_unsupported",
+          code = code,
           message = reason,
           recoverable = false,
         ),
@@ -210,6 +254,20 @@ internal class WakeWordRuntimeCoordinator(
   ): IllegalStateException {
     setErrorState(
       category = "lifecycle",
+      code = code,
+      message = message,
+      canStart = canStart,
+    )
+    return IllegalStateException(message)
+  }
+
+  private fun permissionFailure(
+    code: String,
+    message: String,
+    canStart: Boolean,
+  ): IllegalStateException {
+    setErrorState(
+      category = "permission",
       code = code,
       message = message,
       canStart = canStart,

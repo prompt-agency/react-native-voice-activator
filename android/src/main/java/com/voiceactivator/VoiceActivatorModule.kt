@@ -1,17 +1,30 @@
 package com.voiceactivator
 
+import android.Manifest
+import android.content.pm.PackageManager
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import com.voiceactivator.Runtime.ServiceLauncher
 import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
 
 @ReactModule(name = VoiceActivatorModule.NAME)
 class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
-  private val runtimeCoordinator = WakeWordRuntimeCoordinator().apply {
+  private val runtimeCoordinator = WakeWordRuntimeCoordinator(
+    serviceLauncher = ServiceLauncher(reactContext.applicationContext),
+    hasVisibleActivityContext = {
+      reactApplicationContext.currentActivity != null
+    },
+    hasRecordAudioPermission = {
+      reactApplicationContext.checkSelfPermission(
+        Manifest.permission.RECORD_AUDIO
+      ) == PackageManager.PERMISSION_GRANTED
+    },
+  ).apply {
     runtimeStatusHandler = { payload ->
       emitEvent(NATIVE_RUNTIME_STATE_CHANGED_EVENT, payload)
     }

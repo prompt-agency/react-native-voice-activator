@@ -9,7 +9,7 @@ Current implementation status:
 - real engine-backed local wake word detection is implemented through the built-in Porcupine adapter
 - a supported foreground runtime flow exists
 - iOS background continuation is supported only when the app declares the audio background mode and remains alive
-- Android background continuation is not finished yet
+- Android background continuation is supported only when detection starts from a visible app context with microphone permission and the package can hold an active foreground-service notification
 
 The current runtime is useful for validating app integration, lifecycle handling, engine-backed detection, and the constrained iOS background continuation model.
 
@@ -79,7 +79,9 @@ runQuickstart().catch((error) => {
 
 - iOS background continuation still depends on the host app staying alive after explicit activation
 - iOS background continuation only works in apps that declare the audio background mode and keep the app alive; force-quit and cold relaunch are still unsupported
-- Android background behavior, Expo automation, and production detection quality are later stories
+- Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.
+- Android background behavior can still be constrained by OEM battery management and unsupported hidden-start scenarios.
+- Expo automation and production detection quality hardening are later stories
 
 ## Compatibility Notes
 
@@ -88,6 +90,7 @@ runQuickstart().catch((error) => {
 - if `getStatus().state === 'unsupported'`, the runtime is not available and lifecycle methods will reject with a consistent error message
 - today, the supported validation path is the repo example app and equivalent bare React Native consumers using the current library scaffold
 - supported iOS background continuation requires `UIBackgroundModes` to include `audio`; without it, the runtime will surface an explicit `unsupported` state after the app backgrounds
+- supported Android background continuation requires `RECORD_AUDIO`, foreground-service permissions, and a start from a visible activity context; otherwise the runtime surfaces an explicit `unsupported` or `permission` failure
 - this quickstart is not a claim of production-ready engine detection or Expo-ready runtime support yet
 
 ## Contributing

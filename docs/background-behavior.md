@@ -29,7 +29,29 @@ Foreground return:
 
 ## Android
 
-Android background behavior is still under active implementation. Do not assume parity with the current iOS background model.
+Supported today:
+
+- detection can continue after explicit activation when it is started from a visible Android activity context
+- the runtime remains `running` while the foreground-service notification is active
+- if Android foreground-service continuation is active, `getStatus()` keeps `isListening: true`
+
+Not supported:
+
+- starting detection from a hidden or background-only app context
+- implying Android background behavior is exempt from OEM battery management or device policy differences
+- claiming parity with the current iOS audio-background model
+
+Explicit unsupported behavior:
+
+- if detection is started without a visible activity context, the runtime transitions to `unsupported`
+- the runtime surfaces a normalized `platform` error with code `foreground_service_visible_context_required`
+- the runtime tears down service ownership and engine activity so the package does not report `unsupported` while the detector is still running internally
+
+Permission and notification requirements:
+
+- Android background continuation requires `RECORD_AUDIO`
+- the package also requires foreground-service permissions and an active foreground-service notification while detection is running
+- if microphone permission is missing, the runtime surfaces a normalized `permission` error instead of pretending background continuation is available
 
 ## Developer Guidance
 
