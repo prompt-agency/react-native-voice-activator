@@ -10,6 +10,8 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
+    "./app.plugin.js": "./app.plugin.js",
+    "./plugin": "./plugin/index.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -35,7 +37,9 @@
   ],
   "scripts": {
     "example": "yarn workspace react-native-voice-activator-example",
-    "verify:contracts": "node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-reliability-evidence.mjs",
+    "verify:expo-runtime-execution": "node scripts/verify-expo-runtime-execution.mjs",
+    "verify:expo-prebuild": "node scripts/verify-expo-prebuild.mjs",
+    "verify:contracts": "node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-runtime-execution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs",
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint app.plugin.js plugin/index.js \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"plugin/build/**\" --ignore-pattern \"lib/**\" --no-warn-ignored && yarn verify:contracts",

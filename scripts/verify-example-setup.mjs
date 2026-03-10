@@ -9,6 +9,7 @@ const examplePackageJson = JSON.parse(
 
 const errors = [];
 const exampleAppPath = join(root, 'example/src/App.tsx');
+const exampleAppConfigPath = join(root, 'example/app.json');
 
 if (packageJson.name !== 'react-native-voice-activator') {
   errors.push('Root package name is not react-native-voice-activator.');
@@ -55,6 +56,10 @@ if (!existsSync(exampleAppPath)) {
       );
     }
   }
+}
+
+if (!existsSync(exampleAppConfigPath)) {
+  errors.push('Example app config does not exist at example/app.json.');
 }
 
 if (errors.length > 0) {

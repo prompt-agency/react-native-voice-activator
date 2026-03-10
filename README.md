@@ -109,7 +109,9 @@ runQuickstart().catch((error) => {
 - today, the supported validation path is the repo example app and equivalent bare React Native consumers using the current library scaffold
 - supported iOS background continuation requires `UIBackgroundModes` to include `audio`; without it, the runtime will surface an explicit `unsupported` state after the app backgrounds
 - supported Android background continuation requires `RECORD_AUDIO`, foreground-service permissions, and a start from a visible activity context; otherwise the runtime surfaces an explicit `unsupported` or `permission` failure
-- this quickstart is not a claim of production-ready engine detection or Expo-ready runtime support yet
+- Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.
+- Expo Go is NOT supported.
+- this quickstart is not a claim of full Expo runtime CI execution or production-ready device coverage yet
 
 ## Contributing
 

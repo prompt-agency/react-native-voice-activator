@@ -35,6 +35,8 @@ if (!existsSync(readmePath)) {
     'tests/fixtures/reliability/latest-results.json',
     'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
+    'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
+    'Expo Go is NOT supported.',
   ];
 
   for (const text of requiredReadmeText) {
