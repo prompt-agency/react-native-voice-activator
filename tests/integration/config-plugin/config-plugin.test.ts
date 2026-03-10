@@ -331,9 +331,8 @@ describe('config-plugin (composed withVoiceActivator)', () => {
     expect(appPlugin).toBe(pluginEntry);
     expect(typeof (pluginEntry.default ?? pluginEntry)).toBe('function');
     expect(appPluginSource).toContain("require('./plugin')");
-    expect(pluginEntrySource).toContain(
-      "require('./build/src/expo/config-plugin')"
-    );
+    expect(pluginEntrySource).toContain('./build/src/expo/config-plugin.js');
+    expect(pluginEntrySource).toContain('../lib/module/expo/config-plugin.js');
   });
 
   it('documents that Expo Go is unsupported and Expo prebuild/native apps are required', () => {
