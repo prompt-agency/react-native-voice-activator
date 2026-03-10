@@ -3,6 +3,14 @@ import { join } from 'node:path';
 
 describe('documentation and example contract', () => {
   const root = process.cwd();
+  const supportMatrixSource = readFileSync(
+    join(root, 'scripts/release-support-matrix.ts'),
+    'utf8'
+  );
+  const reactNativeSupport =
+    supportMatrixSource.match(/reactNative:\s*'([^']+)'/)?.[1] ?? '0.83+';
+  const expoSupport =
+    supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1] ?? 'SDK 55+';
 
   it('keeps the README quickstart aligned with the current public API and limitation note', () => {
     const readme = readFileSync(join(root, 'README.md'), 'utf8');
@@ -24,6 +32,8 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.'
     );
+    expect(readme).toContain(`React Native \`${reactNativeSupport}\``);
+    expect(readme).toContain(`Expo SDK \`${expoSupport.replace('SDK ', '')}\``);
     expect(readme).not.toContain('\nawait initialize();\n');
   });
 
@@ -109,12 +119,16 @@ describe('documentation and example contract', () => {
     expect(exampleReadme).toContain(
       'CI executes Expo prebuild generation against a temporary copy of this example app'
     );
+    expect(exampleReadme).toContain('../docs/bare-react-native-setup.md');
+    expect(exampleReadme).toContain('../docs/expo-setup.md');
+    expect(exampleReadme).toContain('../scripts/release-support-matrix.ts');
     expect(exampleReadme).toContain(
       'Expo CLI can resolve the example app config through `expo config --type prebuild --json`'
     );
     expect(exampleReadme).toContain(
       'Expo CLI can generate iOS and Android native projects from a temporary copy of the example app through `expo prebuild --clean --no-install`'
     );
+    expect(exampleReadme).toContain('local plugin path (`../app.plugin.js`)');
     expect(exampleAppConfig).toContain('../app.plugin.js');
     expect(exampleAppConfig).toContain('voice-activator-example');
     expect(examplePackage).toContain('"expo": "^55.0.0"');
@@ -122,6 +136,71 @@ describe('documentation and example contract', () => {
     expect(examplePackage).toContain('"start": "expo start --dev-client"');
     expect(examplePackage).toContain('"ios": "expo run:ios"');
     expect(examplePackage).toContain('"android": "expo run:android"');
+  });
+
+  it('documents dedicated bare React Native and Expo setup guides with aligned support boundaries', () => {
+    const readme = readFileSync(join(root, 'README.md'), 'utf8');
+    const bareSetup = readFileSync(
+      join(root, 'docs/bare-react-native-setup.md'),
+      'utf8'
+    );
+    const expoSetup = readFileSync(join(root, 'docs/expo-setup.md'), 'utf8');
+
+    expect(readme).toContain('docs/bare-react-native-setup.md');
+    expect(readme).toContain('docs/expo-setup.md');
+    expect(readme).toContain('what is automated');
+    expect(bareSetup).toContain('What Is Automatic vs Manual');
+    expect(bareSetup).toContain(`React Native \`${reactNativeSupport}\``);
+    expect(bareSetup).toContain('scripts/release-support-matrix.ts');
+    expect(expoSetup).toContain('What Is Automatic vs Manual');
+    expect(expoSetup).toContain('Expo Go is NOT supported.');
+    expect(expoSetup).toContain('scripts/release-support-matrix.ts');
+    expect(expoSetup).toContain(
+      `Expo SDK \`${expoSupport.replace('SDK ', '')}\``
+    );
+  });
+
+  it('replaces bootstrap placeholders in adjacent setup docs', () => {
+    const gettingStarted = readFileSync(
+      join(root, 'docs/getting-started.md'),
+      'utf8'
+    );
+    const normalizedGettingStarted = gettingStarted.replace(/\s+/g, ' ');
+    const troubleshooting = readFileSync(
+      join(root, 'docs/troubleshooting.md'),
+      'utf8'
+    );
+
+    expect(gettingStarted).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
+    expect(gettingStarted).toContain('Bare React Native');
+    expect(gettingStarted).toContain('Expo');
+    expect(gettingStarted).toContain('stateChanged');
+    expect(gettingStarted).toContain('error');
+    expect(gettingStarted).toContain('wakeWordDetected');
+    expect(gettingStarted).toContain('audioRouteChanged');
+    expect(normalizedGettingStarted).toContain(
+      'permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
+    );
+    expect(troubleshooting).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
+    expect(troubleshooting).toContain('permission');
+    expect(troubleshooting).toContain('platform');
+    expect(troubleshooting).toContain(
+      "addWakeWordListener('stateChanged', ...)"
+    );
+    expect(troubleshooting).toContain("addWakeWordListener('error', ...)");
+    expect(troubleshooting).toContain('## Troubleshooting by Error Category');
+    expect(troubleshooting).toContain('### `permission`');
+    expect(troubleshooting).toContain('### `lifecycle`');
+    expect(troubleshooting).toContain('### `configuration`');
+    expect(troubleshooting).toContain('### `engine`');
+    expect(troubleshooting).toContain('### `platform`');
+    expect(troubleshooting).toContain('### `internal`');
+    expect(troubleshooting).toContain('Expo Go is unsupported');
+    expect(troubleshooting).toContain('primary runtime validation path today');
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {

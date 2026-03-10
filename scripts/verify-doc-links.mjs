@@ -18,6 +18,13 @@ const missingDocs = requiredDocs.filter((relativePath) => {
 });
 
 const errors = [...missingDocs];
+const supportMatrixPath = join(root, 'scripts/release-support-matrix.ts');
+const supportMatrixSource = existsSync(supportMatrixPath)
+  ? readFileSync(supportMatrixPath, 'utf8')
+  : '';
+const reactNativeSupport =
+  supportMatrixSource.match(/reactNative:\s*'([^']+)'/)?.[1] ?? null;
+const expoSupport = supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1] ?? null;
 
 if (!existsSync(readmePath)) {
   errors.push('README.md');
@@ -38,6 +45,14 @@ if (!existsSync(readmePath)) {
     'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
     'Expo Go is NOT supported.',
   ];
+
+  if (reactNativeSupport && !readme.includes(`React Native \`${reactNativeSupport}\``)) {
+    errors.push(`README missing support-matrix React Native version: ${reactNativeSupport}`);
+  }
+
+  if (expoSupport && !readme.includes(`Expo SDK \`${expoSupport.replace('SDK ', '')}\``)) {
+    errors.push(`README missing support-matrix Expo version: ${expoSupport}`);
+  }
 
   for (const text of requiredReadmeText) {
     if (!readme.includes(text)) {
@@ -67,6 +82,8 @@ if (existsSync(reliabilityValidationPath)) {
 }
 
 const backgroundBehaviorPath = join(root, 'docs/background-behavior.md');
+const bareSetupPath = join(root, 'docs/bare-react-native-setup.md');
+const expoSetupPath = join(root, 'docs/expo-setup.md');
 
 if (existsSync(backgroundBehaviorPath)) {
   const backgroundBehavior = readFileSync(backgroundBehaviorPath, 'utf8');
@@ -83,6 +100,85 @@ if (existsSync(backgroundBehaviorPath)) {
   for (const text of requiredBackgroundBehaviorText) {
     if (!backgroundBehavior.includes(text)) {
       errors.push(`background-behavior missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(bareSetupPath)) {
+  const bareSetup = readFileSync(bareSetupPath, 'utf8');
+  const requiredBareSetupText = [
+    `React Native \`${reactNativeSupport ?? '0.83+'}\``,
+    'microphone permission',
+    'UIBackgroundModes',
+    'foreground_service_visible_context_required',
+    'scripts/release-support-matrix.ts',
+    'What Is Automatic vs Manual',
+  ];
+
+  for (const text of requiredBareSetupText) {
+    if (!bareSetup.includes(text)) {
+      errors.push(`bare-react-native-setup missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(expoSetupPath)) {
+  const expoSetup = readFileSync(expoSetupPath, 'utf8');
+  const requiredExpoSetupText = [
+    'What Is Automatic vs Manual',
+    'expo prebuild',
+    'scripts/release-support-matrix.ts',
+    'Expo Go is NOT supported.',
+    'The support matrix source in this repo is',
+    `Expo SDK \`${(expoSupport ?? 'SDK 55+').replace('SDK ', '')}\``,
+  ];
+
+  for (const text of requiredExpoSetupText) {
+    if (!expoSetup.includes(text)) {
+      errors.push(`expo-setup missing required text: ${text}`);
+    }
+  }
+}
+
+const troubleshootingPath = join(root, 'docs/troubleshooting.md');
+const gettingStartedPath = join(root, 'docs/getting-started.md');
+
+if (existsSync(troubleshootingPath)) {
+  const troubleshooting = readFileSync(troubleshootingPath, 'utf8');
+  const requiredTroubleshootingText = [
+    'addWakeWordListener(\'stateChanged\', ...)',
+    'addWakeWordListener(\'error\', ...)',
+    '## Troubleshooting by Error Category',
+    '### `permission`',
+    '### `lifecycle`',
+    '### `configuration`',
+    '### `engine`',
+    '### `platform`',
+    '### `internal`',
+    'Expo Go is unsupported',
+    'primary runtime validation path today',
+  ];
+
+  for (const text of requiredTroubleshootingText) {
+    if (!troubleshooting.includes(text)) {
+      errors.push(`troubleshooting missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(gettingStartedPath)) {
+  const gettingStarted = readFileSync(gettingStartedPath, 'utf8');
+  const requiredGettingStartedText = [
+    'stateChanged',
+    'error',
+    'wakeWordDetected',
+    'audioRouteChanged',
+    'permission`, `lifecycle`,',
+  ];
+
+  for (const text of requiredGettingStartedText) {
+    if (!gettingStarted.includes(text)) {
+      errors.push(`getting-started missing required text: ${text}`);
     }
   }
 }

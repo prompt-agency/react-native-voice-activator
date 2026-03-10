@@ -103,7 +103,11 @@ runQuickstart().catch((error) => {
 
 ## Compatibility Notes
 
+- current support matrix: React Native `0.83+`, Expo SDK `55+`
 - use the package through the public API exported from `src/index.ts`
+- choose the path-specific setup guide that matches your app:
+  - bare React Native: `docs/bare-react-native-setup.md`
+  - Expo: `docs/expo-setup.md`
 - check `getStatus()` before assuming lifecycle methods are available in your environment
 - if `getStatus().state === 'unsupported'`, the runtime is not available and lifecycle methods will reject with a consistent error message
 - today, the supported validation path is the repo example app and equivalent bare React Native consumers using the current library scaffold
@@ -112,6 +116,18 @@ runQuickstart().catch((error) => {
 - Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.
 - Expo Go is NOT supported.
 - this quickstart is not a claim of full Expo runtime CI execution or production-ready device coverage yet
+
+## Setup Guides
+
+- Bare React Native setup: `docs/bare-react-native-setup.md`
+- Expo setup: `docs/expo-setup.md`
+
+Both guides identify:
+
+- what is automated
+- what still requires developer action
+- what platform limitations still apply
+- what the repository actually validates today
 
 ## Contributing
 

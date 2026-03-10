@@ -6,6 +6,10 @@ const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const examplePackageJson = JSON.parse(
   readFileSync(join(root, 'example/package.json'), 'utf8')
 );
+const exampleAppConfig = JSON.parse(
+  readFileSync(join(root, 'example/app.json'), 'utf8')
+);
+const exampleReadmePath = join(root, 'example/README.md');
 
 const errors = [];
 const exampleAppPath = join(root, 'example/src/App.tsx');
@@ -60,6 +64,39 @@ if (!existsSync(exampleAppPath)) {
 
 if (!existsSync(exampleAppConfigPath)) {
   errors.push('Example app config does not exist at example/app.json.');
+}
+
+const registeredPlugins = exampleAppConfig.expo?.plugins;
+const usesLocalPluginPath = Array.isArray(registeredPlugins)
+  ? registeredPlugins.some((plugin) => {
+      if (typeof plugin === 'string') {
+        return plugin === '../app.plugin.js';
+      }
+
+      return Array.isArray(plugin) && plugin[0] === '../app.plugin.js';
+    })
+  : false;
+
+if (!usesLocalPluginPath) {
+  errors.push('Example app config does not register ../app.plugin.js.');
+}
+
+if (!existsSync(exampleReadmePath)) {
+  errors.push('Example README does not exist at example/README.md.');
+} else {
+  const exampleReadme = readFileSync(exampleReadmePath, 'utf8');
+  const requiredReadmeText = [
+    '../docs/bare-react-native-setup.md',
+    '../docs/expo-setup.md',
+    '../scripts/release-support-matrix.ts',
+    'local plugin path (`../app.plugin.js`)',
+  ];
+
+  for (const text of requiredReadmeText) {
+    if (!exampleReadme.includes(text)) {
+      errors.push(`Example README missing required text: ${text}`);
+    }
+  }
 }
 
 if (errors.length > 0) {

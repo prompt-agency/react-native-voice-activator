@@ -16,6 +16,7 @@ The supported Expo path today is:
    - `expo start --dev-client`
    - `expo run:ios`
    - `expo run:android`
+   - `expo prebuild`
 5. the same public runtime API used by bare React Native consumers:
    - `initialize`
    - `startDetection`
@@ -52,6 +53,22 @@ The plugin applies the current native requirements:
 - iOS `UIBackgroundModes: ["audio"]`
 - Android microphone and foreground-service permissions
 - Android `WakeWordForegroundService` manifest entry
+
+## What Is Automatic vs Manual
+
+Automatic through the Expo config plugin:
+
+- iOS microphone permission text
+- iOS `UIBackgroundModes: ["audio"]`
+- Android microphone and foreground-service permissions
+- Android `WakeWordForegroundService` manifest entry
+
+Manual in your app:
+
+- use a development build instead of Expo Go
+- run Expo config/prebuild as part of native project generation
+- validate runtime behavior on your target devices after prebuild
+- validate iOS and Android background constraints in your own app context
 
 ## Runtime Contract
 
@@ -90,6 +107,18 @@ That means this repo validates Expo plugin resolution, Expo config resolution,
 Expo prebuild generation, and the documented package integration surface, but
 you must still validate your own Expo dev build on the target SDK, device matrix,
 and native toolchain before treating it as production-ready.
+
+## Release Support Matrix
+
+Current support claims are anchored to:
+
+- Expo SDK `55+`
+- React Native `0.83+`
+- iOS and Android only
+
+The support matrix source in this repo is
+`scripts/release-support-matrix.ts`. Expo setup docs, README, and example docs
+should stay aligned with that file.
 
 ## Explicit Limitations
 

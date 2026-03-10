@@ -8,7 +8,8 @@ Story 4.2:
 
 - `example/src/App.tsx` exercises the same public lifecycle API used by bare
   React Native consumers
-- `example/app.json` registers the `react-native-voice-activator` config plugin
+- `example/app.json` registers the local plugin path (`../app.plugin.js`) used
+  for monorepo validation
 - `example/package.json` exposes:
   - `expo start --dev-client`
   - `expo run:ios`
@@ -31,6 +32,7 @@ Story 4.2:
 - the same runtime contract is documented for both bare React Native and Expo
 - Expo CLI can resolve the example app config through `expo config --type prebuild --json`
 - Expo CLI can generate iOS and Android native projects from a temporary copy of the example app through `expo prebuild --clean --no-install`
+- runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
 
 ## What It Does Not Prove
 
@@ -44,3 +46,9 @@ Story 4.2:
 
 See [`app.json`](./app.json). The example keeps the plugin registration visible
 so the config-plugin and runtime contract can be validated together.
+
+## Setup Surface Relationship
+
+- For bare React Native setup, see [`../docs/bare-react-native-setup.md`](../docs/bare-react-native-setup.md)
+- For Expo setup, see [`../docs/expo-setup.md`](../docs/expo-setup.md)
+- For the current support matrix, see `../scripts/release-support-matrix.ts`
