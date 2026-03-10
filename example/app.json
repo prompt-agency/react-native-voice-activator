@@ -16,7 +16,5 @@
     "ios": {
       "bundleIdentifier": "com.anonymous.voiceactivatorexample"
     }
-  },
-  "name": "VoiceActivatorExample",
-  "displayName": "VoiceActivatorExample"
+  }
 }
