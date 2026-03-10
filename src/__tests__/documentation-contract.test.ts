@@ -27,6 +27,18 @@ describe('documentation and example contract', () => {
     expect(readme).toContain('Reliability evaluation artifacts');
     expect(readme).toContain('tests/fixtures/reliability/latest-results.json');
     expect(readme).toContain(
+      'The example app also exposes evaluator-facing runtime diagnostics'
+    );
+    expect(readme).toContain(
+      'current normalized runtime status from `getStatus()`'
+    );
+    expect(readme).toContain(
+      'recent runtime events including `stateChanged`, `error`, `interruption`, and `audioRouteChanged`'
+    );
+    expect(readme).toContain(
+      'normalized error-category surface: `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
+    );
+    expect(readme).toContain(
       'supported iOS background continuation requires `UIBackgroundModes` to include `audio`'
     );
     expect(readme).toContain(
@@ -119,6 +131,9 @@ describe('documentation and example contract', () => {
     expect(exampleReadme).toContain(
       'CI executes Expo prebuild generation against a temporary copy of this example app'
     );
+    expect(exampleReadme).toContain(
+      'current runtime diagnostics, recent runtime events, and normalized error categories'
+    );
     expect(exampleReadme).toContain('../docs/bare-react-native-setup.md');
     expect(exampleReadme).toContain('../docs/expo-setup.md');
     expect(exampleReadme).toContain('../scripts/release-support-matrix.ts');
@@ -180,6 +195,9 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain('error');
     expect(gettingStarted).toContain('wakeWordDetected');
     expect(gettingStarted).toContain('audioRouteChanged');
+    expect(gettingStarted).toContain('current `getStatus()` snapshot');
+    expect(gettingStarted).toContain('recent runtime events');
+    expect(gettingStarted).toContain('normalized error categories');
     expect(normalizedGettingStarted).toContain(
       'permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
     );
@@ -192,6 +210,10 @@ describe('documentation and example contract', () => {
       "addWakeWordListener('stateChanged', ...)"
     );
     expect(troubleshooting).toContain("addWakeWordListener('error', ...)");
+    expect(troubleshooting).toContain('current runtime status');
+    expect(troubleshooting).toContain('latest structured error');
+    expect(troubleshooting).toContain('recent runtime events');
+    expect(troubleshooting).toContain('normalized error categories');
     expect(troubleshooting).toContain('## Troubleshooting by Error Category');
     expect(troubleshooting).toContain('### `permission`');
     expect(troubleshooting).toContain('### `lifecycle`');
@@ -213,11 +235,16 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('startDetection');
     expect(exampleApp).toContain('stopDetection');
     expect(exampleApp).toContain('dispose');
-    expect(exampleApp).toContain(
-      'iOS background continuation still requires the audio'
-    );
-    expect(exampleApp).toContain(
-      'background mode and does not survive force-quit.'
+    expect(exampleApp).toContain('interruption');
+    expect(exampleApp).toContain('audioRouteChanged');
+    expect(exampleApp).toContain('syncDiagnosticsFromStatus');
+    expect(exampleApp).toContain('getStatus().lastError');
+    expect(exampleApp).not.toContain('setLastError(null);');
+    expect(exampleApp).toContain('Recent runtime events');
+    expect(exampleApp).toContain('Normalized error categories');
+    expect(exampleApp).toContain('Current runtime diagnostics');
+    expect(normalizedExampleApp).toContain(
+      'iOS background continuation still requires the audio background mode and does not survive force-quit.'
     );
     expect(normalizedExampleApp).toContain(
       'Android background continuation requires a visible app context'

@@ -39,6 +39,10 @@ if (!existsSync(exampleAppPath)) {
     'startDetection',
     'stopDetection',
     'dispose',
+    'interruption',
+    'audioRouteChanged',
+    'syncDiagnosticsFromStatus',
+    'getStatus().lastError',
   ];
 
   for (const token of requiredApiUsage) {
@@ -47,10 +51,24 @@ if (!existsSync(exampleAppPath)) {
     }
   }
 
+  if (exampleAppSource.includes('setLastError(null);')) {
+    errors.push(
+      'Example app clears lastError optimistically instead of mirroring getStatus().lastError.'
+    );
+  }
+
   const requiredExampleLimitationText = [
     'iOS background continuation still requires the audio',
     'background mode and does not survive force-quit.',
     'Android background continuation requires a visible app context',
+    'Recent runtime events',
+    'Normalized error categories',
+    'permission',
+    'lifecycle',
+    'configuration',
+    'engine',
+    'platform',
+    'internal',
   ];
 
   for (const text of requiredExampleLimitationText) {
@@ -90,6 +108,9 @@ if (!existsSync(exampleReadmePath)) {
     '../docs/expo-setup.md',
     '../scripts/release-support-matrix.ts',
     'local plugin path (`../app.plugin.js`)',
+    'current runtime diagnostics',
+    'recent runtime events',
+    'normalized error categories',
   ];
 
   for (const text of requiredReadmeText) {

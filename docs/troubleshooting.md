@@ -16,6 +16,13 @@ Use `addWakeWordListener('stateChanged', ...)` and
 `addWakeWordListener('error', ...)` if you need event-driven visibility instead
 of polling `getStatus()`.
 
+The example app now exposes the same diagnostics surface for evaluation:
+
+- current runtime status
+- latest structured error
+- recent runtime events
+- normalized error categories for quick failure triage
+
 ## Common Failure Classes
 
 - `permission`

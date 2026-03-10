@@ -40,6 +40,10 @@ if (!existsSync(readmePath)) {
     'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter',
     'Reliability evaluation artifacts',
     'tests/fixtures/reliability/latest-results.json',
+    'The example app also exposes evaluator-facing runtime diagnostics',
+    'current normalized runtime status from `getStatus()`',
+    'recent runtime events including `stateChanged`, `error`, `interruption`, and `audioRouteChanged`',
+    'normalized error-category surface: `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`',
     'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
     'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
@@ -148,6 +152,10 @@ if (existsSync(troubleshootingPath)) {
   const requiredTroubleshootingText = [
     'addWakeWordListener(\'stateChanged\', ...)',
     'addWakeWordListener(\'error\', ...)',
+    'current runtime status',
+    'latest structured error',
+    'recent runtime events',
+    'normalized error categories',
     '## Troubleshooting by Error Category',
     '### `permission`',
     '### `lifecycle`',
@@ -174,6 +182,9 @@ if (existsSync(gettingStartedPath)) {
     'wakeWordDetected',
     'audioRouteChanged',
     'permission`, `lifecycle`,',
+    'current `getStatus()` snapshot',
+    'recent runtime events',
+    'normalized error categories',
   ];
 
   for (const text of requiredGettingStartedText) {

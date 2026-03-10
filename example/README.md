@@ -32,6 +32,7 @@ Story 4.2:
 - the same runtime contract is documented for both bare React Native and Expo
 - Expo CLI can resolve the example app config through `expo config --type prebuild --json`
 - Expo CLI can generate iOS and Android native projects from a temporary copy of the example app through `expo prebuild --clean --no-install`
+- the example app exposes current runtime diagnostics, recent runtime events, and normalized error categories for evaluator troubleshooting
 - runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
 
 ## What It Does Not Prove

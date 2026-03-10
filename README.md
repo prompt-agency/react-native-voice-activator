@@ -13,6 +13,13 @@ Current implementation status:
 
 The current runtime is useful for validating app integration, lifecycle handling, engine-backed detection, and the constrained iOS background continuation model.
 
+The example app also exposes evaluator-facing runtime diagnostics:
+
+- current normalized runtime status from `getStatus()`
+- latest structured error from `getStatus().lastError`
+- recent runtime events including `stateChanged`, `error`, `interruption`, and `audioRouteChanged`
+- the normalized error-category surface: `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`
+
 ## Reliability evaluation artifacts
 
 The current evaluation harness for quiet/noisy and endurance validation is tracked in:

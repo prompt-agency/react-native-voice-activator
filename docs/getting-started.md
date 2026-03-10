@@ -23,6 +23,13 @@ The most important public events are:
 - `wakeWordDetected`
 - `audioRouteChanged`
 
+The example app exposes those runtime diagnostics directly so evaluators can see:
+
+- the current `getStatus()` snapshot
+- the latest structured error
+- recent runtime events
+- the normalized error categories used by the package contract
+
 ## Current Support Boundary
 
 - Bare React Native is the primary runtime validation path.

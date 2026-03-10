@@ -17,81 +17,182 @@ import {
   wakeWordStates,
   type WakeWordDetectedEvent,
   type WakeWordError,
+  type WakeWordErrorCategory,
   type WakeWordStatus,
 } from 'react-native-voice-activator';
+
+type RuntimeEventEntry = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
+const errorCategories: Array<{
+  category: WakeWordErrorCategory;
+  description: string;
+}> = [
+  {
+    category: 'permission',
+    description: 'Missing, denied, or revoked microphone access.',
+  },
+  {
+    category: 'lifecycle',
+    description: 'Invalid start/stop/dispose order or interruption recovery.',
+  },
+  {
+    category: 'configuration',
+    description: 'Invalid runtime, engine, or asset configuration.',
+  },
+  {
+    category: 'engine',
+    description: 'Built-in engine initialization or detection failure.',
+  },
+  {
+    category: 'platform',
+    description: 'Unsupported background, service, or OS policy condition.',
+  },
+  {
+    category: 'internal',
+    description: 'Unexpected package/runtime failure outside narrower classes.',
+  },
+];
 
 export default function App() {
   const [status, setStatus] = useState<WakeWordStatus>(() => getStatus());
   const [lastDetection, setLastDetection] =
     useState<WakeWordDetectedEvent | null>(null);
-  const [lastError, setLastError] = useState<WakeWordError | null>(null);
+  const [lastError, setLastError] = useState<WakeWordError | null>(
+    () => getStatus().lastError ?? null
+  );
+  const [recentEvents, setRecentEvents] = useState<RuntimeEventEntry[]>([]);
+
+  function syncDiagnosticsFromStatus(nextStatus: WakeWordStatus) {
+    setStatus(nextStatus);
+    setLastError(nextStatus.lastError ?? null);
+  }
+
+  function pushRuntimeEvent(label: string, detail: string) {
+    setRecentEvents((currentEvents) => {
+      const nextEvent: RuntimeEventEntry = {
+        id: `${Date.now()}-${currentEvents.length}`,
+        label,
+        detail,
+      };
+
+      return [nextEvent, ...currentEvents].slice(0, 8);
+    });
+  }
 
   useEffect(() => {
-    const stateSubscription = addWakeWordListener('stateChanged', () => {
-      setStatus(getStatus());
+    const stateSubscription = addWakeWordListener('stateChanged', (event) => {
+      syncDiagnosticsFromStatus(getStatus());
+      pushRuntimeEvent(
+        'stateChanged',
+        `${event.previousState ?? 'unknown'} -> ${event.state}`
+      );
     });
     const detectionSubscription = addWakeWordListener(
       'wakeWordDetected',
       (event) => {
         setLastDetection(event);
+        pushRuntimeEvent(
+          'wakeWordDetected',
+          `${event.detectedPhrase} at ${event.detectedAt}`
+        );
       }
     );
     const errorSubscription = addWakeWordListener('error', (event) => {
       setLastError(event);
-      setStatus(getStatus());
+      syncDiagnosticsFromStatus(getStatus());
+      pushRuntimeEvent('error', `${event.category}:${event.code}`);
     });
+    const interruptionSubscription = addWakeWordListener(
+      'interruption',
+      (event) => {
+        syncDiagnosticsFromStatus(getStatus());
+        pushRuntimeEvent(
+          'interruption',
+          `${event.reason} (${event.recoverable ? 'recoverable' : 'terminal'})`
+        );
+      }
+    );
+    const routeChangeSubscription = addWakeWordListener(
+      'audioRouteChanged',
+      (event) => {
+        syncDiagnosticsFromStatus(getStatus());
+        pushRuntimeEvent(
+          'audioRouteChanged',
+          `${event.previousRoute ?? 'unknown'} -> ${event.route}`
+        );
+      }
+    );
 
-    setStatus(getStatus());
+    const initialStatus = getStatus();
+    syncDiagnosticsFromStatus(initialStatus);
+    pushRuntimeEvent('statusSnapshot', `initial state: ${initialStatus.state}`);
 
     return () => {
       stateSubscription.remove();
       detectionSubscription.remove();
       errorSubscription.remove();
+      interruptionSubscription.remove();
+      routeChangeSubscription.remove();
     };
   }, []);
 
-  async function runAction(action: () => Promise<void>) {
-    setLastError(null);
+  function createFallbackError(error: unknown): WakeWordError {
+    if (error instanceof Error) {
+      return {
+        category: 'internal',
+        code: 'example_action_failed',
+        message: error.message,
+        recoverable: true,
+      };
+    }
 
+    return {
+      category: 'internal',
+      code: 'example_action_failed',
+      message: 'Unknown example action error.',
+      recoverable: true,
+    };
+  }
+
+  async function runAction(actionName: string, action: () => Promise<void>) {
     try {
       await action();
-      setStatus(getStatus());
+      const latestStatus = getStatus();
+      syncDiagnosticsFromStatus(latestStatus);
+      pushRuntimeEvent(actionName, `completed in state ${latestStatus.state}`);
     } catch (error) {
       const currentStatus = getStatus();
-      setStatus(currentStatus);
-      setLastError(
-        currentStatus.lastError ??
-          (error instanceof Error
-            ? {
-                category: 'internal',
-                code: 'example_action_failed',
-                message: error.message,
-                recoverable: true,
-              }
-            : {
-                category: 'internal',
-                code: 'example_action_failed',
-                message: 'Unknown example action error.',
-                recoverable: true,
-              })
+      const resolvedError = currentStatus.lastError ?? createFallbackError(error);
+
+      syncDiagnosticsFromStatus({
+        ...currentStatus,
+        lastError: resolvedError,
+      });
+      pushRuntimeEvent(
+        actionName,
+        `failed with ${resolvedError.category}:${resolvedError.code}`
       );
     }
   }
 
   function handleInitialize() {
-    runAction(() => initialize()).catch(() => undefined);
+    runAction('initialize', () => initialize()).catch(() => undefined);
   }
 
   function handleStartDetection() {
-    runAction(() => startDetection()).catch(() => undefined);
+    runAction('startDetection', () => startDetection()).catch(() => undefined);
   }
 
   function handleStopDetection() {
-    runAction(() => stopDetection()).catch(() => undefined);
+    runAction('stopDetection', () => stopDetection()).catch(() => undefined);
   }
 
   function handleDispose() {
-    runAction(() => dispose()).catch(() => undefined);
+    runAction('dispose', () => dispose()).catch(() => undefined);
   }
 
   const availabilityText =
@@ -99,6 +200,13 @@ export default function App() {
     (status.state === 'unsupported'
       ? 'Runtime is not available in this environment.'
       : 'Foreground runtime path is available for integration validation.');
+
+  const statusSnapshot = [
+    `isAvailable: ${String(status.isAvailable)}`,
+    `isListening: ${String(status.isListening)}`,
+    `canStart: ${String(status.canStart)}`,
+    `reason: ${status.reason ?? 'none'}`,
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -109,12 +217,17 @@ export default function App() {
         </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Current state</Text>
+          <Text style={styles.label}>Current runtime diagnostics</Text>
           <Text style={styles.value}>{status.state}</Text>
           <Text style={styles.meta}>{availabilityText}</Text>
           <Text style={styles.meta}>
             Known states: {wakeWordStates.join(', ')}
           </Text>
+          {statusSnapshot.map((line) => (
+            <Text key={line} style={styles.meta}>
+              {line}
+            </Text>
+          ))}
         </View>
 
         <View style={styles.card}>
@@ -143,22 +256,52 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Last error</Text>
+          <Text style={styles.label}>Latest structured error</Text>
           <Text style={styles.value}>
             {lastError
-              ? `${lastError.code}: ${lastError.message}`
+              ? `${lastError.category}:${lastError.code}`
               : 'No error recorded.'}
           </Text>
+          <Text style={styles.meta}>
+            {lastError
+              ? lastError.message
+              : 'The diagnostics surface mirrors getStatus().lastError.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Recent runtime events</Text>
+          {recentEvents.length > 0 ? (
+            recentEvents.map((event) => (
+              <View key={event.id} style={styles.eventRow}>
+                <Text style={styles.eventLabel}>{event.label}</Text>
+                <Text style={styles.meta}>{event.detail}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.meta}>No runtime events recorded yet.</Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Normalized error categories</Text>
+          {errorCategories.map((entry) => (
+            <View key={entry.category} style={styles.eventRow}>
+              <Text style={styles.eventLabel}>{entry.category}</Text>
+              <Text style={styles.meta}>{entry.description}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Important note</Text>
           <Text style={styles.meta}>
-            This example validates the current API, lifecycle, and typed event
-            path. iOS background continuation still requires the audio
-            background mode and does not survive force-quit. Android background
-            continuation requires a visible app context for start and an active
-            foreground-service notification while detection is running.
+            This example validates the current API, lifecycle, typed event path,
+            and evaluator-facing runtime diagnostics surface. iOS background
+            continuation still requires the audio background mode and does not
+            survive force-quit. Android background continuation requires a
+            visible app context for start and an active foreground-service
+            notification while detection is running.
           </Text>
         </View>
       </ScrollView>
@@ -204,5 +347,15 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     marginTop: 8,
+  },
+  eventRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#ddd',
+    paddingTop: 8,
+  },
+  eventLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
   },
 });
