@@ -9,8 +9,7 @@
  * config-plugin behavior only.
  */
 
-import type { ExpoConfig } from '@expo/config-plugins';
-import type { ManifestPermission } from '@expo/config-plugins/build/android/Manifest';
+import type { ManifestUsesPermission } from '@expo/config-plugins/build/android/Manifest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import rootPackageJson from '../../../package.json';
@@ -22,10 +21,21 @@ const REQUIRED_PERMISSIONS = [
   'android.permission.POST_NOTIFICATIONS',
 ];
 
+type MockExpoConfig = {
+  name: string;
+  slug: string;
+  ios?: Record<string, unknown>;
+  android?: Record<string, unknown>;
+  mods?: Record<string, Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-/** Minimal valid ExpoConfig for plugin testing. */
-function makeMockConfig(overrides: Partial<ExpoConfig> = {}): ExpoConfig {
+/** Minimal valid Expo config shape for plugin testing. */
+function makeMockConfig(
+  overrides: Partial<MockExpoConfig> = {}
+): MockExpoConfig {
   return {
     name: 'TestApp',
     slug: 'test-app',
@@ -40,7 +50,7 @@ function makeMockConfig(overrides: Partial<ExpoConfig> = {}): ExpoConfig {
  * a withInfoPlist call. Returns the mutated modResults (the plist object).
  */
 async function runInfoPlistMod(
-  config: ExpoConfig,
+  config: MockExpoConfig,
   initialPlist: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
   const mod = (config.mods as Record<string, Record<string, unknown>>)?.ios
@@ -60,7 +70,7 @@ async function runInfoPlistMod(
  * by a withAndroidManifest call. Returns the mutated modResults.
  */
 async function runAndroidManifestMod(
-  config: ExpoConfig,
+  config: MockExpoConfig,
   initialManifest: object = {
     manifest: {
       '$': { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
@@ -87,9 +97,9 @@ async function runAndroidManifestMod(
 
 describe('withMicrophonePermissions', () => {
   let withMicrophonePermissions: (
-    config: ExpoConfig,
+    config: MockExpoConfig,
     props: { microphonePermissionText?: string }
-  ) => ExpoConfig;
+  ) => MockExpoConfig;
 
   beforeEach(() => {
     jest.resetModules();
@@ -126,7 +136,7 @@ describe('withMicrophonePermissions', () => {
 // ─── withBackgroundModes ──────────────────────────────────────────────────────
 
 describe('withBackgroundModes', () => {
-  let withBackgroundModes: (config: ExpoConfig) => ExpoConfig;
+  let withBackgroundModes: (config: MockExpoConfig) => MockExpoConfig;
 
   beforeEach(() => {
     jest.resetModules();
@@ -165,7 +175,9 @@ describe('withBackgroundModes', () => {
 // ─── withAndroidForegroundService ────────────────────────────────────────────
 
 describe('withAndroidForegroundService', () => {
-  let withAndroidForegroundService: (config: ExpoConfig) => ExpoConfig;
+  let withAndroidForegroundService: (
+    config: MockExpoConfig
+  ) => MockExpoConfig;
 
   beforeEach(() => {
     jest.resetModules();
@@ -180,7 +192,7 @@ describe('withAndroidForegroundService', () => {
         '$': {
           'xmlns:android': 'http://schemas.android.com/apk/res/android',
         },
-        'uses-permission': [] as ManifestPermission[],
+        'uses-permission': [] as ManifestUsesPermission[],
         'application': [
           {
             $: { 'android:name': '.MainApplication' },
@@ -195,7 +207,7 @@ describe('withAndroidForegroundService', () => {
     const config = withAndroidForegroundService(makeMockConfig());
     const manifest = await runAndroidManifestMod(config, makeMinimalManifest());
     const permissionNames = (
-      manifest.manifest['uses-permission'] as ManifestPermission[]
+      manifest.manifest['uses-permission'] as ManifestUsesPermission[]
     ).map((p) => p.$['android:name']);
     for (const perm of REQUIRED_PERMISSIONS) {
       expect(permissionNames).toContain(perm);
@@ -214,7 +226,7 @@ describe('withAndroidForegroundService', () => {
     manifest = await runAndroidManifestMod(config, manifest);
 
     const permissionNames = (
-      manifest.manifest['uses-permission'] as ManifestPermission[]
+      manifest.manifest['uses-permission'] as ManifestUsesPermission[]
     ).map((p) => p.$['android:name']);
     for (const perm of REQUIRED_PERMISSIONS) {
       expect(permissionNames.filter((n) => n === perm).length).toBe(1);
@@ -267,9 +279,9 @@ describe('withAndroidForegroundService', () => {
 
 describe('config-plugin (composed withVoiceActivator)', () => {
   let withVoiceActivator: (
-    config: ExpoConfig,
+    config: MockExpoConfig,
     props?: { microphonePermissionText?: string }
-  ) => ExpoConfig;
+  ) => MockExpoConfig;
 
   beforeEach(() => {
     jest.resetModules();
@@ -290,7 +302,7 @@ describe('config-plugin (composed withVoiceActivator)', () => {
     const config = withVoiceActivator(makeMockConfig());
     const manifest = await runAndroidManifestMod(config);
     const permissionNames = (
-      manifest.manifest['uses-permission'] as ManifestPermission[]
+      manifest.manifest['uses-permission'] as ManifestUsesPermission[]
     ).map((p) => p.$['android:name']);
     expect(permissionNames).toEqual(
       expect.arrayContaining(REQUIRED_PERMISSIONS as unknown as string[])
@@ -319,7 +331,7 @@ describe('config-plugin (composed withVoiceActivator)', () => {
     );
 
     expect(appPlugin).toBe(pluginEntry);
-    expect(typeof pluginEntry.default ?? typeof pluginEntry).toBe('function');
+    expect(typeof (pluginEntry.default ?? pluginEntry)).toBe('function');
     expect(appPluginSource).toContain("require('./plugin')");
     expect(pluginEntrySource).toContain(
       "require('./build/src/expo/config-plugin')"
@@ -367,7 +379,7 @@ describe('config-plugin (composed withVoiceActivator)', () => {
     expect(modes.filter((mode) => mode === 'audio')).toHaveLength(1);
 
     const permissionNames = (
-      manifest.manifest['uses-permission'] as ManifestPermission[]
+      manifest.manifest['uses-permission'] as ManifestUsesPermission[]
     ).map((permission) => permission.$['android:name']);
     for (const permissionName of REQUIRED_PERMISSIONS) {
       expect(
