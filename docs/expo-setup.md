@@ -10,10 +10,10 @@ Expo Go is NOT supported.
 The supported Expo path today is:
 
 1. Expo SDK `55+`
-2. a development build, not Expo Go
+2. config resolution plus native project generation through Expo prebuild, not Expo Go
 3. the package plugin enabled in app config
-4. the example app exposes real Expo development-build commands:
-   - `expo start --dev-client`
+4. the example app exposes the same Expo-facing commands consumers use to generate native projects:
+   - `expo start`
    - `expo run:ios`
    - `expo run:android`
    - `expo prebuild`
@@ -65,14 +65,14 @@ Automatic through the Expo config plugin:
 
 Manual in your app:
 
-- use a development build instead of Expo Go
+- generate and run native projects instead of using Expo Go
 - run Expo config/prebuild as part of native project generation
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
 
-## Runtime Contract
+## Public API Contract
 
-Expo development builds use the same public package contract as bare React
+Expo-generated native apps use the same public package contract as bare React
 Native consumers.
 
 ```ts
@@ -105,8 +105,8 @@ The repository does not currently boot a full Expo runtime session in CI.
 
 That means this repo validates Expo plugin resolution, Expo config resolution,
 Expo prebuild generation, and the documented package integration surface, but
-you must still validate your own Expo dev build on the target SDK, device matrix,
-and native toolchain before treating it as production-ready.
+you must still validate your own Expo-generated native app on the target SDK,
+device matrix, and native toolchain before treating it as production-ready.
 
 ## Release Support Matrix
 
@@ -124,7 +124,7 @@ should stay aligned with that file.
 
 - Expo Go is NOT supported.
 - The current CI path executes Expo config resolution and Expo prebuild generation, not a full Expo runtime session.
-- This story proves Expo config and prebuild compatibility, not full Expo runtime parity on all devices.
+- This repository currently proves Expo config and prebuild compatibility, not full Expo runtime parity on all devices.
 - iOS background continuation still depends on the app declaring the audio
   background mode and staying alive after explicit activation.
 - Android background continuation still depends on visible-context start,

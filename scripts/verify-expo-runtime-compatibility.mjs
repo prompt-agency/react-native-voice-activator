@@ -41,12 +41,9 @@ if (!exampleDependencies.expo) {
   errors.push('example/package.json missing expo dependency.');
 }
 
-if (!exampleDependencies['expo-dev-client']) {
-  errors.push('example/package.json missing expo-dev-client dependency.');
-}
-
 const requiredExampleScripts = {
-  start: 'expo start --dev-client',
+  start: 'expo start',
+  prebuild: 'CI=1 expo prebuild --clean',
   android: 'expo run:android',
   ios: 'expo run:ios',
 };
@@ -64,15 +61,15 @@ const exampleReadme = readFileSync(join(root, 'example/README.md'), 'utf8');
 
 const requiredExpoSetupText = [
   'Expo Go is NOT supported.',
-  'development build',
-  'expo start --dev-client',
+  'config-plugin and prebuild',
+  'expo start',
   'expo run:ios',
   'expo run:android',
   'same public runtime API used by bare React Native consumers',
   'validation command that executes in CI against the example app',
   'prebuild --clean --no-install',
   'local plugin path (`../app.plugin.js`)',
-  'still validate your own Expo dev build',
+  'still validate your own Expo-generated native app',
   'device matrix',
   'native toolchain',
 ];
@@ -85,9 +82,10 @@ for (const text of requiredExpoSetupText) {
 
 const requiredExampleReadmeText = [
   'Expo config and prebuild compatibility contract',
-  'expo start --dev-client',
+  'expo start',
   'expo run:ios',
   'expo run:android',
+  'expo prebuild',
   'example/app.json',
   'Expo Go is explicitly unsupported',
   'CI executes Expo config resolution against this example app',

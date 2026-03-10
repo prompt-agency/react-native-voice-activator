@@ -9,7 +9,10 @@
           "microphonePermissionText": "This app uses the microphone to detect wake words."
         }
       ]
-    ]
+    ],
+    "android": {
+      "package": "com.anonymous.voiceactivatorexample"
+    }
   },
   "name": "VoiceActivatorExample",
   "displayName": "VoiceActivatorExample"

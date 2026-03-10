@@ -326,14 +326,14 @@ describe('config-plugin (composed withVoiceActivator)', () => {
     );
   });
 
-  it('documents that Expo Go is unsupported and development builds are required', () => {
+  it('documents that Expo Go is unsupported and Expo prebuild/native apps are required', () => {
     const configPluginSource = readFileSync(
       path.join(process.cwd(), 'src/expo/config-plugin.ts'),
       'utf8'
     );
 
     expect(configPluginSource).toContain('Expo Go is NOT supported');
-    expect(configPluginSource).toContain('development build');
+    expect(configPluginSource).toContain('Expo prebuild');
   });
 
   it('is idempotent when applying the composed plugin twice', async () => {

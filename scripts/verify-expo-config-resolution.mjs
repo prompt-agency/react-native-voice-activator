@@ -78,6 +78,4 @@ if (!pluginEntry) {
   process.exit(1);
 }
 
-console.log(
-  `Expo runtime execution validation passed for ${resolve(exampleRoot)}`
-);
+console.log(`Expo config resolution validation passed for ${resolve(exampleRoot)}`);

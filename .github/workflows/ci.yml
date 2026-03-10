@@ -31,8 +31,8 @@ jobs:
       - name: Typecheck files
         run: yarn typecheck
 
-      - name: Validate Expo prebuild config
-        run: yarn verify:expo-runtime-execution
+      - name: Validate Expo config resolution
+        run: yarn verify:expo-config-resolution
 
       - name: Validate Expo prebuild generation
         run: yarn verify:expo-prebuild

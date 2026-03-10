@@ -1,7 +1,7 @@
 import type { ConfigPlugin } from '@expo/config-plugins';
 
 /**
- * Handles wake word asset expectations for Expo development builds.
+ * Handles wake word asset expectations for Expo config/prebuild workflows.
  *
  * For v1, this is intentionally a no-op:
  * - default detection relies on Porcupine built-in keywords, so Expo does not

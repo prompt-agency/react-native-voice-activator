@@ -11,9 +11,10 @@ Story 4.2:
 - `example/app.json` registers the local plugin path (`../app.plugin.js`) used
   for monorepo validation
 - `example/package.json` exposes:
-  - `expo start --dev-client`
+  - `expo start`
   - `expo run:ios`
   - `expo run:android`
+  - `expo prebuild`
 - CI executes Expo config resolution against this example app
 - CI executes Expo prebuild generation against a temporary copy of this example app
 - Expo Go is explicitly unsupported

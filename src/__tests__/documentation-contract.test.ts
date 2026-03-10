@@ -114,8 +114,8 @@ describe('documentation and example contract', () => {
     );
 
     expect(expoSetup).toContain('Expo Go is NOT supported.');
-    expect(expoSetup).toContain('development build');
-    expect(expoSetup).toContain('expo start --dev-client');
+    expect(expoSetup).toContain('config-plugin and prebuild');
+    expect(expoSetup).toContain('expo start');
     expect(expoSetup).toContain('expo run:ios');
     expect(expoSetup).toContain('expo run:android');
     expect(expoSetup).toContain(
@@ -126,15 +126,18 @@ describe('documentation and example contract', () => {
     );
     expect(expoSetup).toContain('prebuild --clean --no-install');
     expect(expoSetup).toContain('local plugin path (`../app.plugin.js`)');
-    expect(expoSetup).toContain('still validate your own Expo dev build');
+    expect(expoSetup).toContain(
+      'still validate your own Expo-generated native app'
+    );
     expect(expoSetup).toContain('device matrix');
     expect(expoSetup).toContain('native toolchain');
     expect(exampleReadme).toContain(
       'Expo config and prebuild compatibility contract'
     );
-    expect(exampleReadme).toContain('expo start --dev-client');
+    expect(exampleReadme).toContain('expo start');
     expect(exampleReadme).toContain('expo run:ios');
     expect(exampleReadme).toContain('expo run:android');
+    expect(exampleReadme).toContain('expo prebuild');
     expect(exampleReadme).toContain(
       'CI executes Expo config resolution against this example app'
     );
@@ -157,8 +160,11 @@ describe('documentation and example contract', () => {
     expect(exampleAppConfig).toContain('../app.plugin.js');
     expect(exampleAppConfig).toContain('voice-activator-example');
     expect(examplePackage).toContain('"expo": "^55.0.0"');
-    expect(examplePackage).toContain('"expo-dev-client": "^6.0.0"');
-    expect(examplePackage).toContain('"start": "expo start --dev-client"');
+    expect(examplePackage).not.toContain('"expo-dev-client"');
+    expect(examplePackage).toContain('"start": "expo start"');
+    expect(examplePackage).toContain(
+      '"prebuild": "CI=1 expo prebuild --clean"'
+    );
     expect(examplePackage).toContain('"ios": "expo run:ios"');
     expect(examplePackage).toContain('"android": "expo run:android"');
   });

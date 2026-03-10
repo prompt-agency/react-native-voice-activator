@@ -46,7 +46,7 @@ if (!existsSync(readmePath)) {
     'normalized error-category surface: `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`',
     'supported iOS background continuation requires `UIBackgroundModes` to include `audio`',
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
-    'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
+    'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
     'Expo Go is NOT supported.',
     'optional downstream STT/TTS extension examples',
     'the package itself does not own transcription or synthesis',
@@ -138,6 +138,7 @@ if (existsSync(expoSetupPath)) {
     'scripts/release-support-matrix.ts',
     'Expo Go is NOT supported.',
     'The support matrix source in this repo is',
+    'config-plugin and prebuild',
     `Expo SDK \`${(expoSupport ?? 'SDK 55+').replace('SDK ', '')}\``,
   ];
 

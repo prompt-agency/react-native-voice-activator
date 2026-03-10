@@ -89,3 +89,4 @@ nitrogen/
 .cursor/
 _bmad/
 _bmad-output/
+.npm-cache/

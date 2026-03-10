@@ -2,12 +2,13 @@
  * Expo config plugin for react-native-voice-activator.
  *
  * Applies all required native configuration changes for wake word detection
- * in Expo development builds:
+ * in Expo config/prebuild workflows:
  *   - iOS: NSMicrophoneUsageDescription, UIBackgroundModes: audio
  *   - Android: RECORD_AUDIO / FOREGROUND_SERVICE* / POST_NOTIFICATIONS
  *     permissions plus WakeWordForegroundService declaration
  *
- * ⚠️  Expo Go is NOT supported. Use a development build.
+ * ⚠️  Expo Go is NOT supported. Generate native projects with Expo prebuild
+ *     or run the Expo-generated native app directly.
  *     See docs/expo-setup.md for integration guidance.
  */
 
