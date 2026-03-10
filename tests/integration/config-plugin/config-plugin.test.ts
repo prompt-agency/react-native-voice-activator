@@ -175,9 +175,7 @@ describe('withBackgroundModes', () => {
 // ─── withAndroidForegroundService ────────────────────────────────────────────
 
 describe('withAndroidForegroundService', () => {
-  let withAndroidForegroundService: (
-    config: MockExpoConfig
-  ) => MockExpoConfig;
+  let withAndroidForegroundService: (config: MockExpoConfig) => MockExpoConfig;
 
   beforeEach(() => {
     jest.resetModules();
