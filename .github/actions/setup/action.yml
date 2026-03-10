@@ -34,3 +34,7 @@ runs:
           **/node_modules
           .yarn/install-state.gz
         key: ${{ steps.yarn-cache.outputs.cache-primary-key }}
+
+    - name: Build Expo plugin artifact
+      run: yarn build:plugin
+      shell: bash
