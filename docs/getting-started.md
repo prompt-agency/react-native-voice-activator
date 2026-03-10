@@ -30,6 +30,12 @@ The example app exposes those runtime diagnostics directly so evaluators can see
 - recent runtime events
 - the normalized error categories used by the package contract
 
+The example app also includes optional downstream extension examples showing how:
+
+- `wakeWordDetected` can trigger an application-owned STT handoff
+- a TTS response step can run after detection or transcript handling
+- those speech flows remain outside the package runtime and use public APIs only
+
 ## Current Support Boundary
 
 - Bare React Native is the primary runtime validation path.

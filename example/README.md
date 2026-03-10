@@ -34,6 +34,8 @@ Story 4.2:
 - Expo CLI can generate iOS and Android native projects from a temporary copy of the example app through `expo prebuild --clean --no-install`
 - the example app exposes current runtime diagnostics, recent runtime events, and normalized error categories for evaluator troubleshooting
 - runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
+- the example also shows optional STT/TTS extension points layered on top of the public wake-word event contract
+- those STT/TTS flows are application-level examples only and do not make the package own transcription or synthesis
 
 ## What It Does Not Prove
 

@@ -43,6 +43,11 @@ if (!existsSync(exampleAppPath)) {
     'audioRouteChanged',
     'syncDiagnosticsFromStatus',
     'getStatus().lastError',
+    'Optional STT/TTS extension examples',
+    'Run STT handoff example',
+    'Run TTS response example',
+    'wakeWordDetected',
+    'application-level extension examples',
   ];
 
   for (const token of requiredApiUsage) {
@@ -54,6 +59,24 @@ if (!existsSync(exampleAppPath)) {
   if (exampleAppSource.includes('setLastError(null);')) {
     errors.push(
       'Example app clears lastError optimistically instead of mirroring getStatus().lastError.'
+    );
+  }
+
+  if (!exampleAppSource.includes('void runSttExtensionFromDetection(event)')) {
+    errors.push(
+      'Example app does not trigger the STT extension from the public wakeWordDetected event.'
+    );
+  }
+
+  if (!exampleAppSource.includes('setSttTranscript(null);')) {
+    errors.push(
+      'Example app does not clear stale STT transcript state when a new wake word is detected.'
+    );
+  }
+
+  if (!exampleAppSource.includes('setTtsResponse(null);')) {
+    errors.push(
+      'Example app does not clear stale TTS response state when a new wake word is detected.'
     );
   }
 
@@ -111,6 +134,8 @@ if (!existsSync(exampleReadmePath)) {
     'current runtime diagnostics',
     'recent runtime events',
     'normalized error categories',
+    'optional STT/TTS extension points',
+    'application-level examples only',
   ];
 
   for (const text of requiredReadmeText) {

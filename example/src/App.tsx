@@ -65,6 +65,11 @@ export default function App() {
     () => getStatus().lastError ?? null
   );
   const [recentEvents, setRecentEvents] = useState<RuntimeEventEntry[]>([]);
+  const [sttTranscript, setSttTranscript] = useState<string | null>(null);
+  const [ttsResponse, setTtsResponse] = useState<string | null>(null);
+  const [extensionStatus, setExtensionStatus] = useState<string>(
+    'No STT/TTS extension flow executed yet.'
+  );
 
   function syncDiagnosticsFromStatus(nextStatus: WakeWordStatus) {
     setStatus(nextStatus);
@@ -95,10 +100,21 @@ export default function App() {
       'wakeWordDetected',
       (event) => {
         setLastDetection(event);
+        setSttTranscript(null);
+        setTtsResponse(null);
+        setExtensionStatus(
+          'Wake word detected. Running optional STT extension example from the public event.'
+        );
         pushRuntimeEvent(
           'wakeWordDetected',
           `${event.detectedPhrase} at ${event.detectedAt}`
         );
+
+        void runSttExtensionFromDetection(event).catch(() => {
+          setExtensionStatus(
+            'Wake word detected, but the optional STT extension example failed.'
+          );
+        });
       }
     );
     const errorSubscription = addWakeWordListener('error', (event) => {
@@ -158,6 +174,27 @@ export default function App() {
     };
   }
 
+  async function simulateSttHandoff(event: WakeWordDetectedEvent) {
+    await Promise.resolve();
+
+    return `Transcript placeholder captured after wake phrase "${event.detectedPhrase}" at ${event.detectedAt}.`;
+  }
+
+  async function simulateTtsHandoff(transcript: string) {
+    await Promise.resolve();
+
+    return `TTS placeholder response for transcript: ${transcript}`;
+  }
+
+  async function runSttExtensionFromDetection(event: WakeWordDetectedEvent) {
+    const transcript = await simulateSttHandoff(event);
+    setSttTranscript(transcript);
+    setExtensionStatus(
+      'Optional STT extension example ran automatically from the public wakeWordDetected event.'
+    );
+    pushRuntimeEvent('sttExtension', 'transcript placeholder captured');
+  }
+
   async function runAction(actionName: string, action: () => Promise<void>) {
     try {
       await action();
@@ -193,6 +230,39 @@ export default function App() {
 
   function handleDispose() {
     runAction('dispose', () => dispose()).catch(() => undefined);
+  }
+
+  async function handleSttExample() {
+    if (!lastDetection) {
+      setExtensionStatus(
+        'Wait for a wake-word detection event before triggering the STT example.'
+      );
+      return;
+    }
+
+    await runSttExtensionFromDetection(lastDetection);
+  }
+
+  async function handleTtsExample() {
+    const sourceTranscript =
+      sttTranscript ??
+      (lastDetection
+        ? `Wake phrase received: ${lastDetection.detectedPhrase}`
+        : null);
+
+    if (!sourceTranscript) {
+      setExtensionStatus(
+        'Run the STT example or wait for wake-word detection before triggering the TTS example.'
+      );
+      return;
+    }
+
+    const response = await simulateTtsHandoff(sourceTranscript);
+    setTtsResponse(response);
+    setExtensionStatus(
+      'Optional TTS extension example ran after the STT/public wake-word flow.'
+    );
+    pushRuntimeEvent('ttsExtension', 'tts placeholder response prepared');
   }
 
   const availabilityText =
@@ -294,6 +364,29 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.label}>Optional STT/TTS extension examples</Text>
+          <Text style={styles.meta}>
+            These examples stay outside the package runtime. They use the public
+            wake-word event and lifecycle contract only, so STT/TTS remain
+            optional downstream integrations rather than built-in package
+            features.
+          </Text>
+          <View style={styles.buttonRow}>
+            <Button title="Run STT handoff example" onPress={handleSttExample} />
+          </View>
+          <View style={styles.buttonRow}>
+            <Button title="Run TTS response example" onPress={handleTtsExample} />
+          </View>
+          <Text style={styles.meta}>Extension status: {extensionStatus}</Text>
+          <Text style={styles.meta}>
+            STT transcript: {sttTranscript ?? 'No transcript placeholder yet.'}
+          </Text>
+          <Text style={styles.meta}>
+            TTS response: {ttsResponse ?? 'No TTS response placeholder yet.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.label}>Important note</Text>
           <Text style={styles.meta}>
             This example validates the current API, lifecycle, typed event path,
@@ -302,6 +395,10 @@ export default function App() {
             survive force-quit. Android background continuation requires a
             visible app context for start and an active foreground-service
             notification while detection is running.
+          </Text>
+          <Text style={styles.meta}>
+            The STT/TTS buttons above are application-level extension examples
+            only. The package does not own transcription or speech synthesis.
           </Text>
         </View>
       </ScrollView>

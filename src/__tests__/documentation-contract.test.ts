@@ -44,6 +44,16 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.'
     );
+    expect(readme).toContain('optional downstream STT/TTS extension examples');
+    expect(readme).toContain(
+      'the package itself does not own transcription or synthesis'
+    );
+    expect(readme).toContain(
+      'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals'
+    );
+    expect(readme).toContain(
+      'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features'
+    );
     expect(readme).toContain(`React Native \`${reactNativeSupport}\``);
     expect(readme).toContain(`Expo SDK \`${expoSupport.replace('SDK ', '')}\``);
     expect(readme).not.toContain('\nawait initialize();\n');
@@ -198,6 +208,13 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain('current `getStatus()` snapshot');
     expect(gettingStarted).toContain('recent runtime events');
     expect(gettingStarted).toContain('normalized error categories');
+    expect(gettingStarted).toContain('application-owned STT handoff');
+    expect(gettingStarted).toContain(
+      'TTS response step can run after detection or transcript handling'
+    );
+    expect(gettingStarted).toContain(
+      'those speech flows remain outside the package runtime and use public APIs only'
+    );
     expect(normalizedGettingStarted).toContain(
       'permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
     );
@@ -223,6 +240,12 @@ describe('documentation and example contract', () => {
     expect(troubleshooting).toContain('### `internal`');
     expect(troubleshooting).toContain('Expo Go is unsupported');
     expect(troubleshooting).toContain('primary runtime validation path today');
+    expect(troubleshooting).toContain(
+      'optional STT/TTS extension-point examples'
+    );
+    expect(troubleshooting).toContain(
+      'downstream application integrations only'
+    );
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {
@@ -240,9 +263,17 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('syncDiagnosticsFromStatus');
     expect(exampleApp).toContain('getStatus().lastError');
     expect(exampleApp).not.toContain('setLastError(null);');
+    expect(exampleApp).toContain('void runSttExtensionFromDetection(event)');
+    expect(exampleApp).toContain('setSttTranscript(null);');
+    expect(exampleApp).toContain('setTtsResponse(null);');
     expect(exampleApp).toContain('Recent runtime events');
     expect(exampleApp).toContain('Normalized error categories');
     expect(exampleApp).toContain('Current runtime diagnostics');
+    expect(exampleApp).toContain('Optional STT/TTS extension examples');
+    expect(exampleApp).toContain('Run STT handoff example');
+    expect(exampleApp).toContain('Run TTS response example');
+    expect(exampleApp).toContain('wakeWordDetected');
+    expect(exampleApp).toContain('application-level extension examples');
     expect(normalizedExampleApp).toContain(
       'iOS background continuation still requires the audio background mode and does not survive force-quit.'
     );

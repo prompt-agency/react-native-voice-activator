@@ -20,6 +20,12 @@ The example app also exposes evaluator-facing runtime diagnostics:
 - recent runtime events including `stateChanged`, `error`, `interruption`, and `audioRouteChanged`
 - the normalized error-category surface: `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`
 
+The example app also includes optional downstream STT/TTS extension examples:
+
+- wake-word detection can trigger an application-owned STT handoff through `wakeWordDetected`
+- a downstream TTS response can be wired after detection or transcript handling
+- these are example-level integrations only; the package itself does not own transcription or synthesis
+
 ## Reliability evaluation artifacts
 
 The current evaluation harness for quiet/noisy and endurance validation is tracked in:
@@ -99,6 +105,7 @@ runQuickstart().catch((error) => {
 - lifecycle methods work through the current supported foreground runtime path
 - `stateChanged` and `wakeWordDetected` events are wired correctly
 - `getStatus()` reflects runtime state transitions
+- downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals
 
 ## Current Limitations
 
@@ -107,6 +114,7 @@ runQuickstart().catch((error) => {
 - Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.
 - Android background behavior can still be constrained by OEM battery management and unsupported hidden-start scenarios.
 - Expo automation and production detection quality hardening are later stories
+- STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features
 
 ## Compatibility Notes
 

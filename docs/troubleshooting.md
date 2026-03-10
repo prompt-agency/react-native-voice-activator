@@ -23,6 +23,10 @@ The example app now exposes the same diagnostics surface for evaluation:
 - recent runtime events
 - normalized error categories for quick failure triage
 
+The example app also contains optional STT/TTS extension-point examples. Those
+examples are downstream application integrations only. If they fail, debug the
+app-level handoff code separately from the package runtime itself.
+
 ## Common Failure Classes
 
 - `permission`

@@ -48,6 +48,10 @@ if (!existsSync(readmePath)) {
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
     'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI prebuild-config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
     'Expo Go is NOT supported.',
+    'optional downstream STT/TTS extension examples',
+    'the package itself does not own transcription or synthesis',
+    'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals',
+    'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features',
   ];
 
   if (reactNativeSupport && !readme.includes(`React Native \`${reactNativeSupport}\``)) {
@@ -165,6 +169,8 @@ if (existsSync(troubleshootingPath)) {
     '### `internal`',
     'Expo Go is unsupported',
     'primary runtime validation path today',
+    'optional STT/TTS extension-point examples',
+    'downstream application integrations only',
   ];
 
   for (const text of requiredTroubleshootingText) {
@@ -185,6 +191,9 @@ if (existsSync(gettingStartedPath)) {
     'current `getStatus()` snapshot',
     'recent runtime events',
     'normalized error categories',
+    'application-owned STT handoff',
+    'TTS response step can run after detection or transcript handling',
+    'those speech flows remain outside the package runtime and use public APIs only',
   ];
 
   for (const text of requiredGettingStartedText) {
