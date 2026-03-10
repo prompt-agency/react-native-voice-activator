@@ -11,6 +11,12 @@ The repository is considered release-candidate ready only after these commands a
 - `bundle exec pod install --project-directory=ios` inside [`example`](./../example)
 - `yarn workspace react-native-voice-activator-example build:ios`
 
+Local prerequisite for the iOS gate:
+
+- the machine must have the Ruby version pinned in [`example/.ruby-version`](../example/.ruby-version)
+- CI already provides that via [`release.yml`](../.github/workflows/release.yml)
+- if local `pod install` or `build:ios` fails before Xcode compilation starts because the pinned Ruby is missing, treat that as a workstation-toolchain issue, not a package-runtime regression
+
 `yarn verify:release-readiness` currently covers:
 
 - lint
