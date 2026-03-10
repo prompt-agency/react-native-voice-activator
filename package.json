@@ -38,9 +38,9 @@
     "verify:contracts": "node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-reliability-evidence.mjs",
     "test": "jest",
     "typecheck": "tsc",
-    "lint": "eslint \"**/*.{js,ts,tsx}\" && yarn verify:contracts",
+    "lint": "eslint app.plugin.js plugin/index.js \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"plugin/build/**\" --ignore-pattern \"lib/**\" --no-warn-ignored && yarn verify:contracts",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "bob build",
+    "prepare": "bob build && tsc -p tsconfig.plugin.json",
     "release": "release-it --only-version"
   },
   "keywords": [
@@ -67,6 +67,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.35.0",
     "@evilmartians/lefthook": "^1.12.3",
+    "@expo/config-plugins": "^55.0.6",
     "@react-native-community/cli": "20.0.1",
     "@react-native/babel-preset": "0.83.2",
     "@react-native/eslint-config": "^0.81.1",
@@ -89,8 +90,14 @@
     "typescript": "^5.9.2"
   },
   "peerDependencies": {
+    "@expo/config-plugins": ">=8.0.0",
     "react": "*",
     "react-native": "*"
+  },
+  "peerDependenciesMeta": {
+    "@expo/config-plugins": {
+      "optional": true
+    }
   },
   "workspaces": [
     "example"
@@ -159,6 +166,9 @@
     "android": {
       "javaPackageName": "com.voiceactivator"
     }
+  },
+  "expo": {
+    "plugin": "./app.plugin.js"
   },
   "create-react-native-library": {
     "type": "turbo-module",
