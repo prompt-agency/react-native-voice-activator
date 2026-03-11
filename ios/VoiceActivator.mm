@@ -123,9 +123,15 @@ RCT_EXPORT_METHOD(dispose
   resolve(nil);
 }
 
-RCT_EXPORT_METHOD(addListener : (__unused NSString *)eventName) {}
+RCT_EXPORT_METHOD(addListener : (NSString *)eventName)
+{
+  [super addListener:eventName];
+}
 
-RCT_EXPORT_METHOD(removeListeners : (__unused double)count) {}
+RCT_EXPORT_METHOD(removeListeners : (double)count)
+{
+  [super removeListeners:count];
+}
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
     (const facebook::react::ObjCTurboModule::InitParams &)params

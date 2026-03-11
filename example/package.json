@@ -5,6 +5,7 @@
   "scripts": {
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:real": "expo run:ios --device 00008101-0005189C0188801E",
     "start": "expo start",
     "prebuild": "CI=1 expo prebuild --clean",
     "build:android": "react-native build-android --extra-params \"--no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a\"",
@@ -13,6 +14,7 @@
   "dependencies": {
     "@react-native/new-app-screen": "0.83.2",
     "expo": "^55.0.0",
+    "expo-dev-client": "~55.0.11",
     "react": "19.2.0",
     "react-native": "0.83.2",
     "react-native-safe-area-context": "^5.5.2",

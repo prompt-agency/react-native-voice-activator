@@ -41,6 +41,10 @@ if (!exampleDependencies.expo) {
   errors.push('example/package.json missing expo dependency.');
 }
 
+if (!exampleDependencies['expo-dev-client']) {
+  errors.push('example/package.json missing expo-dev-client dependency.');
+}
+
 const requiredExampleScripts = {
   start: 'expo start',
   prebuild: 'CI=1 expo prebuild --clean',

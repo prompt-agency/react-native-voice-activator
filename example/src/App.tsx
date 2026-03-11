@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
-  SafeAreaView,
+  PermissionsAndroid,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   addWakeWordListener,
   dispose,
@@ -20,6 +22,9 @@ import {
   type WakeWordErrorCategory,
   type WakeWordStatus,
 } from 'react-native-voice-activator';
+
+const configuredAccessKey =
+  process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY?.trim() ?? '';
 
 type RuntimeEventEntry = {
   id: string;
@@ -70,6 +75,56 @@ export default function App() {
   const [extensionStatus, setExtensionStatus] = useState<string>(
     'No STT/TTS extension flow executed yet.'
   );
+
+  async function ensureRuntimePrerequisites(): Promise<boolean> {
+    if (!configuredAccessKey) {
+      const configurationError: WakeWordError = {
+        category: 'configuration',
+        code: 'missing_access_key',
+        message:
+          'Set EXPO_PUBLIC_PICOVOICE_ACCESS_KEY before initializing the example app.',
+        recoverable: true,
+      };
+
+      setLastError(configurationError);
+      pushRuntimeEvent(
+        'prerequisite',
+        'Missing EXPO_PUBLIC_PICOVOICE_ACCESS_KEY for the built-in Porcupine engine.'
+      );
+      return false;
+    }
+
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: 'Microphone permission',
+        message:
+          'Microphone access is required to run wake-word detection in the example app.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Cancel',
+      }
+    );
+
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      const permissionError: WakeWordError = {
+        category: 'permission',
+        code: 'record_audio_permission_denied',
+        message:
+          'Microphone permission was denied, so wake-word detection cannot start.',
+        recoverable: true,
+      };
+
+      setLastError(permissionError);
+      pushRuntimeEvent('prerequisite', 'Microphone permission denied');
+      return false;
+    }
+
+    return true;
+  }
 
   function syncDiagnosticsFromStatus(nextStatus: WakeWordStatus) {
     setStatus(nextStatus);
@@ -217,7 +272,20 @@ export default function App() {
   }
 
   function handleInitialize() {
-    runAction('initialize', () => initialize()).catch(() => undefined);
+    runAction('initialize', async () => {
+      const prerequisitesSatisfied = await ensureRuntimePrerequisites();
+      if (!prerequisitesSatisfied) {
+        throw new Error('Example prerequisites are not satisfied.');
+      }
+
+      return initialize({
+        engineConfig: {
+          metadata: {
+            accessKey: configuredAccessKey,
+          },
+        },
+      });
+    }).catch(() => undefined);
   }
 
   function handleStartDetection() {
@@ -302,14 +370,36 @@ export default function App() {
 
         <View style={styles.card}>
           <Text style={styles.label}>Actions</Text>
+          <Text style={styles.meta}>
+            Picovoice access key:{' '}
+            {configuredAccessKey ? 'configured' : 'missing'}
+          </Text>
+          {!configuredAccessKey ? (
+            <Text style={styles.meta}>
+              Set `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY` and rebuild/restart the
+              example before initializing detection.
+            </Text>
+          ) : null}
           <View style={styles.buttonRow}>
-            <Button title="Initialize" onPress={handleInitialize} />
+            <Button
+              title="Initialize"
+              onPress={handleInitialize}
+              disabled={!configuredAccessKey}
+            />
           </View>
           <View style={styles.buttonRow}>
-            <Button title="Start detection" onPress={handleStartDetection} />
+            <Button
+              title="Start detection"
+              onPress={handleStartDetection}
+              disabled={!status.canStart}
+            />
           </View>
           <View style={styles.buttonRow}>
-            <Button title="Stop detection" onPress={handleStopDetection} />
+            <Button
+              title="Stop detection"
+              onPress={handleStopDetection}
+              disabled={!status.isListening}
+            />
           </View>
           <View style={styles.buttonRow}>
             <Button title="Dispose" onPress={handleDispose} />
