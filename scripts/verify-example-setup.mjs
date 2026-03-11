@@ -10,6 +10,7 @@ const exampleAppConfig = JSON.parse(
   readFileSync(join(root, 'example/app.json'), 'utf8')
 );
 const exampleReadmePath = join(root, 'example/README.md');
+const exampleIndexPath = join(root, 'example/index.js');
 
 const errors = [];
 const exampleAppPath = join(root, 'example/src/App.tsx');
@@ -105,6 +106,22 @@ if (!existsSync(exampleAppPath)) {
 
 if (!existsSync(exampleAppConfigPath)) {
   errors.push('Example app config does not exist at example/app.json.');
+}
+
+if (!existsSync(exampleIndexPath)) {
+  errors.push('Example app index does not exist at example/index.js.');
+} else {
+  const exampleIndexSource = readFileSync(exampleIndexPath, 'utf8');
+
+  if (!exampleIndexSource.includes("registerRootComponent(App)")) {
+    errors.push('Example app index does not register the Expo root component.');
+  }
+
+  if (exampleIndexSource.includes('AppRegistry.registerComponent')) {
+    errors.push(
+      'Example app index uses AppRegistry.registerComponent instead of Expo root registration.'
+    );
+  }
 }
 
 const registeredPlugins = exampleAppConfig.expo?.plugins;
