@@ -11,6 +11,7 @@ const exampleAppConfig = JSON.parse(
 );
 const exampleReadmePath = join(root, 'example/README.md');
 const exampleIndexPath = join(root, 'example/index.js');
+const exampleBabelConfigPath = join(root, 'example/babel.config.js');
 
 const errors = [];
 const exampleAppPath = join(root, 'example/src/App.tsx');
@@ -120,6 +121,22 @@ if (!existsSync(exampleIndexPath)) {
   if (exampleIndexSource.includes('AppRegistry.registerComponent')) {
     errors.push(
       'Example app index uses AppRegistry.registerComponent instead of Expo root registration.'
+    );
+  }
+}
+
+if (!existsSync(exampleBabelConfigPath)) {
+  errors.push('Example Babel config does not exist at example/babel.config.js.');
+} else {
+  const exampleBabelConfigSource = readFileSync(exampleBabelConfigPath, 'utf8');
+
+  if (!exampleBabelConfigSource.includes("presets: ['babel-preset-expo']")) {
+    errors.push('Example Babel config does not use babel-preset-expo.');
+  }
+
+  if (exampleBabelConfigSource.includes('react-native-builder-bob/babel-config')) {
+    errors.push(
+      'Example Babel config still uses react-native-builder-bob/babel-config.'
     );
   }
 }
