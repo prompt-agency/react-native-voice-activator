@@ -14,8 +14,9 @@
     {
       "id": "noisy-primary-wake-word",
       "environment": "noisy",
-      "playbackSource": "external-device-or-manual-capture",
-      "notes": "Use representative background noise and record detection success, false triggers, and any route/interruption anomalies."
+      "playbackSource": "deterministic-host-fixture",
+      "fixturePath": "tests/fixtures/reliability/scenarios/noisy-primary-wake-word.json",
+      "notes": "Use the deterministic host fixture for automated contract validation, then repeat the same scenario on physical devices for real acoustic evidence."
     }
   ]
 }

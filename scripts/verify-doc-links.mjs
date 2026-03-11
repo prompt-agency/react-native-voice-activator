@@ -78,7 +78,8 @@ if (existsSync(reliabilityValidationPath)) {
     'tests/fixtures/reliability/latest-results.json',
     'The PRD requires a 30-minute continuous detection endurance test',
     'compile-only validation is not the same as device validation',
-    'There is no automated runner yet that executes quiet/noisy or endurance scenarios for you',
+    'The repo now has an automated deterministic host-side runner for quiet, noisy, and endurance evidence.',
+    'deterministic host-side validation is not the same as acoustic device validation',
     'A passed physical-device run must replace those null placeholders with measured values',
   ];
 

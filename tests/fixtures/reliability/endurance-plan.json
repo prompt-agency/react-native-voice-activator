@@ -3,6 +3,7 @@
   "scenario": "endurance-30m",
   "requiredDurationMinutes": 30,
   "description": "Continuous runtime endurance plan aligned with the PRD reliability requirement.",
+  "deterministicFixturePath": "tests/fixtures/reliability/scenarios/endurance-30m.json",
   "requiredChecks": [
     "runtime-remains-active-without-unrecoverable-failure",
     "explicit-errors-or-unsupported-transitions-are-recorded",

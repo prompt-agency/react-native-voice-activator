@@ -3,6 +3,30 @@
   "updatedAt": "2026-03-07",
   "referenceDevices": [
     {
+      "id": "ios-host-deterministic",
+      "platform": "ios",
+      "class": "fixture-runner",
+      "description": "Host-side deterministic fixture runner used to validate the iOS-facing runtime contract without claiming physical-device proof.",
+      "requiredScenarios": [
+        "quiet-acceptance",
+        "noisy-acceptance",
+        "endurance-30m"
+      ],
+      "validationStatus": "validated"
+    },
+    {
+      "id": "android-host-deterministic",
+      "platform": "android",
+      "class": "fixture-runner",
+      "description": "Host-side deterministic fixture runner used to validate the Android-facing runtime contract without claiming physical-device proof.",
+      "requiredScenarios": [
+        "quiet-acceptance",
+        "noisy-acceptance",
+        "endurance-30m"
+      ],
+      "validationStatus": "validated"
+    },
+    {
       "id": "ios-physical-primary",
       "platform": "ios",
       "class": "physical-device",

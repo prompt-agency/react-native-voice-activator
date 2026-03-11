@@ -14,8 +14,9 @@
     {
       "id": "quiet-primary-wake-word",
       "environment": "quiet",
-      "playbackSource": "external-device-or-manual-capture",
-      "notes": "Use a clean wake word utterance with no competing speech and record detection latency plus any false triggers."
+      "playbackSource": "deterministic-host-fixture",
+      "fixturePath": "tests/fixtures/reliability/scenarios/quiet-primary-wake-word.json",
+      "notes": "Use the deterministic host fixture for automated contract validation, then repeat the same scenario on physical devices for real acoustic evidence."
     }
   ]
 }

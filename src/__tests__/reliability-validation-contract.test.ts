@@ -39,6 +39,14 @@ describe('reliability validation contract', () => {
     expect(referenceDeviceMatrix.referenceDevices).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          id: 'ios-host-deterministic',
+          validationStatus: 'validated',
+        }),
+        expect.objectContaining({
+          id: 'android-host-deterministic',
+          validationStatus: 'validated',
+        }),
+        expect.objectContaining({
           id: 'ios-physical-primary',
           validationStatus: expect.stringMatching(
             /^(pending-device-run|validated)$/
@@ -53,8 +61,17 @@ describe('reliability validation contract', () => {
       ])
     );
     expect(quietAcceptanceSet.scenario).toBe('quiet-acceptance');
+    expect(quietAcceptanceSet.fixtures[0].playbackSource).toBe(
+      'deterministic-host-fixture'
+    );
     expect(noisyAcceptanceSet.scenario).toBe('noisy-acceptance');
+    expect(noisyAcceptanceSet.fixtures[0].playbackSource).toBe(
+      'deterministic-host-fixture'
+    );
     expect(endurancePlan.requiredDurationMinutes).toBe(30);
+    expect(endurancePlan.deterministicFixturePath).toBe(
+      'tests/fixtures/reliability/scenarios/endurance-30m.json'
+    );
     expect(endurancePlan.resultFields).toEqual(
       expect.arrayContaining([
         'scenario',
@@ -69,10 +86,34 @@ describe('reliability validation contract', () => {
       ])
     );
     expect(latestResults.summary.status).toBe(
-      'pending-physical-device-validation'
+      'deterministic-validation-complete-pending-physical-device-validation'
     );
     expect(latestResults.results).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          scenario: 'quiet-acceptance',
+          deviceId: 'ios-host-deterministic',
+          status: 'passed',
+          evidenceType: 'deterministic-fixture-run',
+          latencyMsP95: expect.any(Number),
+          falseTriggerCount: expect.any(Number),
+          interruptionCount: expect.any(Number),
+          unsupportedTransitionCount: expect.any(Number),
+          teardownIssueCount: expect.any(Number),
+          unrecoverableFailureCount: expect.any(Number),
+        }),
+        expect.objectContaining({
+          scenario: 'endurance-30m',
+          deviceId: 'android-host-deterministic',
+          status: 'passed',
+          evidenceType: 'deterministic-fixture-run',
+          latencyMsP95: expect.any(Number),
+          falseTriggerCount: expect.any(Number),
+          interruptionCount: expect.any(Number),
+          unsupportedTransitionCount: expect.any(Number),
+          teardownIssueCount: expect.any(Number),
+          unrecoverableFailureCount: expect.any(Number),
+        }),
         expect.objectContaining({
           scenario: 'android-native-compile',
           status: 'passed',
@@ -106,10 +147,13 @@ describe('reliability validation contract', () => {
       'compile-only validation is not the same as device validation'
     );
     expect(reliabilityDoc).toContain(
+      'The repo now has an automated deterministic host-side runner'
+    );
+    expect(reliabilityDoc).toContain(
       'The PRD requires a 30-minute continuous detection endurance test'
     );
     expect(reliabilityDoc).toContain(
-      'There is no automated runner yet that executes quiet/noisy or endurance scenarios for you'
+      'deterministic host-side validation is not the same as acoustic device validation'
     );
     expect(reliabilityDoc).toContain(
       'A passed physical-device run must replace those null placeholders with measured values'
