@@ -15,7 +15,6 @@ export type {
   WakeWordEngineConfiguration,
   WakeWordEngineId,
   WakeWordEngineMetadata,
-  WakeWordEngineMetadataValue,
   WakeWordEngineSelection,
   VoiceActivatorEventMap,
   WakeWordAudioRouteChangedEvent,

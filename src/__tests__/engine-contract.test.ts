@@ -27,9 +27,6 @@ describe('engine-agnostic runtime contract', () => {
         assetKeys: {
           keywordAssetKey: 'keyword/default',
         },
-        metadata: {
-          locale: 'en-US',
-        },
       },
     });
 
@@ -43,9 +40,6 @@ describe('engine-agnostic runtime contract', () => {
         sensitivity: 0.8,
         assetKeys: {
           keywordAssetKey: 'keyword/default',
-        },
-        metadata: {
-          locale: 'en-US',
         },
       },
       engineMetadata: {
@@ -90,9 +84,6 @@ describe('engine-agnostic runtime contract', () => {
       }),
       engineConfig: {
         sensitivity: 0.35,
-        metadata: {
-          profile: 'custom',
-        },
       },
     };
 
@@ -104,9 +95,6 @@ describe('engine-agnostic runtime contract', () => {
     });
     expect(configuration.engineConfig).toEqual({
       sensitivity: 0.35,
-      metadata: {
-        profile: 'custom',
-      },
     });
     expect(configuration.engineMetadata).toEqual(defaultEngineMetadata);
   });
@@ -120,7 +108,6 @@ describe('engine-agnostic runtime contract', () => {
       },
       engineConfig: {
         sensitivity: 0.5,
-        metadata: {},
       },
       engineMetadata: {
         id: 'default',
@@ -144,9 +131,6 @@ describe('engine-agnostic runtime contract', () => {
       },
       {
         sensitivity: 0.4,
-        metadata: {
-          locale: 'en-US',
-        },
       }
     );
 
@@ -157,9 +141,6 @@ describe('engine-agnostic runtime contract', () => {
       },
       config: {
         sensitivity: 0.4,
-        metadata: {
-          locale: 'en-US',
-        },
       },
       metadata: defaultEngineMetadata,
     });
@@ -174,20 +155,20 @@ describe('engine-agnostic runtime contract', () => {
     expect(exportKeys.some((key) => key.includes('porcupine'))).toBe(false);
   });
 
-  it('accepts engine-neutral configuration types at compile time', () => {
+  it('accepts engine-neutral asset and sensitivity configuration types at compile time', () => {
     const engineConfig: WakeWordEngineConfiguration = {
       sensitivity: 0.55,
-      metadata: {
-        locale: 'en-US',
-        offline: true,
+      assetKeys: {
+        modelAssetKey: 'bundle/default-model',
+        keywordAssetKey: 'bundle/default-keywords',
       },
     };
 
     expect(engineConfig).toEqual({
       sensitivity: 0.55,
-      metadata: {
-        locale: 'en-US',
-        offline: true,
+      assetKeys: {
+        modelAssetKey: 'bundle/default-model',
+        keywordAssetKey: 'bundle/default-keywords',
       },
     });
   });

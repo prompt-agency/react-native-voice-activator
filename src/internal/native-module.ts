@@ -9,7 +9,6 @@ import type {
   WakeWordStatus,
 } from '../public/types';
 import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
-import { createLocalForegroundRuntime } from './local-foreground-runtime';
 import type { VoiceActivatorRuntimeBridge } from './runtime-bridge';
 
 export interface NativeVoiceActivatorSpec extends TurboModule {
@@ -31,7 +30,6 @@ const NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT =
 export const nativeVoiceActivatorModule =
   NativeVoiceActivator as NativeVoiceActivatorSpec | null;
 
-const localForegroundRuntime = createLocalForegroundRuntime();
 let nativeWakeWordDetectedSubscription: { remove(): void } | null = null;
 let nativeRuntimeStateSubscription: { remove(): void } | null = null;
 let nativeRuntimeErrorSubscription: { remove(): void } | null = null;
@@ -45,9 +43,48 @@ type NativeEventEmitterModule = TurboModule & {
   removeListeners(count: number): void;
 };
 
+function createUnsupportedRuntimeBridge(
+  reason: string,
+  initializeMessage: string,
+  startMessage: string,
+  stopMessage: string,
+  disposeMessage: string
+): VoiceActivatorRuntimeBridge {
+  return {
+    async initialize() {
+      throw new Error(initializeMessage);
+    },
+    async startDetection() {
+      throw new Error(startMessage);
+    },
+    async stopDetection() {
+      throw new Error(stopMessage);
+    },
+    getStatus() {
+      return {
+        state: 'unsupported',
+        isAvailable: false,
+        isListening: false,
+        canStart: false,
+        reason,
+        lastError: null,
+      };
+    },
+    async dispose() {
+      throw new Error(disposeMessage);
+    },
+  };
+}
+
 export function getVoiceActivatorRuntimeBridge(): VoiceActivatorRuntimeBridge {
   if (!nativeVoiceActivatorModule) {
-    return localForegroundRuntime;
+    return createUnsupportedRuntimeBridge(
+      'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
+      'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.',
+      'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
+      'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
+      'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
+    );
   }
 
   if (
@@ -67,46 +104,18 @@ export function getVoiceActivatorRuntimeBridge(): VoiceActivatorRuntimeBridge {
     };
   }
 
-  return {
-    async initialize() {
-      throw new Error(
-        'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling the native path.'
-      );
-    },
-    async startDetection() {
-      throw new Error(
-        'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling detection.'
-      );
-    },
-    async stopDetection() {
-      throw new Error(
-        'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before stopping detection through the native path.'
-      );
-    },
-    getStatus() {
-      return {
-        state: 'unsupported',
-        isAvailable: false,
-        isListening: false,
-        canStart: false,
-        reason:
-          'VoiceActivator native runtime is partially implemented. The package cannot use the native path until all bridge methods are available.',
-        lastError: null,
-      };
-    },
-    async dispose() {
-      throw new Error(
-        'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before disposing the native path.'
-      );
-    },
-  };
+  return createUnsupportedRuntimeBridge(
+    'VoiceActivator native runtime is partially implemented. The package cannot use the native path until all bridge methods are available.',
+    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling the native path.',
+    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling detection.',
+    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before stopping detection through the native path.',
+    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before disposing the native path.'
+  );
 }
 
 export function setWakeWordDetectedHandler(
   handler: ((payload: WakeWordDetectedEvent) => void) | null
 ) {
-  localForegroundRuntime.setWakeWordDetectedHandler(handler);
-
   nativeWakeWordDetectedSubscription?.remove();
   nativeWakeWordDetectedSubscription = null;
 

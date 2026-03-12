@@ -1,197 +1,74 @@
-import type { WakeWordDetectedEvent, WakeWordStatus } from '../public/types';
+import type { WakeWordStatus } from '../public/types';
 
-function createMockEngineRuntime() {
-  let detectionTimer: ReturnType<typeof setTimeout> | null = null;
-  let detectionCallback: ((event: WakeWordDetectedEvent) => void) | null = null;
-
-  function clearDetectionTimer() {
-    if (detectionTimer) {
-      clearTimeout(detectionTimer);
-      detectionTimer = null;
-    }
-  }
-
-  return {
-    initialize: jest.fn(
-      async (
-        _configuration,
-        handlers: { onDetected(event: WakeWordDetectedEvent): void }
-      ) => {
-        detectionCallback = handlers.onDetected;
-      }
-    ),
-    start: jest.fn(async () => {
-      clearDetectionTimer();
-      detectionTimer = setTimeout(() => {
-        detectionTimer = null;
-        detectionCallback?.({
-          detectedPhrase: 'porcupine',
-          detectedAt: '2026-03-06T12:00:00.000Z',
-        });
-      }, 0);
-    }),
-    stop: jest.fn(async () => {
-      clearDetectionTimer();
-    }),
-    dispose: jest.fn(async () => {
-      clearDetectionTimer();
-    }),
-  };
-}
-
-function mockLocalRuntimeBridge() {
-  const runtime = jest
-    .requireActual('../internal/local-foreground-runtime')
-    .createLocalForegroundRuntime();
-  const engineRuntime = createMockEngineRuntime();
-
-  jest.doMock('../internal/native-module', () => ({
-    nativeVoiceActivatorModule: null,
-    getVoiceActivatorRuntimeBridge: jest.fn(() => runtime),
-    setWakeWordDetectedHandler: jest.fn((handler) => {
-      runtime.setWakeWordDetectedHandler(handler);
-    }),
-  }));
-
-  jest.doMock('../engines', () => ({
-    createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-  }));
-}
-
-describe('foreground fallback runtime behavior', () => {
+describe('unsupported runtime behavior', () => {
   beforeEach(() => {
     jest.resetModules();
-    jest.useFakeTimers();
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it('supports initialize, start, detect, stop, and dispose without a native module', async () => {
-    mockLocalRuntimeBridge();
+  it('surfaces an explicit unsupported contract when the native module is unavailable', async () => {
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: null,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => ({
+        initialize: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        startDetection: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        stopDetection: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        getStatus: jest.fn(() => ({
+          state: 'unsupported',
+          isAvailable: false,
+          isListening: false,
+          canStart: false,
+          reason:
+            'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
+          lastError: null,
+        })),
+        dispose: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+      })),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
 
     const VoiceActivator = await import('../index');
-    const detectedEvents: WakeWordDetectedEvent[] = [];
 
-    const subscription = VoiceActivator.addWakeWordListener(
-      'wakeWordDetected',
-      (payload) => {
-        detectedEvents.push(payload);
-      }
-    );
-
-    await expect(VoiceActivator.initialize()).resolves.toBeUndefined();
     expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'ready',
-      isAvailable: true,
-      isListening: false,
-      canStart: true,
-      lastError: null,
-    });
-
-    await expect(VoiceActivator.startDetection()).resolves.toBeUndefined();
-    expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'running',
-      isAvailable: true,
-      isListening: true,
-      canStart: false,
-      lastError: null,
-    });
-
-    jest.runOnlyPendingTimers();
-
-    expect(detectedEvents).toEqual([
-      {
-        detectedPhrase: 'porcupine',
-        detectedAt: '2026-03-06T12:00:00.000Z',
-      },
-    ]);
-
-    await expect(VoiceActivator.stopDetection()).resolves.toBeUndefined();
-    expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'stopped',
-      isAvailable: true,
-      isListening: false,
-      canStart: true,
-      lastError: null,
-    });
-
-    await expect(VoiceActivator.dispose()).resolves.toBeUndefined();
-    expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'idle',
-      isAvailable: true,
+      state: 'unsupported',
+      isAvailable: false,
       isListening: false,
       canStart: false,
+      reason:
+        'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
       lastError: null,
     });
 
-    subscription.remove();
-  });
-
-  it('does not emit a wake word after stop or dispose clears the active foreground run', async () => {
-    mockLocalRuntimeBridge();
-
-    const VoiceActivator = await import('../index');
-    const listener = jest.fn();
-    const subscription = VoiceActivator.addWakeWordListener(
-      'wakeWordDetected',
-      listener
+    await expect(VoiceActivator.initialize()).rejects.toThrow(
+      'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.'
     );
-
-    await VoiceActivator.initialize();
-    await VoiceActivator.startDetection();
-    await VoiceActivator.stopDetection();
-
-    expect(listener).not.toHaveBeenCalled();
-
-    await VoiceActivator.startDetection();
-    await VoiceActivator.dispose();
-
-    expect(listener).not.toHaveBeenCalled();
-
-    subscription.remove();
-  });
-
-  it('requires initialize before the local foreground runtime can start detection', async () => {
-    mockLocalRuntimeBridge();
-
-    const VoiceActivator = await import('../index');
-
     await expect(VoiceActivator.startDetection()).rejects.toThrow(
-      'VoiceActivator.startDetection requires initialize() to complete before detection can begin.'
+      'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
     );
-    expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'error',
-      isAvailable: true,
-      isListening: false,
-      canStart: false,
-      lastError: {
-        category: 'internal',
-        code: 'startDetection_failed',
-        message:
-          'VoiceActivator.startDetection requires initialize() to complete before detection can begin.',
-        recoverable: true,
-      },
-    });
-  });
-
-  it('does not let stopDetection unlock startDetection before initialize', async () => {
-    mockLocalRuntimeBridge();
-
-    const VoiceActivator = await import('../index');
-
-    await expect(VoiceActivator.stopDetection()).resolves.toBeUndefined();
-    expect(VoiceActivator.getStatus()).toEqual<WakeWordStatus>({
-      state: 'idle',
-      isAvailable: true,
-      isListening: false,
-      canStart: false,
-      lastError: null,
-    });
-
-    await expect(VoiceActivator.startDetection()).rejects.toThrow(
-      'VoiceActivator.startDetection requires initialize() to complete before detection can begin.'
+    await expect(VoiceActivator.stopDetection()).rejects.toThrow(
+      'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
+    );
+    await expect(VoiceActivator.dispose()).rejects.toThrow(
+      'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
     );
   });
 });

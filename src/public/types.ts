@@ -22,7 +22,6 @@ export type WakeWordErrorCategory =
   | 'internal';
 
 export type WakeWordEngineId = 'default' | (string & {});
-export type WakeWordEngineMetadataValue = string | number | boolean;
 export type WakeWordEngineAssetRequirement = 'none' | 'bundled' | 'optional';
 
 export interface WakeWordEngineSelection {
@@ -38,7 +37,6 @@ export interface WakeWordEngineAssetKeys {
 export interface WakeWordEngineConfiguration {
   assetKeys?: WakeWordEngineAssetKeys;
   sensitivity?: number;
-  metadata?: Record<string, WakeWordEngineMetadataValue>;
 }
 
 export interface WakeWordEngineCapabilities {

@@ -28,14 +28,12 @@ export const defaultEngineContract: WakeWordEngineContract = {
   createDefaultConfig() {
     return {
       sensitivity: 0.5,
-      metadata: {},
     };
   },
   normalizeConfig(config = {}) {
     return {
       sensitivity: config.sensitivity ?? 0.5,
       assetKeys: config.assetKeys ? { ...config.assetKeys } : undefined,
-      metadata: config.metadata ? { ...config.metadata } : {},
     };
   },
 };

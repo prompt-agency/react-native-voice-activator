@@ -334,9 +334,6 @@ describe('public runtime state and event contract', () => {
       },
       engineConfig: {
         sensitivity: 0.72,
-        metadata: {
-          locale: 'en-US',
-        },
       },
     });
 
@@ -349,9 +346,6 @@ describe('public runtime state and event contract', () => {
       },
       engineConfig: {
         sensitivity: 0.72,
-        metadata: {
-          locale: 'en-US',
-        },
       },
       engineMetadata: {
         id: 'default',
@@ -1657,7 +1651,7 @@ describe('public runtime state and event contract', () => {
     }
   );
 
-  it('keeps runtime status coherent when the engine runtime reports an error while running', async () => {
+  it('keeps runtime status coherent when the engine runtime reports an error while unsupported', async () => {
     const engineRuntime = {
       initialize: jest.fn(
         async (
@@ -1681,25 +1675,46 @@ describe('public runtime state and event contract', () => {
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
-    const runtime = jest
-      .requireActual('../internal/local-foreground-runtime')
-      .createLocalForegroundRuntime();
-
     jest.doMock('../internal/native-module', () => ({
       nativeVoiceActivatorModule: null,
-      getVoiceActivatorRuntimeBridge: jest.fn(() => runtime),
-      setWakeWordDetectedHandler: jest.fn((handler) => {
-        runtime.setWakeWordDetectedHandler(handler);
-      }),
+      getVoiceActivatorRuntimeBridge: jest.fn(() => ({
+        initialize: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        startDetection: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        stopDetection: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+        getStatus: jest.fn(() => ({
+          state: 'unsupported',
+          isAvailable: false,
+          isListening: false,
+          canStart: false,
+          reason:
+            'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
+          lastError: null,
+        })),
+        dispose: jest.fn(async () => {
+          throw new Error(
+            'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
+          );
+        }),
+      })),
+      setWakeWordDetectedHandler: jest.fn(),
       setRuntimeStatusHandler: jest.fn(),
       setRuntimeErrorHandler: jest.fn(),
       setRuntimeInterruptionHandler: jest.fn(),
     }));
 
     const VoiceActivator = await import('../index');
-
-    await VoiceActivator.initialize();
-    await VoiceActivator.startDetection();
 
     engineRuntime.reportError?.({
       category: 'engine',
@@ -1709,16 +1724,13 @@ describe('public runtime state and event contract', () => {
     });
 
     expect(VoiceActivator.getStatus()).toEqual({
-      state: 'error',
-      isAvailable: true,
+      state: 'unsupported',
+      isAvailable: false,
       isListening: false,
       canStart: false,
-      lastError: {
-        category: 'engine',
-        code: 'engine_runtime_failed',
-        message: 'The built-in wake word engine failed while running.',
-        recoverable: true,
-      },
+      reason:
+        'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
+      lastError: null,
     });
   });
 });
