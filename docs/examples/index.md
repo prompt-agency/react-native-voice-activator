@@ -31,6 +31,10 @@ The example app shows the real wake-word runtime, links back to these adapter
 docs, and includes separate simulated host-provider previews for the optional
 transcribe and speak steps.
 
+It also exposes a bundled keyword selector that applies preset
+`engineConfig.assetKeys.keywordAssetKey` values for the shipped Sherpa phrases,
+rather than generating or editing custom keyword files at runtime.
+
 ## What These Examples Do Not Prove
 
 - this repo does not automate real vendor audio capture, recognition, or speech

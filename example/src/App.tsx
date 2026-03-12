@@ -35,6 +35,79 @@ type RuntimeEventEntry = {
   detail: string;
 };
 
+type KeywordPreset = {
+  id: string;
+  label: string;
+  keywordAssetKey: string;
+  phraseSummary: string;
+};
+
+const defaultKeywordPreset: KeywordPreset = {
+  id: 'all-bundled-phrases',
+  label: 'All bundled phrases',
+  keywordAssetKey: 'keywords.txt',
+  phraseSummary:
+    'HELLO WORLD, HI GOOGLE, HEY SIRI, ALEXA, LOVE AND PEACE, PLAY MUSIC, GO HOME, HAPPY NEW YEAR, MERRY CHRISTMAS',
+};
+
+const bundledKeywordPresets: KeywordPreset[] = [
+  defaultKeywordPreset,
+  {
+    id: 'hello-world',
+    label: 'HELLO WORLD',
+    keywordAssetKey: 'keywords-hello-world.txt',
+    phraseSummary: 'HELLO WORLD',
+  },
+  {
+    id: 'hi-google',
+    label: 'HI GOOGLE',
+    keywordAssetKey: 'keywords-hi-google.txt',
+    phraseSummary: 'HI GOOGLE',
+  },
+  {
+    id: 'hey-siri',
+    label: 'HEY SIRI',
+    keywordAssetKey: 'keywords-hey-siri.txt',
+    phraseSummary: 'HEY SIRI',
+  },
+  {
+    id: 'alexa',
+    label: 'ALEXA',
+    keywordAssetKey: 'keywords-alexa.txt',
+    phraseSummary: 'ALEXA',
+  },
+  {
+    id: 'love-and-peace',
+    label: 'LOVE AND PEACE',
+    keywordAssetKey: 'keywords-love-and-peace.txt',
+    phraseSummary: 'LOVE AND PEACE',
+  },
+  {
+    id: 'play-music',
+    label: 'PLAY MUSIC',
+    keywordAssetKey: 'keywords-play-music.txt',
+    phraseSummary: 'PLAY MUSIC',
+  },
+  {
+    id: 'go-home',
+    label: 'GO HOME',
+    keywordAssetKey: 'keywords-go-home.txt',
+    phraseSummary: 'GO HOME',
+  },
+  {
+    id: 'happy-new-year',
+    label: 'HAPPY NEW YEAR',
+    keywordAssetKey: 'keywords-happy-new-year.txt',
+    phraseSummary: 'HAPPY NEW YEAR',
+  },
+  {
+    id: 'merry-christmas',
+    label: 'MERRY CHRISTMAS',
+    keywordAssetKey: 'keywords-merry-christmas.txt',
+    phraseSummary: 'MERRY CHRISTMAS',
+  },
+];
+
 const errorCategories: Array<{
   category: WakeWordErrorCategory;
   description: string;
@@ -79,9 +152,23 @@ export default function App() {
   const [extensionStatus, setExtensionStatus] = useState<string>(
     'Wake -> transcribe -> optional speak preview is idle until initialize configures the application-owned provider interface.'
   );
+  const [selectedKeywordPresetId, setSelectedKeywordPresetId] = useState<string>(
+    defaultKeywordPreset.id
+  );
+  const [activeKeywordPresetId, setActiveKeywordPresetId] = useState<
+    string | null
+  >(null);
   const sttBridgeRef = useRef(createDemoReferenceSttBridge());
   const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
   const eventSequenceRef = useRef(0);
+  const selectedKeywordPreset =
+    bundledKeywordPresets.find((preset) => preset.id === selectedKeywordPresetId) ??
+    defaultKeywordPreset;
+  const activeKeywordPreset =
+    bundledKeywordPresets.find((preset) => preset.id === activeKeywordPresetId) ??
+    null;
+  const keywordSelectionRequiresInitialize =
+    activeKeywordPresetId !== selectedKeywordPreset.id;
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -149,7 +236,7 @@ export default function App() {
         setSttTranscript(null);
         setTtsResponse(null);
         setExtensionStatus(
-          'Wake word detected. If reference providers were configured during initialize, runtime orchestration will emit transcription and speech events next.'
+          `Wake word detected for the active "${activeKeywordPreset?.label ?? selectedKeywordPreset.label}" preset. If reference providers were configured during initialize, runtime orchestration will emit transcription and speech events next.`
         );
         pushRuntimeEvent(
           'wakeWordDetected',
@@ -323,14 +410,28 @@ export default function App() {
       );
 
       setExtensionStatus(
-        'Initialize configures app-owned reference providers through initialize({ sttProvider, ttsProvider, autoSpeak: true }) and keeps vendor wiring outside the package.'
+        `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
       );
+      setLastDetection(null);
+      lastDetectionRef.current = null;
+      setSttTranscript(null);
+      setTtsResponse(null);
+      setActiveKeywordPresetId(selectedKeywordPreset.id);
       pushRuntimeEvent(
         'referenceProviders',
         `${referenceProviders.sttProvider.name} + ${referenceProviders.ttsProvider.name}`
       );
+      pushRuntimeEvent(
+        'keywordPreset',
+        `${selectedKeywordPreset.label} via ${selectedKeywordPreset.keywordAssetKey}`
+      );
 
       return initialize({
+        engineConfig: {
+          assetKeys: {
+            keywordAssetKey: selectedKeywordPreset.keywordAssetKey,
+          },
+        },
         sttProvider: referenceProviders.sttProvider,
         ttsProvider: referenceProviders.ttsProvider,
         autoSpeak: true,
@@ -347,7 +448,17 @@ export default function App() {
   }
 
   function handleDispose() {
-    runAction('dispose', () => dispose()).catch(() => undefined);
+    runAction('dispose', async () => {
+      await dispose();
+      setLastDetection(null);
+      lastDetectionRef.current = null;
+      setSttTranscript(null);
+      setTtsResponse(null);
+      setActiveKeywordPresetId(null);
+      setExtensionStatus(
+        'Runtime disposed. Select a bundled keyword preset and run Initialize to apply it again.'
+      );
+    }).catch(() => undefined);
   }
 
   async function handleSttExample() {
@@ -414,6 +525,33 @@ export default function App() {
         </Text>
 
         <View style={styles.card}>
+          <Text style={styles.label}>Keyword detection status</Text>
+          <Text style={styles.value}>
+            Active preset:{' '}
+            {activeKeywordPreset?.label ?? 'Not initialized yet'}
+          </Text>
+          <Text style={styles.meta}>
+            Selected preset: {selectedKeywordPreset.label}
+          </Text>
+          <Text style={styles.meta}>
+            Preset phrases: {selectedKeywordPreset.phraseSummary}
+          </Text>
+          <Text style={styles.meta}>
+            Asset key: {selectedKeywordPreset.keywordAssetKey}
+          </Text>
+          <Text style={styles.meta}>
+            {lastDetection
+              ? `Detected phrase: ${lastDetection.detectedPhrase} at ${lastDetection.detectedAt}`
+              : 'Detected phrase: Waiting for a wake-word hit.'}
+          </Text>
+          <Text style={styles.meta}>
+            {keywordSelectionRequiresInitialize
+              ? 'Keyword selection changed. Run Initialize again before Start detection to apply the new preset.'
+              : 'The selected keyword preset is already active for the current runtime session.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.label}>Assistant flow guide</Text>
           <Text style={styles.meta}>
             1. The package-owned native runtime detects a wake phrase.
@@ -430,6 +568,37 @@ export default function App() {
             This screen shows the package wake runtime plus separate simulated
             provider previews built on the same public adapter contract.
           </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Bundled keyword presets</Text>
+          <Text style={styles.meta}>
+            The example app ships preset keyword files and applies them through
+            `engineConfig.assetKeys.keywordAssetKey`.
+          </Text>
+          <Text style={styles.meta}>
+            Changing the selection does not hot-swap the runtime. Re-run
+            Initialize to make the new preset active.
+          </Text>
+          {bundledKeywordPresets.map((preset) => (
+            <View key={preset.id} style={styles.eventRow}>
+              <Text style={styles.eventLabel}>{preset.label}</Text>
+              <Text style={styles.meta}>{preset.phraseSummary}</Text>
+              <Text style={styles.meta}>{preset.keywordAssetKey}</Text>
+              <View style={styles.buttonRow}>
+                <Button
+                  title={
+                    selectedKeywordPresetId === preset.id
+                      ? `Selected: ${preset.label}`
+                      : `Use ${preset.label}`
+                  }
+                  onPress={() => {
+                    setSelectedKeywordPresetId(preset.id);
+                  }}
+                />
+              </View>
+            </View>
+          ))}
         </View>
 
         <View style={styles.card}>

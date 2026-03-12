@@ -49,12 +49,18 @@ the current Expo integration path:
 Use the example in this order:
 
 1. initialize and validate the package-owned wake-word runtime
-2. observe the package runtime diagnostics, including `wakeWordDetected` and any provider lifecycle events produced by the configured app-owned providers
-3. use the STT/TTS preview buttons to inspect separate simulated host-provider bridges that follow the same application-owned provider pattern documented in `../docs/examples/`
+2. choose a bundled keyword preset and re-run Initialize when you want to apply a different `keywordAssetKey`
+3. observe the package runtime diagnostics, including `wakeWordDetected` and any provider lifecycle events produced by the configured app-owned providers
+4. use the STT/TTS preview buttons to inspect separate simulated host-provider bridges that follow the same application-owned provider pattern documented in `../docs/examples/`
 
 The wake step is real package behavior. The STT/TTS preview path is a simulated
 host implementation that demonstrates how a consumer app can compose
 transcription and speech on top of the public runtime contract.
+
+The bundled example presets currently cover `HELLO WORLD`, `HI GOOGLE`,
+`HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW
+YEAR`, and `MERRY CHRISTMAS`. They map to pre-bundled keyword files and do not
+let users type arbitrary custom phrases in the UI.
 
 ## What It Does Not Prove
 

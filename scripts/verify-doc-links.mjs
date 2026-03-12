@@ -329,6 +329,14 @@ if (existsSync(exampleReadmePath)) {
   if (!exampleReadme.includes('The wake step is real package behavior.')) {
     errors.push('example README missing wake step ownership clarification');
   }
+
+  if (!exampleReadme.includes('choose a bundled keyword preset')) {
+    errors.push('example README missing bundled keyword preset guidance');
+  }
+
+  if (!exampleReadme.includes('They map to pre-bundled keyword files')) {
+    errors.push('example README missing bundled keyword file explanation');
+  }
 }
 
 const examplesIndexPath = join(root, 'docs/examples/index.md');
@@ -345,6 +353,8 @@ if (existsSync(examplesIndexPath)) {
     'Recommended Evaluation Flow',
     'real wake-word runtime',
     'separate simulated host-provider previews',
+    'bundled keyword selector',
+    'engineConfig.assetKeys.keywordAssetKey',
   ];
 
   for (const text of requiredExamplesIndexText) {

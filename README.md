@@ -37,6 +37,12 @@ The current evaluator path for a broader assistant experience is:
 
 This flow is demonstrated through the public API and typed events only. The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned integrations documented in `docs/examples/`. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
 
+The bundled Sherpa keyword set currently includes `HELLO WORLD`, `HI GOOGLE`,
+`HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW
+YEAR`, and `MERRY CHRISTMAS`. The example app now exposes those as preset
+keyword selections by passing `engineConfig.assetKeys.keywordAssetKey` through
+the existing `initialize()` API.
+
 ## Reliability evaluation artifacts
 
 The current evaluation harness for quiet/noisy and endurance validation is tracked in:

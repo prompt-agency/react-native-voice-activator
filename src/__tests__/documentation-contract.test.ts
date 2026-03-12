@@ -341,6 +341,8 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain('native-managed Sherpa-ONNX');
     expect(gettingStarted).toContain('engineConfig.assetKeys.modelAssetKey');
     expect(gettingStarted).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(gettingStarted).toContain('HELLO WORLD');
+    expect(gettingStarted).toContain('MERRY CHRISTMAS');
     expect(gettingStarted).not.toContain('provide an AccessKey');
     expect(normalizedGettingStarted).toContain(
       'permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
@@ -410,8 +412,17 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('Recent runtime events');
     expect(exampleApp).toContain('Normalized error categories');
     expect(exampleApp).toContain('Current runtime diagnostics');
+    expect(exampleApp).toContain('Keyword detection status');
+    expect(exampleApp).toContain('Bundled keyword presets');
     expect(exampleApp).toContain('Optional STT/TTS extension examples');
     expect(exampleApp).toContain('Assistant flow guide');
+    expect(exampleApp).toContain('selectedKeywordPresetId');
+    expect(exampleApp).toContain('activeKeywordPresetId');
+    expect(exampleApp).toContain(
+      'keywordAssetKey: selectedKeywordPreset.keywordAssetKey'
+    );
+    expect(exampleApp).toContain('All bundled phrases');
+    expect(exampleApp).toContain('HELLO WORLD');
     expect(exampleApp).toContain(
       'This screen shows the package wake runtime plus separate simulated'
     );
@@ -486,6 +497,8 @@ describe('documentation and example contract', () => {
     expect(exampleReadme).toContain('Provider Pattern Evaluation Flow');
     expect(exampleReadme).toContain('The wake step is real package behavior.');
     expect(exampleReadme).toContain('separate simulated host-provider bridges');
+    expect(exampleReadme).toContain('choose a bundled keyword preset');
+    expect(exampleReadme).toContain('They map to pre-bundled keyword files');
   });
 
   it('replaces placeholder and migration-era documentation with Sherpa-era guidance', () => {

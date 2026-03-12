@@ -59,6 +59,13 @@ if (!existsSync(exampleAppPath)) {
     'transcriptionResult',
     'speechStarted',
     'speechCompleted',
+    'Bundled keyword presets',
+    'Keyword detection status',
+    'selectedKeywordPresetId',
+    'activeKeywordPresetId',
+    'keywordAssetKey',
+    'All bundled phrases',
+    'HELLO WORLD',
   ];
 
   for (const token of requiredApiUsage) {
@@ -97,6 +104,18 @@ if (!existsSync(exampleAppPath)) {
     );
   }
 
+  if (!exampleAppSource.includes('engineConfig: {')) {
+    errors.push(
+      'Example app does not configure engineConfig through initialize({...}).'
+    );
+  }
+
+  if (!exampleAppSource.includes('keywordAssetKey: selectedKeywordPreset.keywordAssetKey')) {
+    errors.push(
+      'Example app does not pass the selected bundled keyword preset through engineConfig.assetKeys.keywordAssetKey.'
+    );
+  }
+
   if (!exampleAppSource.includes('simulated host implementation to preview the contract')) {
     errors.push(
       'Example app does not explain that the adapter preview is an application-owned simulated host implementation.'
@@ -105,6 +124,11 @@ if (!existsSync(exampleAppPath)) {
 
   const requiredExampleLimitationText = [
     'The package-owned native runtime detects a wake phrase.',
+    'Active preset:',
+    'Selected preset:',
+    'Asset key:',
+    'Detected phrase:',
+    'Keyword selection changed. Run Initialize again before Start detection',
     'The optional application-owned STT provider can turn that wake',
     'This screen shows the package wake runtime plus separate simulated',
     'The wake step is real package behavior.',

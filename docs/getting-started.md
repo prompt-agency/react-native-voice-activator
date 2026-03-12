@@ -56,6 +56,10 @@ The package owns step 1. Your app owns steps 2 and 3.
 - if your app intentionally ships custom Sherpa assets, the public override
   points are `engineConfig.assetKeys.modelAssetKey` and
   `engineConfig.assetKeys.keywordAssetKey`
+- the example app ships bundled keyword presets for `HELLO WORLD`, `HI GOOGLE`,
+  `HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW
+  YEAR`, and `MERRY CHRISTMAS`, and applies them through
+  `engineConfig.assetKeys.keywordAssetKey`
 - Expo and bare React Native consumers use the same public configuration shape;
   Expo just layers the package config plugin and prebuild flow on top of it
 
