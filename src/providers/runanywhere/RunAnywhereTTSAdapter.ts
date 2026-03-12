@@ -5,28 +5,44 @@ import type {
 } from '../../public/types';
 
 type RunAnywhereModule = typeof import('@runanywhere/core');
+type RunAnywhereONNXModule = typeof import('@runanywhere/onnx');
+type NativeRunAnywhereONNXModule = ReturnType<
+  RunAnywhereONNXModule['requireNativeONNXModule']
+>;
+
+type NativeTTSResult = {
+  audioBase64?: string;
+  audio?: string;
+  sampleRate?: number;
+};
 
 export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
   readonly name = 'runanywhere-onnx';
   readonly isBuiltInRunAnywhereProvider = true;
 
   private runAnywhere: RunAnywhereModule['RunAnywhere'] | null = null;
+  private nativeONNX: NativeRunAnywhereONNXModule | null = null;
 
   constructor(private readonly config: RunAnywhereTTSConfig) {}
 
   async initialize(): Promise<void> {
-    if (this.runAnywhere) {
+    if (this.runAnywhere && this.nativeONNX) {
       return;
     }
 
-    const [{ ONNX }, { RunAnywhere }] = await Promise.all([
+    const [{ ONNXProvider, requireNativeONNXModule }, { RunAnywhere }] =
+      await Promise.all([
       import('@runanywhere/onnx'),
       import('@runanywhere/core'),
-    ]);
+      ]);
 
-    ONNX.register();
+    const registered = await ONNXProvider.register();
+    if (!registered) {
+      throw new Error('RunAnywhere ONNX backend failed to register.');
+    }
 
-    const loaded = await RunAnywhere.loadTTSModel(
+    const nativeONNX = requireNativeONNXModule();
+    const loaded = await nativeONNX.loadTTSModel(
       this.config.modelPath,
       this.config.modelType ?? 'piper'
     );
@@ -36,10 +52,11 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
     }
 
     this.runAnywhere = RunAnywhere;
+    this.nativeONNX = nativeONNX;
   }
 
   async speak(text: string, options?: TTSOptions): Promise<void> {
-    if (!this.runAnywhere) {
+    if (!this.runAnywhere || !this.nativeONNX) {
       throw new Error('RunAnywhereTTSAdapter: call initialize() first');
     }
 
@@ -49,12 +66,24 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
       );
     }
 
-    await this.runAnywhere.speak(text, {
-      voice: this.config.voice,
-      rate: options?.rate ?? this.config.rate,
-      pitch: options?.pitch ?? this.config.pitch,
-      language: undefined,
-    });
+    const resultJson = await this.nativeONNX.synthesize(
+      text,
+      this.config.voice ?? '',
+      options?.rate ?? this.config.rate ?? 1,
+      options?.pitch ?? this.config.pitch ?? 1
+    );
+    const parsed = JSON.parse(resultJson) as NativeTTSResult;
+    const audioBase64 = parsed.audioBase64 ?? parsed.audio;
+
+    if (!audioBase64) {
+      throw new Error('RunAnywhere TTS synthesis returned no audio.');
+    }
+
+    const wavPath = await this.runAnywhere.Audio.createWavFromPCMFloat32(
+      audioBase64,
+      parsed.sampleRate ?? 22050
+    );
+    await this.runAnywhere.Audio.playAudio(wavPath);
   }
 
   async stop(): Promise<void> {
@@ -62,16 +91,17 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
       return;
     }
 
-    await this.runAnywhere.stopSpeaking();
+    await this.runAnywhere.Audio.stopPlayback();
   }
 
   async dispose(): Promise<void> {
-    if (!this.runAnywhere) {
+    if (!this.runAnywhere || !this.nativeONNX) {
       return;
     }
 
-    await this.runAnywhere.stopSpeaking();
-    await this.runAnywhere.unloadTTSModel();
+    await this.runAnywhere.Audio.stopPlayback();
+    await this.nativeONNX.unloadTTSModel();
     this.runAnywhere = null;
+    this.nativeONNX = null;
   }
 }

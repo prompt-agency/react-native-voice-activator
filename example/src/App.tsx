@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as ExpoSpeech from 'expo-speech';
 import {
   PermissionsAndroid,
   Platform,
@@ -59,6 +60,38 @@ type ManualRunAnywhereAdapters = {
 };
 
 type ActionTone = 'primary' | 'secondary' | 'danger' | 'quiet';
+
+function isRunAnywhereIOSPiperLoadFailure(error: unknown): boolean {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Failed to load TTS voice') ||
+    message.includes('TTSBridge') ||
+    message.includes('Error: -422')
+  );
+}
+
+function speakWithExpoSpeech(text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ExpoSpeech.speak(text, {
+      language: 'en-US',
+      onDone: () => resolve(),
+      onStopped: () => resolve(),
+      onError: (event) => {
+        const message =
+          event instanceof Error && event.message
+            ? event.message
+            : 'Expo Speech failed to play audio.';
+        reject(
+          new Error(`Expo Speech failed: ${message}`)
+        );
+      },
+    });
+  });
+}
 
 const defaultKeywordPreset: KeywordPreset = {
   id: 'all-bundled-phrases',
@@ -684,16 +717,39 @@ export default function App() {
         throw new Error('Enter text before asking RunAnywhere TTS to speak.');
       }
 
-      const adapters = await ensureManualRunAnywhereAdapters('tts');
-      if (!adapters.ttsAdapter) {
-        throw new Error('RunAnywhere TTS is not configured.');
-      }
+      try {
+        const adapters = await ensureManualRunAnywhereAdapters('tts');
+        if (!adapters.ttsAdapter) {
+          throw new Error('RunAnywhere TTS is not configured.');
+        }
 
-      setManualRunAnywhereStatus('Speaking text through RunAnywhere TTS...');
-      await adapters.ttsAdapter.speak(manualRunAnywhereText);
-      setManualRunAnywhereStatus('RunAnywhere TTS completed.');
-      setTtsResponse(`Manual RunAnywhere TTS completed: "${manualRunAnywhereText}"`);
-      pushRuntimeEvent('manualTTS', manualRunAnywhereText);
+        setManualRunAnywhereStatus('Speaking text through RunAnywhere TTS...');
+        await adapters.ttsAdapter.speak(manualRunAnywhereText);
+        setManualRunAnywhereStatus('RunAnywhere TTS completed.');
+        setTtsResponse(
+          `Manual RunAnywhere TTS completed: "${manualRunAnywhereText}"`
+        );
+        pushRuntimeEvent('manualTTS', manualRunAnywhereText);
+      } catch (error) {
+        if (!isRunAnywhereIOSPiperLoadFailure(error)) {
+          throw error;
+        }
+
+        setManualRunAnywhereStatus(
+          'RunAnywhere Piper TTS is not loading on iOS. Falling back to system speech for this example action.'
+        );
+        pushRuntimeEvent(
+          'manualTTSFallback',
+          'RunAnywhere Piper TTS failed on iOS, using Expo Speech fallback'
+        );
+        await speakWithExpoSpeech(manualRunAnywhereText);
+        setManualRunAnywhereStatus(
+          'System speech fallback completed on iOS after RunAnywhere Piper TTS failed to load.'
+        );
+        setTtsResponse(
+          `Manual system TTS fallback completed: "${manualRunAnywhereText}"`
+        );
+      }
     }).catch(() => undefined);
   }
 

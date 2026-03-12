@@ -44,6 +44,15 @@ export interface RunAnywhereSpeakResult {
   characterCount: number;
 }
 
+export interface RunAnywhereAudioModule {
+  createWavFromPCMFloat32(
+    audioBase64: string,
+    sampleRate?: number
+  ): Promise<string>;
+  playAudio(uri: string): Promise<void>;
+  stopPlayback(): Promise<void>;
+}
+
 export const RunAnywhere = null as unknown as {
   readonly isSDKInitialized: boolean;
   initialize(options: {
@@ -80,4 +89,5 @@ export const RunAnywhere = null as unknown as {
   ): Promise<string>;
   getModelInfo(modelId: string): Promise<RunAnywhereModelInfo | null>;
   isModelDownloaded(modelId: string): Promise<boolean>;
+  Audio: RunAnywhereAudioModule;
 };

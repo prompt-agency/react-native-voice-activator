@@ -13,7 +13,7 @@ import {
   SDKEnvironment,
   type RunAnywhereDownloadProgress,
 } from '@runanywhere/core';
-import { ModelArtifactType, ONNX } from '@runanywhere/onnx';
+import { ModelArtifactType, ONNX, ONNXProvider } from '@runanywhere/onnx';
 
 type DetectionGetter = () => WakeWordDetectedEvent | null;
 
@@ -137,7 +137,10 @@ async function ensureRunAnywhereInitialized(): Promise<void> {
     });
   }
 
-  ONNX.register();
+  const registered = await ONNXProvider.register();
+  if (!registered) {
+    throw new Error('RunAnywhere ONNX backend failed to register.');
+  }
 }
 
 async function ensureModelRegistered(
@@ -237,21 +240,18 @@ async function resolveBuiltInModelPath(
     modality === ModelCategory.SpeechRecognition &&
     model.modelType === 'whisper'
   ) {
-    const whisperEncoderPath = await findFirstMatchingFile(localPath, [
-      /-encoder\.onnx$/i,
-      /-encoder\.int8\.onnx$/i,
-    ]);
-
-    if (whisperEncoderPath) {
-      return whisperEncoderPath;
-    }
+    return localPath;
   }
 
   if (
     modality === ModelCategory.SpeechSynthesis &&
     model.modelType === 'piper'
   ) {
-    return localPath;
+    const piperVoicePath = await findFirstMatchingFile(localPath, [/\.onnx$/i]);
+
+    if (piperVoicePath) {
+      return piperVoicePath;
+    }
   }
 
   return localPath;

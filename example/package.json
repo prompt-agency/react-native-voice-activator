@@ -17,6 +17,7 @@
     "@runanywhere/onnx": "^0.18.1",
     "expo": "^55.0.0",
     "expo-dev-client": "~55.0.11",
+    "expo-speech": "^55.0.8",
     "react": "19.2.0",
     "react-native": "0.83.2",
     "react-native-audio-recorder-player": "^3.6.0",

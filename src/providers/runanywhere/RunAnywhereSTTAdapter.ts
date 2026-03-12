@@ -45,7 +45,10 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
         import('react-native-audio-recorder-player'),
       ]);
 
-    onnxModule.ONNX.register();
+    const registered = await onnxModule.ONNXProvider.register();
+    if (!registered) {
+      throw new Error('RunAnywhere ONNX backend failed to register.');
+    }
 
     const loaded = await RunAnywhere.loadSTTModel(
       this.config.modelPath,
