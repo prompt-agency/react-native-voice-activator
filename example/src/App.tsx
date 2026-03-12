@@ -395,15 +395,23 @@ export default function App() {
     };
   }, []);
 
-  async function ensureManualRunAnywhereAdapters(): Promise<ManualRunAnywhereAdapters> {
-    const preparedOptions = await prepareRunAnywhereBuiltInOptions((update) => {
-      const nextStatus =
-        update.progress == null
-          ? update.message
-          : `${update.message} (${update.progress}%)`;
-      setExtensionStatus(nextStatus);
-      setManualRunAnywhereStatus(nextStatus);
-    });
+  async function ensureManualRunAnywhereAdapters(
+    requestedMode: 'stt' | 'tts' | 'both'
+  ): Promise<ManualRunAnywhereAdapters> {
+    const preparedOptions = await prepareRunAnywhereBuiltInOptions(
+      (update) => {
+        const nextStatus =
+          update.progress == null
+            ? update.message
+            : `${update.message} (${update.progress}%)`;
+        setExtensionStatus(nextStatus);
+        setManualRunAnywhereStatus(nextStatus);
+      },
+      {
+        includeSTT: requestedMode !== 'tts',
+        includeTTS: requestedMode !== 'stt',
+      }
+    );
 
     if (!preparedOptions) {
       throw new Error(
@@ -412,35 +420,39 @@ export default function App() {
     }
 
     const currentAdapters = manualRunAnywhereAdaptersRef.current;
+    const requestedSTTConfig = preparedOptions.builtInSTT;
+    const requestedTTSConfig = preparedOptions.builtInTTS;
+    const shouldEnsureSTT = requestedMode !== 'tts';
+    const shouldEnsureTTS = requestedMode !== 'stt';
     const sttConfigChanged =
       JSON.stringify(currentAdapters.preparedSTTConfig ?? null) !==
-      JSON.stringify(preparedOptions.builtInSTT ?? null);
+      JSON.stringify(requestedSTTConfig ?? null);
     const ttsConfigChanged =
       JSON.stringify(currentAdapters.preparedTTSConfig ?? null) !==
-      JSON.stringify(preparedOptions.builtInTTS ?? null);
+      JSON.stringify(requestedTTSConfig ?? null);
 
-    if (sttConfigChanged && currentAdapters.sttAdapter) {
+    if (shouldEnsureSTT && sttConfigChanged && currentAdapters.sttAdapter) {
       await currentAdapters.sttAdapter.dispose();
       currentAdapters.sttAdapter = null;
     }
 
-    if (ttsConfigChanged && currentAdapters.ttsAdapter) {
+    if (shouldEnsureTTS && ttsConfigChanged && currentAdapters.ttsAdapter) {
       await currentAdapters.ttsAdapter.dispose();
       currentAdapters.ttsAdapter = null;
     }
 
-    if (preparedOptions.builtInSTT && !currentAdapters.sttAdapter) {
-      const sttAdapter = new RunAnywhereSTTAdapter(preparedOptions.builtInSTT);
+    if (shouldEnsureSTT && requestedSTTConfig && !currentAdapters.sttAdapter) {
+      const sttAdapter = new RunAnywhereSTTAdapter(requestedSTTConfig);
       await sttAdapter.initialize();
       currentAdapters.sttAdapter = sttAdapter;
-      currentAdapters.preparedSTTConfig = preparedOptions.builtInSTT;
+      currentAdapters.preparedSTTConfig = requestedSTTConfig;
     }
 
-    if (preparedOptions.builtInTTS && !currentAdapters.ttsAdapter) {
-      const ttsAdapter = new RunAnywhereTTSAdapter(preparedOptions.builtInTTS);
+    if (shouldEnsureTTS && requestedTTSConfig && !currentAdapters.ttsAdapter) {
+      const ttsAdapter = new RunAnywhereTTSAdapter(requestedTTSConfig);
       await ttsAdapter.initialize();
       currentAdapters.ttsAdapter = ttsAdapter;
-      currentAdapters.preparedTTSConfig = preparedOptions.builtInTTS;
+      currentAdapters.preparedTTSConfig = requestedTTSConfig;
     }
 
     return currentAdapters;
@@ -569,7 +581,7 @@ export default function App() {
         throw new Error('Enter text before asking RunAnywhere TTS to speak.');
       }
 
-      const adapters = await ensureManualRunAnywhereAdapters();
+      const adapters = await ensureManualRunAnywhereAdapters('tts');
       if (!adapters.ttsAdapter) {
         throw new Error('RunAnywhere TTS is not configured.');
       }
@@ -584,7 +596,7 @@ export default function App() {
 
   function handleManualRunAnywhereTranscribe() {
     runAction('manualRunAnywhereTranscribe', async () => {
-      const adapters = await ensureManualRunAnywhereAdapters();
+      const adapters = await ensureManualRunAnywhereAdapters('stt');
       if (!adapters.sttAdapter) {
         throw new Error('RunAnywhere STT is not configured.');
       }

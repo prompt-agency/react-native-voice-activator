@@ -57,6 +57,11 @@ type RunAnywherePreparedOptions = {
   builtInTTS?: RunAnywhereTTSConfig;
 };
 
+type PrepareRunAnywhereOptions = {
+  includeSTT?: boolean;
+  includeTTS?: boolean;
+};
+
 export type RunAnywherePreparationUpdate = {
   message: string;
   progress?: number;
@@ -182,12 +187,87 @@ async function ensureModelLocalPath(
   return modelInfo.localPath;
 }
 
+async function findFirstMatchingFile(
+  rootPath: string,
+  patterns: RegExp[]
+): Promise<string | null> {
+  const RNFS = await import('react-native-fs');
+  const pendingPaths = [rootPath];
+
+  while (pendingPaths.length > 0) {
+    const currentPath = pendingPaths.shift();
+    if (!currentPath) {
+      continue;
+    }
+
+    const entries = await RNFS.readDir(currentPath);
+    const directories = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.path);
+    const files = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.path);
+
+    for (const pattern of patterns) {
+      const match = files.find((filePath) => pattern.test(filePath));
+      if (match) {
+        return match;
+      }
+    }
+
+    pendingPaths.push(...directories);
+  }
+
+  return null;
+}
+
+async function resolveBuiltInModelPath(
+  model: RunAnywhereModelDefinition,
+  modality: ModelCategory,
+  localPath: string
+): Promise<string> {
+  const RNFS = await import('react-native-fs');
+  const stat = await RNFS.stat(localPath);
+
+  if (!stat.isDirectory()) {
+    return localPath;
+  }
+
+  if (
+    modality === ModelCategory.SpeechRecognition &&
+    model.modelType === 'whisper'
+  ) {
+    const whisperEncoderPath = await findFirstMatchingFile(localPath, [
+      /-encoder\.onnx$/i,
+      /-encoder\.int8\.onnx$/i,
+    ]);
+
+    if (whisperEncoderPath) {
+      return whisperEncoderPath;
+    }
+  }
+
+  if (
+    modality === ModelCategory.SpeechSynthesis &&
+    model.modelType === 'piper'
+  ) {
+    return localPath;
+  }
+
+  return localPath;
+}
+
 export async function prepareRunAnywhereBuiltInOptions(
-  onUpdate?: (update: RunAnywherePreparationUpdate) => void
+  onUpdate?: (update: RunAnywherePreparationUpdate) => void,
+  options: PrepareRunAnywhereOptions = {}
 ): Promise<RunAnywherePreparedOptions | null> {
   const availability = getRunAnywhereAvailability();
+  const includeSTT = options.includeSTT ?? true;
+  const includeTTS = options.includeTTS ?? true;
+  const shouldPrepareSTT = availability.stt && includeSTT;
+  const shouldPrepareTTS = availability.tts && includeTTS;
 
-  if (!availability.stt && !availability.tts) {
+  if (!shouldPrepareSTT && !shouldPrepareTTS) {
     return null;
   }
 
@@ -198,11 +278,16 @@ export async function prepareRunAnywhereBuiltInOptions(
 
   const builtInOptions: RunAnywherePreparedOptions = {};
 
-  if (availability.stt && RUNANYWHERE_CONFIG.stt) {
-    const modelPath = await ensureModelLocalPath(
+  if (shouldPrepareSTT && RUNANYWHERE_CONFIG.stt) {
+    const localPath = await ensureModelLocalPath(
       RUNANYWHERE_CONFIG.stt,
       ModelCategory.SpeechRecognition,
       onUpdate
+    );
+    const modelPath = await resolveBuiltInModelPath(
+      RUNANYWHERE_CONFIG.stt,
+      ModelCategory.SpeechRecognition,
+      localPath
     );
 
     builtInOptions.builtInSTT = {
@@ -212,11 +297,16 @@ export async function prepareRunAnywhereBuiltInOptions(
     };
   }
 
-  if (availability.tts && RUNANYWHERE_CONFIG.tts) {
-    const modelPath = await ensureModelLocalPath(
+  if (shouldPrepareTTS && RUNANYWHERE_CONFIG.tts) {
+    const localPath = await ensureModelLocalPath(
       RUNANYWHERE_CONFIG.tts,
       ModelCategory.SpeechSynthesis,
       onUpdate
+    );
+    const modelPath = await resolveBuiltInModelPath(
+      RUNANYWHERE_CONFIG.tts,
+      ModelCategory.SpeechSynthesis,
+      localPath
     );
 
     builtInOptions.builtInTTS = {
