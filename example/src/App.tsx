@@ -81,6 +81,7 @@ export default function App() {
   );
   const sttBridgeRef = useRef(createDemoReferenceSttBridge());
   const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
+  const eventSequenceRef = useRef(0);
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -123,7 +124,7 @@ export default function App() {
   function pushRuntimeEvent(label: string, detail: string) {
     setRecentEvents((currentEvents) => {
       const nextEvent: RuntimeEventEntry = {
-        id: `${Date.now()}-${currentEvents.length}`,
+        id: `runtime-event-${eventSequenceRef.current++}`,
         label,
         detail,
       };
