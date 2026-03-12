@@ -3831,6 +3831,42 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@runanywhere/core@npm:^0.18.1":
+  version: 0.18.1
+  resolution: "@runanywhere/core@npm:0.18.1"
+  peerDependencies:
+    react: ">=18.0.0"
+    react-native: ">=0.74.0"
+    react-native-blob-util: ">=0.19.0"
+    react-native-device-info: ">=11.0.0"
+    react-native-fs: ">=2.20.0"
+    react-native-nitro-modules: ">=0.31.3"
+    react-native-zip-archive: ">=6.1.0"
+  peerDependenciesMeta:
+    react-native-blob-util:
+      optional: true
+    react-native-device-info:
+      optional: true
+    react-native-fs:
+      optional: true
+    react-native-zip-archive:
+      optional: true
+  checksum: efd359de21eafd2769db08e93466257414ed075a509e58a28f303cd2530d9be7ae61034a6e5275c3be09190edbf2be3352bda55815d24cb0b0e22c272681f697
+  languageName: node
+  linkType: hard
+
+"@runanywhere/onnx@npm:^0.18.1":
+  version: 0.18.1
+  resolution: "@runanywhere/onnx@npm:0.18.1"
+  peerDependencies:
+    "@runanywhere/core": ">=0.16.0"
+    react: ">=18.0.0"
+    react-native: ">=0.74.0"
+    react-native-nitro-modules: ">=0.31.3"
+  checksum: c3eb6e0d66f2a5243766b4de4ea144c5c8e2b3dc5df2ef3265ace079429f901c73252c623daee80c4d001116e55fd19a9db044759c9b3204c47cece6fc6ca98b
+  languageName: node
+  linkType: hard
+
 "@sideway/address@npm:^4.1.5":
   version: 4.1.5
   resolution: "@sideway/address@npm:4.1.5"
@@ -7987,6 +8023,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"hyochan-welcome@npm:^1.0.0":
+  version: 1.0.1
+  resolution: "hyochan-welcome@npm:1.0.1"
+  bin:
+    hyochan-welcome: bin/hello.js
+  checksum: 2ea7093b54eefcde4c65e4a8ffd3f3926a55ff0bce20a3f5142fe1108e76c0dfcb98517b47714c536f9de8302b92ae02bf240891d3114d527ccd497e2ea9478e
+  languageName: node
+  linkType: hard
+
 "iconv-lite@npm:^0.7.0, iconv-lite@npm:^0.7.2":
   version: 0.7.2
   resolution: "iconv-lite@npm:0.7.2"
@@ -11623,6 +11668,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-audio-recorder-player@npm:^3.6.0":
+  version: 3.6.14
+  resolution: "react-native-audio-recorder-player@npm:3.6.14"
+  dependencies:
+    hyochan-welcome: ^1.0.0
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: ceec3b452270f57517fe5bada53ed225e19998ac9ff28d587c17163386e144a8a44ba79be3613a05f2bb81d841a7945637cc662834a5b8650ce99f86a3de68e3
+  languageName: node
+  linkType: hard
+
 "react-native-builder-bob@npm:^0.40.18":
   version: 0.40.18
   resolution: "react-native-builder-bob@npm:0.40.18"
@@ -11675,6 +11732,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-nitro-modules@npm:^0.31.3":
+  version: 0.31.10
+  resolution: "react-native-nitro-modules@npm:0.31.10"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 1c8d2f12ff29b6733c784c5fd0dedcbec4ceec9f82eb49f49e7734f31b9367346938010dcacf69bf695a352e36fec5aa23fd57b8091f6acd78c3d9a61e14ea7f
+  languageName: node
+  linkType: hard
+
 "react-native-safe-area-context@npm:^5.5.2":
   version: 5.7.0
   resolution: "react-native-safe-area-context@npm:5.7.0"
@@ -11699,13 +11766,17 @@ __metadata:
     "@react-native/metro-config": 0.83.2
     "@react-native/new-app-screen": 0.83.2
     "@react-native/typescript-config": 0.83.2
+    "@runanywhere/core": ^0.18.1
+    "@runanywhere/onnx": ^0.18.1
     "@types/react": ^19.2.0
     expo: ^55.0.0
     expo-dev-client: ~55.0.11
     react: 19.2.0
     react-native: 0.83.2
+    react-native-audio-recorder-player: ^3.6.0
     react-native-builder-bob: ^0.40.18
     react-native-monorepo-config: ^0.1.9
+    react-native-nitro-modules: ^0.31.3
     react-native-safe-area-context: ^5.5.2
     react-native-voice-activator: "portal:.."
   languageName: unknown
@@ -11716,10 +11787,22 @@ __metadata:
   resolution: "react-native-voice-activator@portal:..::locator=react-native-voice-activator-example%40workspace%3Aexample"
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
+    "@runanywhere/core": ">=0.18.0"
+    "@runanywhere/onnx": ">=0.18.0"
     react: "*"
     react-native: "*"
+    react-native-audio-recorder-player: ">=3.0.0"
+    react-native-nitro-modules: ">=0.31.3"
   peerDependenciesMeta:
     "@expo/config-plugins":
+      optional: true
+    "@runanywhere/core":
+      optional: true
+    "@runanywhere/onnx":
+      optional: true
+    react-native-audio-recorder-player:
+      optional: true
+    react-native-nitro-modules:
       optional: true
   languageName: node
   linkType: soft
@@ -11738,6 +11821,8 @@ __metadata:
     "@react-native/babel-preset": 0.83.2
     "@react-native/eslint-config": ^0.81.1
     "@release-it/conventional-changelog": ^10.0.1
+    "@runanywhere/core": ^0.18.1
+    "@runanywhere/onnx": ^0.18.1
     "@types/jest": ^29.5.14
     "@types/node": ^24.3.0
     "@types/react": ^19.2.0
@@ -11750,16 +11835,30 @@ __metadata:
     prettier: ^3.6.2
     react: 19.2.0
     react-native: 0.83.2
+    react-native-audio-recorder-player: ^3.6.0
     react-native-builder-bob: ^0.40.18
+    react-native-nitro-modules: ^0.31.3
     release-it: ^19.0.4
     turbo: ^2.5.6
     typescript: ^5.9.2
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
+    "@runanywhere/core": ">=0.18.0"
+    "@runanywhere/onnx": ">=0.18.0"
     react: "*"
     react-native: "*"
+    react-native-audio-recorder-player: ">=3.0.0"
+    react-native-nitro-modules: ">=0.31.3"
   peerDependenciesMeta:
     "@expo/config-plugins":
+      optional: true
+    "@runanywhere/core":
+      optional: true
+    "@runanywhere/onnx":
+      optional: true
+    react-native-audio-recorder-player:
+      optional: true
+    react-native-nitro-modules:
       optional: true
   languageName: unknown
   linkType: soft

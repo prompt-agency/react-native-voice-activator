@@ -49,6 +49,12 @@ cd ios && bundle exec pod install
 The monorepo example app uses the same command inside `example/ios/`, but
 consumer apps should run `pod install` inside their own `ios/` directory.
 
+If you opt into built-in RunAnywhere STT/TTS, install the additional optional dependencies in your app:
+
+```sh
+npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player
+```
+
 ## What Is Automatic vs Manual
 
 Automatic through the package:
@@ -64,6 +70,7 @@ Manual in your app:
 - validate iOS background behavior on your actual app target
 - validate Android foreground-service behavior on your device/OEM matrix
 - keep your native toolchain compatible with the supported React Native line
+- supply local model files if you use `builtInSTT` / `builtInTTS`
 
 ## iOS Requirements
 

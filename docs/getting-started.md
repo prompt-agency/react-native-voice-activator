@@ -34,7 +34,7 @@ The example app also includes optional downstream extension examples showing how
 
 - `wakeWordDetected` can trigger an application-owned STT handoff
 - a TTS response step can run after detection or transcript handling
-- those speech flows remain outside the package runtime and use public APIs only
+- those speech flows can stay outside the package runtime through custom providers, or opt into the built-in RunAnywhere path when `builtInSTT` / `builtInTTS` are configured
 - concrete adapter examples live in `docs/examples/` and remain application-owned
 
 ## Wake-to-Transcribe-to-Speak Guide
@@ -46,7 +46,7 @@ Use the current provider pattern in this order:
 3. add `ttsProvider` and `autoSpeak: true` only when your app is ready to play an optional speech response after a successful `sttProvider` transcription
 
 That wake -> transcribe -> optional speak flow is the supported extension model.
-The package owns step 1. Your app owns steps 2 and 3.
+The package owns step 1. Your app can own steps 2 and 3 through custom providers, or opt into the built-in RunAnywhere adapters as an exception to the default provider pattern.
 
 ## Built-In Engine Defaults
 

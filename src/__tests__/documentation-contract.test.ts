@@ -46,18 +46,20 @@ describe('documentation and example contract', () => {
     );
     expect(readme).toContain('optional downstream STT/TTS extension examples');
     expect(readme).toContain(
-      'the package itself does not own transcription or synthesis'
+      'the package provides optional built-in STT/TTS via RunAnywhere ONNX when configured with `builtInSTT` / `builtInTTS`'
     );
     expect(readme).toContain('## Wake-to-Transcribe-to-Speak Flow');
     expect(readme).toContain(
-      'The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned'
+      'The package owns the wake-word runtime; STT and TTS remain opt-in integrations.'
     );
     expect(readme).toContain(
       'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals'
     );
     expect(readme).toContain(
-      'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features'
+      'STT/TTS examples in the repo now cover both built-in RunAnywhere adapters in `src/providers/runanywhere/` and illustrative downstream application-owned adapters in `docs/examples/`'
     );
+    expect(readme).toContain('## Built-In RunAnywhere STT/TTS Provider');
+    expect(readme).toContain('builtin_provider_init_failed');
     expect(readme).toContain('## Built-In Model Configuration');
     expect(readme).toContain('the supported public override points remain');
     expect(readme).toContain('engineConfig.assetKeys.modelAssetKey');
@@ -331,11 +333,14 @@ describe('documentation and example contract', () => {
       'TTS response step can run after detection or transcript handling'
     );
     expect(gettingStarted).toContain(
-      'those speech flows remain outside the package runtime and use public APIs only'
+      'those speech flows can stay outside the package runtime through custom providers, or opt into the built-in RunAnywhere path'
     );
     expect(gettingStarted).toContain('Wake-to-Transcribe-to-Speak Guide');
     expect(gettingStarted).toContain(
       'That wake -> transcribe -> optional speak flow is the supported extension model.'
+    );
+    expect(gettingStarted).toContain(
+      'Your app can own steps 2 and 3 through custom providers, or opt into the built-in RunAnywhere adapters'
     );
     expect(gettingStarted).toContain('Built-In Engine Defaults');
     expect(gettingStarted).toContain('native-managed Sherpa-ONNX');
@@ -373,13 +378,16 @@ describe('documentation and example contract', () => {
       'optional STT/TTS extension-point examples'
     );
     expect(troubleshooting).toContain(
-      'downstream application integrations only'
+      'app-level handoff code separately from the package runtime itself'
     );
     expect(troubleshooting).toContain(
       'Troubleshoot the Provider Pattern Separately'
     );
     expect(troubleshooting).toContain(
       'The example app previews that provider pattern with simulated host implementations.'
+    );
+    expect(troubleshooting).toContain(
+      'disabled built-in RunAnywhere option until real model paths are configured'
     );
   });
 
@@ -429,7 +437,8 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('Preview STT adapter');
     expect(exampleApp).toContain('Preview TTS adapter');
     expect(exampleApp).toContain('wakeWordDetected');
-    expect(exampleApp).toContain('application-level reference provider');
+    expect(exampleApp).toContain('Use RunAnywhere built-in');
+    expect(exampleApp).toContain('Provider mode:');
     expect(exampleApp).toContain(
       'simulated host implementation to preview the contract'
     );
@@ -461,10 +470,12 @@ describe('documentation and example contract', () => {
 
     expect(examplesIndex).toContain('SpeechToTextProvider');
     expect(examplesIndex).toContain('TextToSpeechProvider');
-    expect(examplesIndex).toContain('They do not belong in `src/`');
-    expect(examplesIndex).toContain('mandatory package runtime');
+    expect(examplesIndex).toContain(
+      'The package ships built-in RunAnywhere adapters in `src/providers/runanywhere/` as opt-in defaults'
+    );
     expect(examplesIndex).toContain('expo-speech-tts-provider.md');
     expect(examplesIndex).toContain('expo-speech-recognition-stt-provider.md');
+    expect(examplesIndex).toContain('runanywhere-stt-tts-provider.md');
     expect(examplesIndex).toContain('Recommended Evaluation Flow');
     expect(examplesIndex).toContain('real wake-word runtime');
     expect(examplesIndex).toContain(
@@ -497,6 +508,9 @@ describe('documentation and example contract', () => {
     expect(exampleReadme).toContain('Provider Pattern Evaluation Flow');
     expect(exampleReadme).toContain('The wake step is real package behavior.');
     expect(exampleReadme).toContain('separate simulated host-provider bridges');
+    expect(exampleReadme).toContain(
+      'RunAnywhere built-in path is exposed separately as an opt-in package feature'
+    );
     expect(exampleReadme).toContain('choose a bundled keyword preset');
     expect(exampleReadme).toContain('They map to pre-bundled keyword files');
   });

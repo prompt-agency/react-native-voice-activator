@@ -79,6 +79,8 @@
     "@react-native/babel-preset": "0.83.2",
     "@react-native/eslint-config": "^0.81.1",
     "@release-it/conventional-changelog": "^10.0.1",
+    "@runanywhere/core": "^0.18.1",
+    "@runanywhere/onnx": "^0.18.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.3.0",
     "@types/react": "^19.2.0",
@@ -91,18 +93,36 @@
     "prettier": "^3.6.2",
     "react": "19.2.0",
     "react-native": "0.83.2",
+    "react-native-audio-recorder-player": "^3.6.0",
     "react-native-builder-bob": "^0.40.18",
+    "react-native-nitro-modules": "^0.31.3",
     "release-it": "^19.0.4",
     "turbo": "^2.5.6",
     "typescript": "^5.9.2"
   },
   "peerDependencies": {
     "@expo/config-plugins": ">=8.0.0",
+    "@runanywhere/core": ">=0.18.0",
+    "@runanywhere/onnx": ">=0.18.0",
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-audio-recorder-player": ">=3.0.0",
+    "react-native-nitro-modules": ">=0.31.3"
   },
   "peerDependenciesMeta": {
     "@expo/config-plugins": {
+      "optional": true
+    },
+    "@runanywhere/core": {
+      "optional": true
+    },
+    "@runanywhere/onnx": {
+      "optional": true
+    },
+    "react-native-audio-recorder-player": {
+      "optional": true
+    },
+    "react-native-nitro-modules": {
       "optional": true
     }
   },

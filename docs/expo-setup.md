@@ -79,6 +79,7 @@ Manual in your app:
   bundled Sherpa native assets
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
+- evaluate the extra dependency stack carefully before relying on built-in RunAnywhere STT/TTS in Expo-generated native apps
 
 ## Built-In Sherpa Asset Model
 
@@ -92,6 +93,8 @@ Manual in your app:
 - Expo does not introduce a separate asset runtime; the config plugin and
   prebuild flow align generated native projects with the same package-owned
   native asset model used by bare React Native
+- built-in RunAnywhere STT/TTS adds optional extra dependencies and local model
+  management beyond the default bundled Sherpa wake-word path
 
 ## Public API Contract
 
@@ -153,6 +156,7 @@ should stay aligned with that file.
 - Expo Go is NOT supported.
 - The current CI path executes Expo config resolution and Expo prebuild generation, not a full Expo runtime session.
 - This repository currently proves Expo config and prebuild compatibility, not full Expo runtime parity on all devices.
+- if you enable built-in RunAnywhere STT/TTS, treat Expo runtime viability as something you must validate in your own generated native app
 - iOS background continuation still depends on the app declaring the audio
   background mode and staying alive after explicit activation.
 - Android background continuation still depends on visible-context start,

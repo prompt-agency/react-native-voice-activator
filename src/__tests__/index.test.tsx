@@ -491,6 +491,272 @@ describe('public runtime state and event contract', () => {
     );
   });
 
+  it('auto-wires built-in providers into shared runtime configuration while keeping them out of the native payload', async () => {
+    const initialize = jest.fn(async () => undefined);
+    const engineRuntime = createMockEngineRuntime();
+    const sttProvider = {
+      name: 'runanywhere-onnx',
+      transcribe: jest.fn(async () => ({
+        text: 'built-in',
+        provider: 'runanywhere-onnx',
+      })),
+      cancel: jest.fn(async () => undefined),
+    };
+    const ttsProvider = {
+      name: 'runanywhere-onnx',
+      speak: jest.fn(async () => undefined),
+      stop: jest.fn(async () => undefined),
+    };
+    const runtimeBridge = {
+      initialize,
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'idle',
+        isAvailable: true,
+        isListening: false,
+        canStart: false,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+    const initializeSttAdapter = jest.fn(async () => undefined);
+    const initializeTtsAdapter = jest.fn(async () => undefined);
+    const RunAnywhereSTTAdapter = jest.fn(() => ({
+      ...sttProvider,
+      initialize: initializeSttAdapter,
+    }));
+    const RunAnywhereTTSAdapter = jest.fn(() => ({
+      ...ttsProvider,
+      initialize: initializeTtsAdapter,
+    }));
+
+    jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+    jest.doMock('../providers/runanywhere/RunAnywhereSTTAdapter', () => ({
+      RunAnywhereSTTAdapter,
+    }));
+    jest.doMock('../providers/runanywhere/RunAnywhereTTSAdapter', () => ({
+      RunAnywhereTTSAdapter,
+    }));
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      builtInSTT: {
+        modelPath: '/models/stt.onnx',
+      },
+      builtInTTS: {
+        modelPath: '/models/tts.onnx',
+      },
+      autoSpeak: true,
+    });
+
+    expect(RunAnywhereSTTAdapter).toHaveBeenCalledWith({
+      modelPath: '/models/stt.onnx',
+    });
+    expect(RunAnywhereTTSAdapter).toHaveBeenCalledWith({
+      modelPath: '/models/tts.onnx',
+    });
+    expect(initializeSttAdapter).toHaveBeenCalledTimes(1);
+    expect(initializeTtsAdapter).toHaveBeenCalledTimes(1);
+    expect(initialize).toHaveBeenCalledWith({
+      profile: 'balanced',
+      enableDebugLogging: false,
+      engine: {
+        id: 'default',
+      },
+      engineConfig: {
+        sensitivity: 0.5,
+      },
+      engineMetadata: {
+        id: 'default',
+        displayName: 'Default built-in wake word engine',
+        assetRequirement: 'bundled',
+        capabilities: {
+          onDeviceDetection: true,
+          backgroundDetection: false,
+          customKeywordAssets: true,
+          runtimeConfigurationUpdates: true,
+        },
+      },
+    });
+    expect(engineRuntime.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sttProvider: expect.objectContaining({ name: 'runanywhere-onnx' }),
+        ttsProvider: expect.objectContaining({ name: 'runanywhere-onnx' }),
+        builtInSTT: {
+          modelPath: '/models/stt.onnx',
+        },
+        builtInTTS: {
+          modelPath: '/models/tts.onnx',
+        },
+        autoSpeak: true,
+      }),
+      expect.objectContaining({
+        onDetected: expect.any(Function),
+        onError: expect.any(Function),
+      })
+    );
+  });
+
+  it('surfaces built-in provider initialization failures as configuration errors', async () => {
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+    const initializeSttAdapter = jest.fn(async () => {
+      throw new Error('model load failed');
+    });
+
+    jest.doMock('../providers/runanywhere/RunAnywhereSTTAdapter', () => ({
+      RunAnywhereSTTAdapter: jest.fn(() => ({
+        name: 'runanywhere-onnx',
+        transcribe: jest.fn(),
+        cancel: jest.fn(),
+        initialize: initializeSttAdapter,
+      })),
+    }));
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await expect(
+      VoiceActivator.initialize({
+        builtInSTT: {
+          modelPath: '/models/missing.onnx',
+        },
+      })
+    ).rejects.toMatchObject({
+      category: 'configuration',
+      code: 'builtin_provider_init_failed',
+      message: 'model load failed',
+      recoverable: true,
+    });
+  });
+
+  it('disposes built-in providers on reinitialize and dispose', async () => {
+    const initialize = jest.fn(async () => undefined);
+    const engineRuntime = createMockEngineRuntime();
+    const runtimeBridge = {
+      initialize,
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'idle',
+        isAvailable: true,
+        isListening: false,
+        canStart: true,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+    const sttInstances: Array<{
+      name: string;
+      isBuiltInRunAnywhereProvider: true;
+      transcribe: jest.Mock;
+      cancel: jest.Mock;
+      initialize: jest.Mock;
+      dispose: jest.Mock;
+    }> = [];
+    const ttsInstances: Array<{
+      name: string;
+      isBuiltInRunAnywhereProvider: true;
+      speak: jest.Mock;
+      stop: jest.Mock;
+      initialize: jest.Mock;
+      dispose: jest.Mock;
+    }> = [];
+
+    jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+    jest.doMock('../providers/runanywhere/RunAnywhereSTTAdapter', () => ({
+      RunAnywhereSTTAdapter: jest.fn(() => {
+        const instance = {
+          name: 'runanywhere-onnx',
+          isBuiltInRunAnywhereProvider: true as const,
+          transcribe: jest.fn(),
+          cancel: jest.fn(async () => undefined),
+          initialize: jest.fn(async () => undefined),
+          dispose: jest.fn(async () => undefined),
+        };
+        sttInstances.push(instance);
+        return instance;
+      }),
+    }));
+    jest.doMock('../providers/runanywhere/RunAnywhereTTSAdapter', () => ({
+      RunAnywhereTTSAdapter: jest.fn(() => {
+        const instance = {
+          name: 'runanywhere-onnx',
+          isBuiltInRunAnywhereProvider: true as const,
+          speak: jest.fn(async () => undefined),
+          stop: jest.fn(async () => undefined),
+          initialize: jest.fn(async () => undefined),
+          dispose: jest.fn(async () => undefined),
+        };
+        ttsInstances.push(instance);
+        return instance;
+      }),
+    }));
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      builtInSTT: { modelPath: '/models/one-stt.onnx' },
+      builtInTTS: { modelPath: '/models/one-tts.onnx' },
+    });
+    await VoiceActivator.initialize({
+      builtInSTT: { modelPath: '/models/two-stt.onnx' },
+      builtInTTS: { modelPath: '/models/two-tts.onnx' },
+    });
+
+    expect(sttInstances[0]?.dispose).toHaveBeenCalledTimes(1);
+    expect(ttsInstances[0]?.dispose).toHaveBeenCalledTimes(1);
+
+    await VoiceActivator.dispose();
+
+    expect(sttInstances[1]?.dispose).toHaveBeenCalledTimes(1);
+    expect(ttsInstances[1]?.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('orchestrates wake word detection through transcription and optional speech events', async () => {
     let wakeWordDetectedHandler:
       | ((payload: WakeWordDetectedEvent) => void)

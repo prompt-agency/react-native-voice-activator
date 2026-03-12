@@ -1,4 +1,6 @@
 import type {
+  RunAnywhereSTTConfig,
+  RunAnywhereTTSConfig,
   SpeechToTextProvider,
   TextToSpeechProvider,
   TTSOptions,
@@ -52,7 +54,45 @@ export const referenceProviderCatalog: ReferenceProviderEntry[] = [
     summary:
       'Expo-oriented TTS adapter pattern that stays application-owned and plugs into initialize({ ttsProvider, autoSpeak: true }).',
   },
+  {
+    id: 'runanywhere-onnx',
+    label: 'RunAnywhereBuiltInProvider',
+    packageName: '@runanywhere/onnx',
+    docsPath: 'docs/examples/runanywhere-stt-tts-provider.md',
+    summary:
+      'Built-in on-device STT and TTS backed by RunAnywhere ONNX. Configure builtInSTT / builtInTTS during initialize() when real model paths are available.',
+  },
 ];
+
+export const RUNANYWHERE_MODEL_PATHS: {
+  stt: string;
+  tts: string;
+} = {
+  stt: '',
+  tts: '',
+};
+
+export function isRunAnywhereConfigured(): boolean {
+  return RUNANYWHERE_MODEL_PATHS.stt.length > 0 && RUNANYWHERE_MODEL_PATHS.tts.length > 0;
+}
+
+export function createRunAnywhereBuiltInOptions(): {
+  builtInSTT: RunAnywhereSTTConfig;
+  builtInTTS: RunAnywhereTTSConfig;
+} | null {
+  if (!isRunAnywhereConfigured()) {
+    return null;
+  }
+
+  return {
+    builtInSTT: {
+      modelPath: RUNANYWHERE_MODEL_PATHS.stt,
+    },
+    builtInTTS: {
+      modelPath: RUNANYWHERE_MODEL_PATHS.tts,
+    },
+  };
+}
 
 class ExpoSpeechRecognitionReferenceSttProvider
   implements SpeechToTextProvider

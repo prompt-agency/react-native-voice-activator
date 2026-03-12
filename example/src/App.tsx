@@ -23,9 +23,11 @@ import {
   type WakeWordStatus,
 } from 'react-native-voice-activator';
 import {
+  createRunAnywhereBuiltInOptions,
   createDemoReferenceSttBridge,
   createDemoReferenceTtsBridge,
   createReferenceProviders,
+  isRunAnywhereConfigured,
   referenceProviderCatalog,
 } from './reference-provider-adapters';
 
@@ -41,6 +43,8 @@ type KeywordPreset = {
   keywordAssetKey: string;
   phraseSummary: string;
 };
+
+type ProviderMode = 'demo' | 'runanywhere';
 
 const defaultKeywordPreset: KeywordPreset = {
   id: 'all-bundled-phrases',
@@ -152,6 +156,7 @@ export default function App() {
   const [extensionStatus, setExtensionStatus] = useState<string>(
     'Wake -> transcribe -> optional speak preview is idle until initialize configures the application-owned provider interface.'
   );
+  const [providerMode, setProviderMode] = useState<ProviderMode>('demo');
   const [selectedKeywordPresetId, setSelectedKeywordPresetId] = useState<string>(
     defaultKeywordPreset.id
   );
@@ -169,6 +174,7 @@ export default function App() {
     null;
   const keywordSelectionRequiresInitialize =
     activeKeywordPresetId !== selectedKeywordPreset.id;
+  const runAnywhereAvailable = isRunAnywhereConfigured();
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -408,9 +414,19 @@ export default function App() {
           ttsBridge: ttsBridgeRef.current,
         }
       );
+      const runAnywhereOptions = createRunAnywhereBuiltInOptions();
+
+      if (providerMode === 'runanywhere' && !runAnywhereOptions) {
+        setExtensionStatus(
+          'RunAnywhere built-in mode is selected, but real STT/TTS model paths are not configured in example/src/reference-provider-adapters.ts.'
+        );
+        throw new Error('RunAnywhere built-in mode is not configured.');
+      }
 
       setExtensionStatus(
-        `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
+        providerMode === 'demo'
+          ? `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
+          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere STT/TTS path for this runtime session.`
       );
       setLastDetection(null);
       lastDetectionRef.current = null;
@@ -419,7 +435,9 @@ export default function App() {
       setActiveKeywordPresetId(selectedKeywordPreset.id);
       pushRuntimeEvent(
         'referenceProviders',
-        `${referenceProviders.sttProvider.name} + ${referenceProviders.ttsProvider.name}`
+        providerMode === 'demo'
+          ? `${referenceProviders.sttProvider.name} + ${referenceProviders.ttsProvider.name}`
+          : 'runanywhere-onnx built-in providers'
       );
       pushRuntimeEvent(
         'keywordPreset',
@@ -432,8 +450,12 @@ export default function App() {
             keywordAssetKey: selectedKeywordPreset.keywordAssetKey,
           },
         },
-        sttProvider: referenceProviders.sttProvider,
-        ttsProvider: referenceProviders.ttsProvider,
+        ...(providerMode === 'demo'
+          ? {
+              sttProvider: referenceProviders.sttProvider,
+              ttsProvider: referenceProviders.ttsProvider,
+            }
+          : runAnywhereOptions),
         autoSpeak: true,
       });
     }).catch(() => undefined);
@@ -565,6 +587,10 @@ export default function App() {
             after a successful STT result when `autoSpeak: true` is enabled.
           </Text>
           <Text style={styles.meta}>
+            4. This example also exposes an opt-in built-in RunAnywhere path,
+            but keeps it disabled until real local model paths are configured.
+          </Text>
+          <Text style={styles.meta}>
             This screen shows the package wake runtime plus separate simulated
             provider previews built on the same public adapter contract.
           </Text>
@@ -625,6 +651,32 @@ export default function App() {
             Expo prebuild generates Sherpa asset manifests for the native
             projects.
           </Text>
+          <Text style={styles.meta}>
+            Provider mode: {providerMode === 'demo' ? 'Demo bridges' : 'RunAnywhere built-in'}
+          </Text>
+          <Text style={styles.meta}>
+            RunAnywhere availability:{' '}
+            {runAnywhereAvailable
+              ? 'configured with real local model paths'
+              : 'disabled until model paths are set in example/src/reference-provider-adapters.ts'}
+          </Text>
+          <View style={styles.buttonRow}>
+            <Button
+              title="Use demo providers"
+              onPress={() => {
+                setProviderMode('demo');
+              }}
+            />
+          </View>
+          <View style={styles.buttonRow}>
+            <Button
+              title="Use RunAnywhere built-in"
+              onPress={() => {
+                setProviderMode('runanywhere');
+              }}
+              disabled={!runAnywhereAvailable}
+            />
+          </View>
           <View style={styles.buttonRow}>
             <Button title="Initialize" onPress={handleInitialize} />
           </View>
@@ -699,13 +751,17 @@ export default function App() {
           <Text style={styles.meta}>
             These reference adapters stay outside the package runtime. The
             example app owns them, passes them through the public provider
-            interface, and keeps STT/TTS as optional downstream integrations
-            rather than built-in package features.
+            interface, and keeps STT/TTS as optional downstream integrations by
+            default. The built-in RunAnywhere option is a separate opt-in path.
           </Text>
           <Text style={styles.meta}>
             The wake step is real package behavior. The transcribe/speak preview
             buttons below use simulated host implementations of the same
             application-owned provider pattern documented in `docs/examples/`.
+          </Text>
+          <Text style={styles.meta}>
+            The RunAnywhere entry below is intentionally unavailable until this
+            example is given real local STT/TTS model paths.
           </Text>
           {referenceProviderCatalog.map((entry) => (
             <View key={entry.id} style={styles.eventRow}>
@@ -752,9 +808,10 @@ export default function App() {
             notification while detection is running.
           </Text>
           <Text style={styles.meta}>
-            The STT/TTS adapters above are application-level reference provider
-            examples only. The package does not own transcription or speech
-            synthesis.
+            The demo STT/TTS adapters above are application-level reference
+            provider examples. The package now also supports an opt-in built-in
+            RunAnywhere STT/TTS path, but this example keeps that path disabled
+            until real model assets are configured.
           </Text>
         </View>
       </ScrollView>

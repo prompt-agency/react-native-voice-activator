@@ -23,23 +23,25 @@ The example app now exposes the same diagnostics surface for evaluation:
 - recent runtime events
 - normalized error categories for quick failure triage
 
-The example app also contains optional STT/TTS extension-point examples. Those
-examples are downstream application integrations only. If they fail, debug the
-app-level handoff code separately from the package runtime itself. Concrete
-reference adapters now live in `docs/examples/` and still remain outside the
-package core.
+The example app also contains optional STT/TTS extension-point examples. Most
+of those examples are downstream application integrations. If they fail, debug
+the app-level handoff code separately from the package runtime itself. Concrete
+reference adapters live in `docs/examples/`, while the built-in RunAnywhere
+path is a separate opt-in package feature.
 
 ## Troubleshoot the Provider Pattern Separately
 
 Use this split when debugging a wake -> transcribe -> optional speak flow:
 
 - if `wakeWordDetected` never fires, debug the package-owned wake-word runtime
-- if `wakeWordDetected` fires but no transcript appears, debug the app-owned
-  `sttProvider` handoff
-- if transcription succeeds but no speech response happens, debug the app-owned
-  `ttsProvider` path and `autoSpeak` configuration
+- if `wakeWordDetected` fires but no transcript appears, debug either the
+  app-owned `sttProvider` handoff or the built-in RunAnywhere STT setup,
+  depending on what you initialized
+- if transcription succeeds but no speech response happens, debug either the
+  app-owned `ttsProvider` path or the built-in RunAnywhere TTS setup together
+  with `autoSpeak` configuration
 
-The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI.
+The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. The example also shows a disabled built-in RunAnywhere option until real model paths are configured.
 
 ## Common Failure Classes
 
@@ -48,7 +50,7 @@ The example app previews that provider pattern with simulated host implementatio
 - `lifecycle`
   - runtime start/stop/dispose or interruption-recovery failures
 - `configuration`
-  - invalid engine or setup configuration
+  - invalid engine, built-in provider, or setup configuration
 - `engine`
   - built-in engine initialization or runtime failures
 - `platform`
@@ -118,6 +120,8 @@ What to do:
 - confirm whether you are using the bundled native Sherpa assets or intentional
   custom `engineConfig.assetKeys.modelAssetKey` /
   `engineConfig.assetKeys.keywordAssetKey` overrides
+- if you enabled built-in RunAnywhere STT/TTS, verify local model paths and the
+  optional dependency installation first
 - verify your engine-specific configuration is valid
 - verify the runtime did not transition to `unsupported` because of a platform condition before assuming the engine itself is broken
 

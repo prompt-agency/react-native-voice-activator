@@ -7,10 +7,16 @@ export {
   stopDetection,
   voiceActivator,
 } from './public/voice-activator';
+export {
+  RunAnywhereSTTAdapter,
+  RunAnywhereTTSAdapter,
+} from './providers/runanywhere';
 export { useWakeWord } from './public/useWakeWord';
 export { wakeWordStates } from './public/types';
 export type {
   ProviderError,
+  RunAnywhereSTTConfig,
+  RunAnywhereTTSConfig,
   SpeechToTextProvider,
   SpeechCompletedEvent,
   SpeechErrorEvent,

@@ -78,6 +78,20 @@ export interface TTSOptions {
   pitch?: number;
 }
 
+export interface RunAnywhereSTTConfig {
+  modelPath: string;
+  modelType?: string;
+  maxRecordingMs?: number;
+}
+
+export interface RunAnywhereTTSConfig {
+  modelPath: string;
+  modelType?: string;
+  voice?: string;
+  rate?: number;
+  pitch?: number;
+}
+
 export interface SpeechToTextProvider {
   readonly name: string;
   transcribe(): Promise<TranscriptionResult>;
@@ -97,6 +111,8 @@ export interface WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration;
   sttProvider?: SpeechToTextProvider;
   ttsProvider?: TextToSpeechProvider;
+  builtInSTT?: RunAnywhereSTTConfig;
+  builtInTTS?: RunAnywhereTTSConfig;
   autoSpeak?: boolean;
 }
 

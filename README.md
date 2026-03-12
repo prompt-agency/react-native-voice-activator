@@ -24,7 +24,7 @@ The example app also includes optional downstream STT/TTS extension examples:
 
 - wake-word detection can trigger an application-owned STT handoff through `wakeWordDetected`
 - a downstream TTS response can be wired after detection or transcript handling
-- these are example-level integrations only; the package itself does not own transcription or synthesis
+- the package provides optional built-in STT/TTS via RunAnywhere ONNX when configured with `builtInSTT` / `builtInTTS`; user-owned providers via `sttProvider` / `ttsProvider` remain supported for custom implementations
 - concrete reference adapter examples now live under `docs/examples/` and stay outside package core
 
 ## Wake-to-Transcribe-to-Speak Flow
@@ -35,7 +35,7 @@ The current evaluator path for a broader assistant experience is:
 2. the optional JS provider orchestration path can call an application-owned `sttProvider`
 3. the runtime can optionally call an application-owned `ttsProvider` after a successful transcription when both `sttProvider` and `autoSpeak: true` are configured
 
-This flow is demonstrated through the public API and typed events only. The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned integrations documented in `docs/examples/`. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
+This flow is demonstrated through the public API and typed events. The package owns the wake-word runtime; STT and TTS remain opt-in integrations. Custom providers stay application-owned and are documented in `docs/examples/`, while built-in RunAnywhere adapters are available as an explicit opt-in exception. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
 
 The bundled Sherpa keyword set currently includes `HELLO WORLD`, `HI GOOGLE`,
 `HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW
@@ -124,6 +124,36 @@ runQuickstart().catch((error) => {
 - `getStatus()` reflects runtime state transitions
 - downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals
 
+## Built-In RunAnywhere STT/TTS Provider
+
+Install the optional speech dependencies:
+
+```sh
+npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player
+```
+
+Use them through `initialize()`:
+
+```ts
+await initialize({
+  builtInSTT: {
+    modelPath: '/path/to/whisper-tiny.onnx',
+  },
+  builtInTTS: {
+    modelPath: '/path/to/piper-en.onnx',
+  },
+  autoSpeak: true,
+});
+```
+
+Notes:
+
+- models must be downloaded and stored by the host app separately
+- explicit `sttProvider` / `ttsProvider` always override `builtInSTT` / `builtInTTS`
+- `TTSOptions.language` is not supported by the RunAnywhere adapters
+- adapter initialization failures surface `builtin_provider_init_failed`
+- setup docs contain additional native/prebuild requirements for bare React Native and Expo consumers
+
 ## Built-In Model Configuration
 
 The built-in default engine is the package-owned native-managed Sherpa-ONNX path.
@@ -145,7 +175,7 @@ The built-in default engine is the package-owned native-managed Sherpa-ONNX path
 - Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.
 - Android background behavior can still be constrained by OEM battery management and unsupported hidden-start scenarios.
 - Expo automation and production detection quality hardening are later stories
-- STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features
+- STT/TTS examples in the repo now cover both built-in RunAnywhere adapters in `src/providers/runanywhere/` and illustrative downstream application-owned adapters in `docs/examples/`
 
 ## Compatibility Notes
 

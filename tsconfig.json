@@ -2,6 +2,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
+      "@runanywhere/core": ["./src/vendor-types/runanywhere-core"],
+      "@runanywhere/onnx": ["./src/vendor-types/runanywhere-onnx"],
       "react-native-voice-activator": ["./src/index"]
     },
     "allowUnreachableCode": false,

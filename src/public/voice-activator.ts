@@ -18,6 +18,8 @@ import {
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
+import { RunAnywhereSTTAdapter } from '../providers/runanywhere/RunAnywhereSTTAdapter';
+import { RunAnywhereTTSAdapter } from '../providers/runanywhere/RunAnywhereTTSAdapter';
 import type {
   ProviderError,
   VoiceActivatorApi,
@@ -42,6 +44,11 @@ type ActiveProviderFlow = {
   sttProvider?: WakeWordRuntimeConfiguration['sttProvider'];
   ttsProvider?: WakeWordRuntimeConfiguration['ttsProvider'];
   speechText?: string;
+};
+
+type RunAnywhereDisposableProvider = {
+  readonly isBuiltInRunAnywhereProvider: true;
+  dispose(): Promise<void>;
 };
 
 let activeProviderFlow: ActiveProviderFlow | null = null;
@@ -460,6 +467,46 @@ function createConfigurationFailure(error: WakeWordError): WakeWordError {
   };
 }
 
+function createBuiltInProviderInitFailure(
+  message: string
+): WakeWordError {
+  return {
+    category: 'configuration',
+    code: 'builtin_provider_init_failed',
+    message,
+    recoverable: true,
+  };
+}
+
+function isRunAnywhereDisposableProvider(
+  value: unknown
+): value is RunAnywhereDisposableProvider {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'isBuiltInRunAnywhereProvider' in value &&
+    value.isBuiltInRunAnywhereProvider === true &&
+    'dispose' in value &&
+    typeof value.dispose === 'function'
+  );
+}
+
+async function cleanupBuiltInProviders(
+  configuration: ReturnType<typeof createRuntimeConfiguration> | null
+) {
+  if (!configuration) {
+    return;
+  }
+
+  if (isRunAnywhereDisposableProvider(configuration.sttProvider)) {
+    await configuration.sttProvider.dispose();
+  }
+
+  if (isRunAnywhereDisposableProvider(configuration.ttsProvider)) {
+    await configuration.ttsProvider.dispose();
+  }
+}
+
 function applyRuntimeError(error: WakeWordError) {
   runtimeStore.setStatus({
     ...getCurrentStatus(),
@@ -521,6 +568,8 @@ export const voiceActivator: VoiceActivatorApi = {
     }
     const runtimeConfiguration = createRuntimeConfiguration(options);
     const nextEngineRuntime = resolveEngineRuntime();
+    let resolvedSttProvider = runtimeConfiguration.sttProvider;
+    let resolvedTtsProvider = runtimeConfiguration.ttsProvider;
 
     runtimeStore.transitionToState('initializing', {
       canStart: false,
@@ -532,10 +581,55 @@ export const voiceActivator: VoiceActivatorApi = {
       invalidateProviderOrchestration();
       await cleanupActiveProviderFlow();
       await disposeEngineRuntime();
+      await cleanupBuiltInProviders(activeRuntimeConfiguration);
+      activeRuntimeConfiguration = null;
+
+      if (!resolvedSttProvider && runtimeConfiguration.builtInSTT) {
+        const adapter = new RunAnywhereSTTAdapter(runtimeConfiguration.builtInSTT);
+
+        try {
+          await adapter.initialize();
+        } catch (cause) {
+          const configError = createBuiltInProviderInitFailure(
+            cause instanceof Error
+              ? cause.message
+              : 'Built-in STT provider failed to initialize.'
+          );
+          runtimeStore.recordError(configError);
+          throw configError;
+        }
+
+        resolvedSttProvider = adapter;
+      }
+
+      if (!resolvedTtsProvider && runtimeConfiguration.builtInTTS) {
+        const adapter = new RunAnywhereTTSAdapter(runtimeConfiguration.builtInTTS);
+
+        try {
+          await adapter.initialize();
+        } catch (cause) {
+          const configError = createBuiltInProviderInitFailure(
+            cause instanceof Error
+              ? cause.message
+              : 'Built-in TTS provider failed to initialize.'
+          );
+          runtimeStore.recordError(configError);
+          throw configError;
+        }
+
+        resolvedTtsProvider = adapter;
+      }
+
+      const resolvedRuntimeConfiguration = {
+        ...runtimeConfiguration,
+        ...(resolvedSttProvider ? { sttProvider: resolvedSttProvider } : {}),
+        ...(resolvedTtsProvider ? { ttsProvider: resolvedTtsProvider } : {}),
+      };
+
       await activeRuntime.initialize(
-        createNativeRuntimeConfiguration(runtimeConfiguration)
+        createNativeRuntimeConfiguration(resolvedRuntimeConfiguration)
       );
-      await nextEngineRuntime.initialize(runtimeConfiguration, {
+      await nextEngineRuntime.initialize(resolvedRuntimeConfiguration, {
         onDetected(payload) {
           queueProviderOrchestration(payload);
         },
@@ -543,7 +637,7 @@ export const voiceActivator: VoiceActivatorApi = {
           applyRuntimeError(error);
         },
       });
-      activeRuntimeConfiguration = runtimeConfiguration;
+      activeRuntimeConfiguration = resolvedRuntimeConfiguration;
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -648,6 +742,7 @@ export const voiceActivator: VoiceActivatorApi = {
       invalidateProviderOrchestration();
       await cleanupActiveProviderFlow();
       await disposeEngineRuntime();
+      await cleanupBuiltInProviders(activeRuntimeConfiguration);
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
       runtimeStore.setStatus(

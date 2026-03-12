@@ -1,4 +1,6 @@
 import type {
+  RunAnywhereSTTConfig,
+  RunAnywhereTTSConfig,
   SpeechToTextProvider,
   TextToSpeechProvider,
   WakeWordEngineConfiguration,
@@ -19,6 +21,8 @@ export interface WakeWordRuntimeConfiguration {
   engineMetadata: WakeWordEngineMetadata;
   sttProvider?: SpeechToTextProvider;
   ttsProvider?: TextToSpeechProvider;
+  builtInSTT?: RunAnywhereSTTConfig;
+  builtInTTS?: RunAnywhereTTSConfig;
   autoSpeak: boolean;
 }
 
@@ -39,6 +43,8 @@ export function createRuntimeConfiguration(
     autoSpeak: options.autoSpeak ?? false,
     ...(options.sttProvider ? { sttProvider: options.sttProvider } : {}),
     ...(options.ttsProvider ? { ttsProvider: options.ttsProvider } : {}),
+    ...(options.builtInSTT ? { builtInSTT: options.builtInSTT } : {}),
+    ...(options.builtInTTS ? { builtInTTS: options.builtInTTS } : {}),
   };
 }
 
@@ -59,7 +65,7 @@ export function createDefaultRuntimeConfiguration(): WakeWordRuntimeConfiguratio
 
 export type NativeWakeWordRuntimeConfiguration = Omit<
   WakeWordRuntimeConfiguration,
-  'sttProvider' | 'ttsProvider' | 'autoSpeak'
+  'sttProvider' | 'ttsProvider' | 'autoSpeak' | 'builtInSTT' | 'builtInTTS'
 >;
 
 export function createNativeRuntimeConfiguration(
