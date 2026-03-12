@@ -1,4 +1,10 @@
 import type {
+  SpeechCompletedEvent,
+  SpeechErrorEvent,
+  SpeechStartedEvent,
+  TranscriptionErrorEvent,
+  TranscriptionResultEvent,
+  TranscriptionStartedEvent,
   WakeWordAudioRouteChangedEvent,
   WakeWordDetectedEvent,
   WakeWordInterruptionEvent,
@@ -23,6 +29,22 @@ async function flushRuntimeUpdate() {
   await new Promise<void>((resolve) => {
     setImmediate(resolve);
   });
+}
+
+async function waitForAssertion(assertion: () => void, attempts = 20) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await flushRuntimeUpdate();
+    }
+  }
+
+  throw lastError;
 }
 
 function createDeferred() {
@@ -412,6 +434,9 @@ describe('public runtime state and event contract', () => {
       ttsProvider,
       autoSpeak: true,
     });
+    await VoiceActivator.startDetection();
+    await VoiceActivator.startDetection();
+    await VoiceActivator.startDetection();
 
     expect(initialize).toHaveBeenCalledWith({
       profile: 'balanced',
@@ -464,6 +489,483 @@ describe('public runtime state and event contract', () => {
         onError: expect.any(Function),
       })
     );
+  });
+
+  it('orchestrates wake word detection through transcription and optional speech events', async () => {
+    let wakeWordDetectedHandler:
+      | ((payload: WakeWordDetectedEvent) => void)
+      | null = null;
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => {
+        runtimeStatus.state = 'idle';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+    };
+    const sttProvider = {
+      name: 'test-stt',
+      transcribe: jest.fn(async () => ({
+        text: 'hello world',
+        confidence: 0.91,
+        provider: 'test-stt',
+        durationMs: 250,
+      })),
+      cancel: jest.fn(async () => undefined),
+    };
+    const ttsProvider = {
+      name: 'test-tts',
+      speak: jest.fn(async () => undefined),
+      stop: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(
+        (handler: ((payload: WakeWordDetectedEvent) => void) | null) => {
+          wakeWordDetectedHandler = handler;
+        }
+      ),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const transcriptionsStarted: TranscriptionStartedEvent[] = [];
+    const transcriptionResults: TranscriptionResultEvent[] = [];
+    const speechStarted: SpeechStartedEvent[] = [];
+    const speechCompleted: SpeechCompletedEvent[] = [];
+
+    const startedSubscription = VoiceActivator.addWakeWordListener(
+      'transcriptionStarted',
+      (payload) => {
+        transcriptionsStarted.push(payload);
+      }
+    );
+    const resultSubscription = VoiceActivator.addWakeWordListener(
+      'transcriptionResult',
+      (payload) => {
+        transcriptionResults.push(payload);
+      }
+    );
+    const speechStartedSubscription = VoiceActivator.addWakeWordListener(
+      'speechStarted',
+      (payload) => {
+        speechStarted.push(payload);
+      }
+    );
+    const speechCompletedSubscription = VoiceActivator.addWakeWordListener(
+      'speechCompleted',
+      (payload) => {
+        speechCompleted.push(payload);
+      }
+    );
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+    });
+    await VoiceActivator.startDetection();
+
+    const emitWakeWordDetected = (payload: WakeWordDetectedEvent) => {
+      if (!wakeWordDetectedHandler) {
+        throw new Error('Expected wake word detected handler to be registered');
+      }
+
+      wakeWordDetectedHandler(payload);
+    };
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey app',
+      detectedAt: '2026-03-12T10:00:00.000Z',
+    });
+
+    await waitForAssertion(() => {
+      expect(sttProvider.transcribe).toHaveBeenCalledTimes(1);
+    });
+
+    startedSubscription.remove();
+    resultSubscription.remove();
+    speechStartedSubscription.remove();
+    speechCompletedSubscription.remove();
+
+    expect(ttsProvider.speak).toHaveBeenCalledWith('hello world');
+    expect(transcriptionsStarted).toEqual([{ provider: 'test-stt' }]);
+    expect(transcriptionResults).toEqual([
+      {
+        text: 'hello world',
+        confidence: 0.91,
+        provider: 'test-stt',
+        durationMs: 250,
+      },
+    ]);
+    expect(speechStarted).toEqual([
+      {
+        text: 'hello world',
+        provider: 'test-tts',
+      },
+    ]);
+    expect(speechCompleted).toEqual([{ provider: 'test-tts' }]);
+  });
+
+  it('preserves wake-word-only behavior when providers are omitted or autoSpeak is false', async () => {
+    let wakeWordDetectedHandler:
+      | ((payload: WakeWordDetectedEvent) => void)
+      | null = null;
+    const runtimeBridge = {
+      initialize: jest.fn(async () => undefined),
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'ready',
+        isAvailable: true,
+        isListening: false,
+        canStart: true,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+    const ttsProvider = {
+      name: 'test-tts',
+      speak: jest.fn(async () => undefined),
+      stop: jest.fn(async () => undefined),
+    };
+    const transcriptionResults: TranscriptionResultEvent[] = [];
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(
+        (handler: ((payload: WakeWordDetectedEvent) => void) | null) => {
+          wakeWordDetectedHandler = handler;
+        }
+      ),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const transcriptionSubscription = VoiceActivator.addWakeWordListener(
+      'transcriptionResult',
+      (payload) => {
+        transcriptionResults.push(payload);
+      }
+    );
+
+    await VoiceActivator.initialize({
+      ttsProvider,
+      autoSpeak: false,
+    });
+
+    const emitWakeWordDetected = (payload: WakeWordDetectedEvent) => {
+      if (!wakeWordDetectedHandler) {
+        throw new Error('Expected wake word detected handler to be registered');
+      }
+
+      wakeWordDetectedHandler(payload);
+    };
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey app',
+      detectedAt: '2026-03-12T10:00:00.000Z',
+    });
+
+    await flushRuntimeUpdate();
+    transcriptionSubscription.remove();
+
+    expect(transcriptionResults).toEqual([]);
+    expect(ttsProvider.speak).not.toHaveBeenCalled();
+  });
+
+  it('emits provider error events and cancels or stops active provider work during shutdown paths', async () => {
+    let wakeWordDetectedHandler:
+      | ((payload: WakeWordDetectedEvent) => void)
+      | null = null;
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => {
+        runtimeStatus.state = 'idle';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+    };
+    const transcriptionDeferred = createDeferred();
+    const speechDeferred = createDeferred();
+    const sttProvider = {
+      name: 'test-stt',
+      transcribe: jest.fn(async () => {
+        await transcriptionDeferred.promise;
+        return {
+          text: 'hello world',
+          provider: 'test-stt',
+        };
+      }),
+      cancel: jest.fn(async () => undefined),
+    };
+    const ttsProvider = {
+      name: 'test-tts',
+      speak: jest.fn(async () => {
+        await speechDeferred.promise;
+      }),
+      stop: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(
+        (handler: ((payload: WakeWordDetectedEvent) => void) | null) => {
+          wakeWordDetectedHandler = handler;
+        }
+      ),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const transcriptionErrors: TranscriptionErrorEvent[] = [];
+    const speechErrors: SpeechErrorEvent[] = [];
+    const transcriptionErrorSubscription = VoiceActivator.addWakeWordListener(
+      'transcriptionError',
+      (payload) => {
+        transcriptionErrors.push(payload);
+      }
+    );
+    const speechErrorSubscription = VoiceActivator.addWakeWordListener(
+      'speechError',
+      (payload) => {
+        speechErrors.push(payload);
+      }
+    );
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+    });
+    await VoiceActivator.startDetection();
+
+    const emitWakeWordDetected = (payload: WakeWordDetectedEvent) => {
+      if (!wakeWordDetectedHandler) {
+        throw new Error('Expected wake word detected handler to be registered');
+      }
+
+      wakeWordDetectedHandler(payload);
+    };
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey app',
+      detectedAt: '2026-03-12T10:00:00.000Z',
+    });
+
+    await waitForAssertion(() => {
+      expect(sttProvider.transcribe).toHaveBeenCalledTimes(1);
+    });
+    await VoiceActivator.stopDetection();
+
+    expect(sttProvider.cancel).toHaveBeenCalledTimes(1);
+
+    transcriptionDeferred.resolve();
+    await flushRuntimeUpdate();
+
+    sttProvider.transcribe.mockResolvedValueOnce({
+      text: 'hello world',
+      provider: 'test-stt',
+    });
+    ttsProvider.speak.mockImplementationOnce(async () => {
+      await speechDeferred.promise;
+    });
+    await VoiceActivator.startDetection();
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey again',
+      detectedAt: '2026-03-12T10:00:01.000Z',
+    });
+
+    await flushRuntimeUpdate();
+    await VoiceActivator.dispose();
+
+    expect(ttsProvider.stop).toHaveBeenCalledTimes(1);
+
+    speechDeferred.resolve();
+    await flushRuntimeUpdate();
+
+    sttProvider.transcribe.mockRejectedValueOnce(new Error('mic failed'));
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      autoSpeak: false,
+    });
+    await VoiceActivator.startDetection();
+    await VoiceActivator.startDetection();
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey error',
+      detectedAt: '2026-03-12T10:00:02.000Z',
+    });
+
+    await flushRuntimeUpdate();
+
+    transcriptionErrorSubscription.remove();
+    speechErrorSubscription.remove();
+
+    expect(transcriptionErrors).toEqual([
+      expect.objectContaining({
+        provider: 'test-stt',
+        code: 'stt_transcribe_failed',
+      }),
+    ]);
+    expect(speechErrors).toEqual([]);
+  });
+
+  it('suppresses queued provider orchestration after stop and dispose', async () => {
+    let wakeWordDetectedHandler:
+      | ((payload: WakeWordDetectedEvent) => void)
+      | null = null;
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => {
+        runtimeStatus.state = 'idle';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+    };
+    const sttProvider = {
+      name: 'test-stt',
+      transcribe: jest.fn(async () => ({
+        text: 'hello world',
+        provider: 'test-stt',
+      })),
+      cancel: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(
+        (handler: ((payload: WakeWordDetectedEvent) => void) | null) => {
+          wakeWordDetectedHandler = handler;
+        }
+      ),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      autoSpeak: false,
+    });
+    await VoiceActivator.startDetection();
+
+    const emitWakeWordDetected = (payload: WakeWordDetectedEvent) => {
+      if (!wakeWordDetectedHandler) {
+        throw new Error('Expected wake word detected handler to be registered');
+      }
+
+      wakeWordDetectedHandler(payload);
+    };
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey stop',
+      detectedAt: '2026-03-12T10:00:03.000Z',
+    });
+    await VoiceActivator.stopDetection();
+    await flushRuntimeUpdate();
+
+    expect(sttProvider.transcribe).not.toHaveBeenCalled();
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      autoSpeak: false,
+    });
+    await VoiceActivator.startDetection();
+
+    emitWakeWordDetected({
+      detectedPhrase: 'hey dispose',
+      detectedAt: '2026-03-12T10:00:04.000Z',
+    });
+    await VoiceActivator.dispose();
+    await flushRuntimeUpdate();
+
+    expect(sttProvider.transcribe).not.toHaveBeenCalled();
   });
 
   it('surfaces interrupted and unsupported native states through registered runtime handlers', async () => {

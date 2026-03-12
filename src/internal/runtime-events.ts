@@ -15,6 +15,12 @@ const listeners: ListenerRegistry = {
   error: new Set(),
   interruption: new Set(),
   audioRouteChanged: new Set(),
+  transcriptionStarted: new Set(),
+  transcriptionResult: new Set(),
+  transcriptionError: new Set(),
+  speechStarted: new Set(),
+  speechCompleted: new Set(),
+  speechError: new Set(),
 };
 
 export function addRuntimeListener<TEventName extends WakeWordEventName>(

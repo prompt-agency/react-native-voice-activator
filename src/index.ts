@@ -9,9 +9,16 @@ export {
 } from './public/voice-activator';
 export { wakeWordStates } from './public/types';
 export type {
+  ProviderError,
   SpeechToTextProvider,
+  SpeechCompletedEvent,
+  SpeechErrorEvent,
+  SpeechStartedEvent,
   TextToSpeechProvider,
+  TranscriptionErrorEvent,
   TranscriptionResult,
+  TranscriptionResultEvent,
+  TranscriptionStartedEvent,
   TTSOptions,
   VoiceActivatorApi,
   WakeWordEngineAssetKeys,

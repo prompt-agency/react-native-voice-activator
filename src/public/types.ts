@@ -61,6 +61,10 @@ export interface WakeWordError {
   platform?: 'ios' | 'android';
 }
 
+export interface ProviderError extends WakeWordError {
+  provider: string;
+}
+
 export interface TranscriptionResult {
   text: string;
   confidence?: number;
@@ -125,12 +129,37 @@ export interface WakeWordAudioRouteChangedEvent {
   previousRoute?: string;
 }
 
+export interface TranscriptionStartedEvent {
+  provider: string;
+}
+
+export interface TranscriptionResultEvent extends TranscriptionResult {}
+
+export interface TranscriptionErrorEvent extends ProviderError {}
+
+export interface SpeechStartedEvent {
+  text: string;
+  provider: string;
+}
+
+export interface SpeechCompletedEvent {
+  provider: string;
+}
+
+export interface SpeechErrorEvent extends ProviderError {}
+
 export interface WakeWordEventMap {
   stateChanged: WakeWordStateChangedEvent;
   wakeWordDetected: WakeWordDetectedEvent;
   error: WakeWordError;
   interruption: WakeWordInterruptionEvent;
   audioRouteChanged: WakeWordAudioRouteChangedEvent;
+  transcriptionStarted: TranscriptionStartedEvent;
+  transcriptionResult: TranscriptionResultEvent;
+  transcriptionError: TranscriptionErrorEvent;
+  speechStarted: SpeechStartedEvent;
+  speechCompleted: SpeechCompletedEvent;
+  speechError: SpeechErrorEvent;
 }
 
 export type VoiceActivatorEventMap = WakeWordEventMap;

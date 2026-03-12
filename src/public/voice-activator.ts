@@ -10,6 +10,7 @@ import {
   createNativeRuntimeConfiguration,
   createRuntimeConfiguration,
 } from '../domain/detection-config';
+import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
 import {
   addRuntimeListener,
   emitRuntimeEvent,
@@ -18,7 +19,9 @@ import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
 import type {
+  ProviderError,
   VoiceActivatorApi,
+  WakeWordDetectedEvent,
   WakeWordError,
   WakeWordEventMap,
   WakeWordInitializationOptions,
@@ -28,6 +31,218 @@ import type {
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
 let nativeStatusUpdateQueue: Promise<void> = Promise.resolve();
+let activeRuntimeConfiguration: ReturnType<
+  typeof createRuntimeConfiguration
+> | null = null;
+let providerOrchestrationQueue: Promise<void> = Promise.resolve();
+let providerOrchestrationGeneration = 0;
+type ActiveProviderFlow = {
+  id: number;
+  stage: 'transcribing' | 'speaking';
+  sttProvider?: WakeWordRuntimeConfiguration['sttProvider'];
+  ttsProvider?: WakeWordRuntimeConfiguration['ttsProvider'];
+  speechText?: string;
+};
+
+let activeProviderFlow: ActiveProviderFlow | null = null;
+
+function emitWakeWordDetected(payload: WakeWordDetectedEvent) {
+  emitRuntimeEvent('wakeWordDetected', payload);
+}
+
+function invalidateProviderOrchestration() {
+  providerOrchestrationGeneration += 1;
+}
+
+function createProviderError(
+  provider: string,
+  code: string,
+  message: string,
+  category: ProviderError['category'] = 'internal'
+): ProviderError {
+  return {
+    provider,
+    code,
+    category,
+    message,
+    recoverable: true,
+  };
+}
+
+function createProviderErrorFromCause(
+  provider: string,
+  code: string,
+  cause: unknown,
+  fallbackMessage: string
+): ProviderError {
+  return createProviderError(
+    provider,
+    code,
+    cause instanceof Error ? cause.message : fallbackMessage
+  );
+}
+
+async function cleanupActiveProviderFlow() {
+  const flow = activeProviderFlow;
+  activeProviderFlow = null;
+
+  if (!flow) {
+    return;
+  }
+
+  if (flow.stage === 'transcribing' && flow.sttProvider) {
+    try {
+      await flow.sttProvider.cancel();
+    } catch (cause) {
+      emitRuntimeEvent(
+        'transcriptionError',
+        createProviderErrorFromCause(
+          flow.sttProvider.name,
+          'stt_cancel_failed',
+          cause,
+          'Failed to cancel transcription.'
+        )
+      );
+    }
+  }
+
+  if (flow.stage === 'speaking' && flow.ttsProvider) {
+    try {
+      await flow.ttsProvider.stop();
+    } catch (cause) {
+      emitRuntimeEvent(
+        'speechError',
+        createProviderErrorFromCause(
+          flow.ttsProvider.name,
+          'tts_stop_failed',
+          cause,
+          'Failed to stop speech playback.'
+        )
+      );
+    }
+  }
+}
+
+function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
+  const queuedGeneration = providerOrchestrationGeneration;
+  emitWakeWordDetected(payload);
+
+  providerOrchestrationQueue = providerOrchestrationQueue
+    .catch(() => {
+      // Keep the queue alive after a prior failure.
+    })
+    .then(async () => {
+      if (providerOrchestrationGeneration !== queuedGeneration) {
+        return;
+      }
+
+      const runtimeStatus = getCurrentStatus();
+      if (!runtimeStatus.isListening || runtimeStatus.state !== 'running') {
+        return;
+      }
+
+      const configuration = activeRuntimeConfiguration;
+      const generation = queuedGeneration;
+
+      if (!configuration?.sttProvider) {
+        return;
+      }
+
+      const sttProvider = configuration.sttProvider;
+      const ttsProvider = configuration.ttsProvider;
+      const flowId = generation;
+
+      activeProviderFlow = {
+        id: flowId,
+        stage: 'transcribing',
+        sttProvider,
+        ttsProvider,
+      };
+
+      emitRuntimeEvent('transcriptionStarted', {
+        provider: sttProvider.name,
+      });
+
+      try {
+        const transcription = await sttProvider.transcribe();
+
+        if (
+          providerOrchestrationGeneration !== generation ||
+          activeProviderFlow?.id !== flowId
+        ) {
+          return;
+        }
+
+        emitRuntimeEvent('transcriptionResult', transcription);
+
+        if (!configuration.autoSpeak || !ttsProvider) {
+          return;
+        }
+
+        activeProviderFlow = {
+          id: flowId,
+          stage: 'speaking',
+          sttProvider,
+          ttsProvider,
+          speechText: transcription.text,
+        };
+
+        emitRuntimeEvent('speechStarted', {
+          text: transcription.text,
+          provider: ttsProvider.name,
+        });
+
+        await ttsProvider.speak(transcription.text);
+
+        if (
+          providerOrchestrationGeneration !== generation ||
+          activeProviderFlow?.id !== flowId
+        ) {
+          return;
+        }
+
+        emitRuntimeEvent('speechCompleted', {
+          provider: ttsProvider.name,
+        });
+      } catch (cause) {
+        if (
+          providerOrchestrationGeneration !== generation ||
+          activeProviderFlow?.id !== flowId
+        ) {
+          return;
+        }
+
+        if (activeProviderFlow?.stage === 'speaking' && ttsProvider) {
+          emitRuntimeEvent(
+            'speechError',
+            createProviderErrorFromCause(
+              ttsProvider.name,
+              'tts_speak_failed',
+              cause,
+              'Speech playback failed.'
+            )
+          );
+        } else {
+          emitRuntimeEvent(
+            'transcriptionError',
+            createProviderErrorFromCause(
+              sttProvider.name,
+              'stt_transcribe_failed',
+              cause,
+              'Transcription failed.'
+            )
+          );
+        }
+      } finally {
+        if (
+          providerOrchestrationGeneration === generation &&
+          activeProviderFlow?.id === flowId
+        ) {
+          activeProviderFlow = null;
+        }
+      }
+    });
+}
 
 const runtimeStore = createRuntimeStore(
   getVoiceActivatorRuntimeBridge().getStatus() ?? {
@@ -40,7 +255,7 @@ const runtimeStore = createRuntimeStore(
   }
 );
 setWakeWordDetectedHandler((payload) => {
-  emitRuntimeEvent('wakeWordDetected', payload);
+  queueProviderOrchestration(payload);
 });
 
 async function stopEngineRuntime() {
@@ -70,10 +285,14 @@ async function syncEngineRuntimeWithNativeStatus(
     !status.isListening &&
     activeEngineRuntime
   ) {
+    invalidateProviderOrchestration();
+    await cleanupActiveProviderFlow();
     await disposeEngineRuntime();
   }
 
   if (status.state === 'interrupted') {
+    invalidateProviderOrchestration();
+    await cleanupActiveProviderFlow();
     await stopEngineRuntime();
     return;
   }
@@ -93,6 +312,8 @@ async function syncEngineRuntimeWithNativeStatus(
       status.state === 'error') &&
     !status.isListening
   ) {
+    invalidateProviderOrchestration();
+    await cleanupActiveProviderFlow();
     await stopEngineRuntime();
   }
 }
@@ -308,18 +529,21 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
+      invalidateProviderOrchestration();
+      await cleanupActiveProviderFlow();
       await disposeEngineRuntime();
       await activeRuntime.initialize(
         createNativeRuntimeConfiguration(runtimeConfiguration)
       );
       await nextEngineRuntime.initialize(runtimeConfiguration, {
         onDetected(payload) {
-          emitRuntimeEvent('wakeWordDetected', payload);
+          queueProviderOrchestration(payload);
         },
         onError(error) {
           applyRuntimeError(error);
         },
       });
+      activeRuntimeConfiguration = runtimeConfiguration;
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -390,6 +614,8 @@ export const voiceActivator: VoiceActivatorApi = {
     });
 
     try {
+      invalidateProviderOrchestration();
+      await cleanupActiveProviderFlow();
       await stopEngineRuntime();
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
@@ -419,8 +645,11 @@ export const voiceActivator: VoiceActivatorApi = {
     }
 
     try {
+      invalidateProviderOrchestration();
+      await cleanupActiveProviderFlow();
       await disposeEngineRuntime();
       await activeRuntime.dispose();
+      activeRuntimeConfiguration = null;
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
