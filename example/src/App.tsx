@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,9 +15,13 @@ import {
   dispose,
   getStatus,
   initialize,
+  RunAnywhereSTTAdapter,
+  RunAnywhereTTSAdapter,
   startDetection,
   stopDetection,
   wakeWordStates,
+  type RunAnywhereSTTConfig,
+  type RunAnywhereTTSConfig,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordErrorCategory,
@@ -45,6 +50,13 @@ type KeywordPreset = {
 };
 
 type ProviderMode = 'demo' | 'runanywhere';
+
+type ManualRunAnywhereAdapters = {
+  sttAdapter: RunAnywhereSTTAdapter | null;
+  ttsAdapter: RunAnywhereTTSAdapter | null;
+  preparedSTTConfig?: RunAnywhereSTTConfig;
+  preparedTTSConfig?: RunAnywhereTTSConfig;
+};
 
 const defaultKeywordPreset: KeywordPreset = {
   id: 'all-bundled-phrases',
@@ -157,6 +169,14 @@ export default function App() {
     'Wake -> transcribe -> optional speak preview is idle until initialize configures either the demo bridges or the RunAnywhere built-in path.'
   );
   const [providerMode, setProviderMode] = useState<ProviderMode>('demo');
+  const [manualRunAnywhereText, setManualRunAnywhereText] = useState(
+    'Hello from the RunAnywhere built-in TTS example.'
+  );
+  const [manualRunAnywhereTranscript, setManualRunAnywhereTranscript] =
+    useState<string | null>(null);
+  const [manualRunAnywhereStatus, setManualRunAnywhereStatus] = useState<string>(
+    'Manual RunAnywhere STT/TTS controls are idle.'
+  );
   const [selectedKeywordPresetId, setSelectedKeywordPresetId] = useState<string>(
     defaultKeywordPreset.id
   );
@@ -165,6 +185,10 @@ export default function App() {
   >(null);
   const sttBridgeRef = useRef(createDemoReferenceSttBridge());
   const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
+  const manualRunAnywhereAdaptersRef = useRef<ManualRunAnywhereAdapters>({
+    sttAdapter: null,
+    ttsAdapter: null,
+  });
   const eventSequenceRef = useRef(0);
   const selectedKeywordPreset =
     bundledKeywordPresets.find((preset) => preset.id === selectedKeywordPresetId) ??
@@ -349,6 +373,14 @@ export default function App() {
     pushRuntimeEvent('statusSnapshot', `initial state: ${initialStatus.state}`);
 
     return () => {
+      void (async () => {
+        if (manualRunAnywhereAdaptersRef.current.sttAdapter) {
+          await manualRunAnywhereAdaptersRef.current.sttAdapter.dispose();
+        }
+        if (manualRunAnywhereAdaptersRef.current.ttsAdapter) {
+          await manualRunAnywhereAdaptersRef.current.ttsAdapter.dispose();
+        }
+      })();
       stateSubscription.remove();
       detectionSubscription.remove();
       errorSubscription.remove();
@@ -362,6 +394,57 @@ export default function App() {
       speechErrorSubscription.remove();
     };
   }, []);
+
+  async function ensureManualRunAnywhereAdapters(): Promise<ManualRunAnywhereAdapters> {
+    const preparedOptions = await prepareRunAnywhereBuiltInOptions((update) => {
+      const nextStatus =
+        update.progress == null
+          ? update.message
+          : `${update.message} (${update.progress}%)`;
+      setExtensionStatus(nextStatus);
+      setManualRunAnywhereStatus(nextStatus);
+    });
+
+    if (!preparedOptions) {
+      throw new Error(
+        'RunAnywhere built-in mode requires at least one model definition in example/src/reference-provider-adapters.ts.'
+      );
+    }
+
+    const currentAdapters = manualRunAnywhereAdaptersRef.current;
+    const sttConfigChanged =
+      JSON.stringify(currentAdapters.preparedSTTConfig ?? null) !==
+      JSON.stringify(preparedOptions.builtInSTT ?? null);
+    const ttsConfigChanged =
+      JSON.stringify(currentAdapters.preparedTTSConfig ?? null) !==
+      JSON.stringify(preparedOptions.builtInTTS ?? null);
+
+    if (sttConfigChanged && currentAdapters.sttAdapter) {
+      await currentAdapters.sttAdapter.dispose();
+      currentAdapters.sttAdapter = null;
+    }
+
+    if (ttsConfigChanged && currentAdapters.ttsAdapter) {
+      await currentAdapters.ttsAdapter.dispose();
+      currentAdapters.ttsAdapter = null;
+    }
+
+    if (preparedOptions.builtInSTT && !currentAdapters.sttAdapter) {
+      const sttAdapter = new RunAnywhereSTTAdapter(preparedOptions.builtInSTT);
+      await sttAdapter.initialize();
+      currentAdapters.sttAdapter = sttAdapter;
+      currentAdapters.preparedSTTConfig = preparedOptions.builtInSTT;
+    }
+
+    if (preparedOptions.builtInTTS && !currentAdapters.ttsAdapter) {
+      const ttsAdapter = new RunAnywhereTTSAdapter(preparedOptions.builtInTTS);
+      await ttsAdapter.initialize();
+      currentAdapters.ttsAdapter = ttsAdapter;
+      currentAdapters.preparedTTSConfig = preparedOptions.builtInTTS;
+    }
+
+    return currentAdapters;
+  }
 
   function createFallbackError(error: unknown): WakeWordError {
     if (error instanceof Error) {
@@ -478,6 +561,43 @@ export default function App() {
 
   function handleStopDetection() {
     runAction('stopDetection', () => stopDetection()).catch(() => undefined);
+  }
+
+  function handleManualRunAnywhereSpeak() {
+    runAction('manualRunAnywhereSpeak', async () => {
+      if (!manualRunAnywhereText.trim()) {
+        throw new Error('Enter text before asking RunAnywhere TTS to speak.');
+      }
+
+      const adapters = await ensureManualRunAnywhereAdapters();
+      if (!adapters.ttsAdapter) {
+        throw new Error('RunAnywhere TTS is not configured.');
+      }
+
+      setManualRunAnywhereStatus('Speaking text through RunAnywhere TTS...');
+      await adapters.ttsAdapter.speak(manualRunAnywhereText);
+      setManualRunAnywhereStatus('RunAnywhere TTS completed.');
+      setTtsResponse(`Manual RunAnywhere TTS completed: "${manualRunAnywhereText}"`);
+      pushRuntimeEvent('manualTTS', manualRunAnywhereText);
+    }).catch(() => undefined);
+  }
+
+  function handleManualRunAnywhereTranscribe() {
+    runAction('manualRunAnywhereTranscribe', async () => {
+      const adapters = await ensureManualRunAnywhereAdapters();
+      if (!adapters.sttAdapter) {
+        throw new Error('RunAnywhere STT is not configured.');
+      }
+
+      setManualRunAnywhereStatus(
+        'Recording through RunAnywhere STT. Speak now; transcription will appear here.'
+      );
+      const result = await adapters.sttAdapter.transcribe();
+      setManualRunAnywhereTranscript(result.text);
+      setManualRunAnywhereText(result.text);
+      setManualRunAnywhereStatus('RunAnywhere STT transcription completed.');
+      pushRuntimeEvent('manualSTT', result.text);
+    }).catch(() => undefined);
   }
 
   function handleDispose() {
@@ -812,6 +932,40 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.label}>Manual RunAnywhere STT/TTS</Text>
+          <Text style={styles.meta}>
+            This uses the built-in RunAnywhere adapters directly so you can test
+            speech synthesis from typed text and speech-to-text without waiting
+            for a wake-word event.
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={manualRunAnywhereText}
+            onChangeText={setManualRunAnywhereText}
+            placeholder="Type text for RunAnywhere TTS"
+            multiline
+          />
+          <View style={styles.buttonRow}>
+            <Button
+              title="Speak text"
+              onPress={handleManualRunAnywhereSpeak}
+              disabled={!runAnywhereAvailability.tts}
+            />
+          </View>
+          <View style={styles.buttonRow}>
+            <Button
+              title="Record and transcribe"
+              onPress={handleManualRunAnywhereTranscribe}
+              disabled={!runAnywhereAvailability.stt}
+            />
+          </View>
+          <Text style={styles.meta}>Status: {manualRunAnywhereStatus}</Text>
+          <Text style={styles.meta}>
+            Transcript: {manualRunAnywhereTranscript ?? 'No manual transcription yet.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.label}>Important note</Text>
           <Text style={styles.meta}>
             This example validates the current API, lifecycle, typed event path,
@@ -868,6 +1022,18 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 14,
     color: '#555',
+  },
+  input: {
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111',
+    backgroundColor: '#fafafa',
+    textAlignVertical: 'top',
   },
   buttonRow: {
     marginTop: 8,
