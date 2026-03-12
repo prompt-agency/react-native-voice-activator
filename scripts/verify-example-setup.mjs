@@ -46,10 +46,18 @@ if (!existsSync(exampleAppPath)) {
     'syncDiagnosticsFromStatus',
     'getStatus().lastError',
     'Optional STT/TTS extension examples',
-    'Run STT handoff example',
-    'Run TTS response example',
+    'Preview STT adapter',
+    'Preview TTS adapter',
     'wakeWordDetected',
-    'application-level extension examples',
+    'application-level reference provider',
+    'createReferenceProviders',
+    'referenceProviderCatalog',
+    'createDemoReferenceSttBridge',
+    'createDemoReferenceTtsBridge',
+    'transcriptionStarted',
+    'transcriptionResult',
+    'speechStarted',
+    'speechCompleted',
   ];
 
   for (const token of requiredApiUsage) {
@@ -64,21 +72,33 @@ if (!existsSync(exampleAppPath)) {
     );
   }
 
-  if (!exampleAppSource.includes('void runSttExtensionFromDetection(event)')) {
+  if (!exampleAppSource.includes('initialize({')) {
     errors.push(
-      'Example app does not trigger the STT extension from the public wakeWordDetected event.'
+      'Example app does not configure reference providers through initialize({...}).'
     );
   }
 
-  if (!exampleAppSource.includes('setSttTranscript(null);')) {
+  if (!exampleAppSource.includes('sttProvider: referenceProviders.sttProvider')) {
     errors.push(
-      'Example app does not clear stale STT transcript state when a new wake word is detected.'
+      'Example app does not pass the STT reference provider through the public initialize options.'
     );
   }
 
-  if (!exampleAppSource.includes('setTtsResponse(null);')) {
+  if (!exampleAppSource.includes('ttsProvider: referenceProviders.ttsProvider')) {
     errors.push(
-      'Example app does not clear stale TTS response state when a new wake word is detected.'
+      'Example app does not pass the TTS reference provider through the public initialize options.'
+    );
+  }
+
+  if (!exampleAppSource.includes('autoSpeak: true')) {
+    errors.push(
+      'Example app does not demonstrate the runtime-owned autoSpeak provider orchestration path.'
+    );
+  }
+
+  if (!exampleAppSource.includes('simulated host implementation to preview the contract')) {
+    errors.push(
+      'Example app does not explain that the adapter preview is an application-owned simulated host implementation.'
     );
   }
 
@@ -173,6 +193,7 @@ if (!existsSync(exampleReadmePath)) {
     'normalized error categories',
     'optional STT/TTS extension points',
     'application-level examples only',
+    '../docs/examples/',
   ];
 
   for (const text of requiredReadmeText) {

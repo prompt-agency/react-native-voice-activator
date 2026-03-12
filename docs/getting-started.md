@@ -35,6 +35,7 @@ The example app also includes optional downstream extension examples showing how
 - `wakeWordDetected` can trigger an application-owned STT handoff
 - a TTS response step can run after detection or transcript handling
 - those speech flows remain outside the package runtime and use public APIs only
+- concrete adapter examples live in `docs/examples/` and remain application-owned
 
 ## Built-In Engine Defaults
 

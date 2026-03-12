@@ -25,6 +25,7 @@ The example app also includes optional downstream STT/TTS extension examples:
 - wake-word detection can trigger an application-owned STT handoff through `wakeWordDetected`
 - a downstream TTS response can be wired after detection or transcript handling
 - these are example-level integrations only; the package itself does not own transcription or synthesis
+- concrete reference adapter examples now live under `docs/examples/` and stay outside package core
 
 ## Reliability evaluation artifacts
 

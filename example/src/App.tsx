@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Button,
   PermissionsAndroid,
@@ -22,6 +22,12 @@ import {
   type WakeWordErrorCategory,
   type WakeWordStatus,
 } from 'react-native-voice-activator';
+import {
+  createDemoReferenceSttBridge,
+  createDemoReferenceTtsBridge,
+  createReferenceProviders,
+  referenceProviderCatalog,
+} from './reference-provider-adapters';
 
 type RuntimeEventEntry = {
   id: string;
@@ -63,6 +69,7 @@ export default function App() {
   const [status, setStatus] = useState<WakeWordStatus>(() => getStatus());
   const [lastDetection, setLastDetection] =
     useState<WakeWordDetectedEvent | null>(null);
+  const lastDetectionRef = useRef<WakeWordDetectedEvent | null>(null);
   const [lastError, setLastError] = useState<WakeWordError | null>(
     () => getStatus().lastError ?? null
   );
@@ -70,8 +77,10 @@ export default function App() {
   const [sttTranscript, setSttTranscript] = useState<string | null>(null);
   const [ttsResponse, setTtsResponse] = useState<string | null>(null);
   const [extensionStatus, setExtensionStatus] = useState<string>(
-    'No STT/TTS extension flow executed yet.'
+    'Reference adapters are idle until initialize configures them through the public provider interface.'
   );
+  const sttBridgeRef = useRef(createDemoReferenceSttBridge());
+  const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -135,21 +144,16 @@ export default function App() {
       'wakeWordDetected',
       (event) => {
         setLastDetection(event);
+        lastDetectionRef.current = event;
         setSttTranscript(null);
         setTtsResponse(null);
         setExtensionStatus(
-          'Wake word detected. Running optional STT extension example from the public event.'
+          'Wake word detected. If reference providers were configured during initialize, runtime orchestration will emit transcription and speech events next.'
         );
         pushRuntimeEvent(
           'wakeWordDetected',
           `${event.detectedPhrase} at ${event.detectedAt}`
         );
-
-        void runSttExtensionFromDetection(event).catch(() => {
-          setExtensionStatus(
-            'Wake word detected, but the optional STT extension example failed.'
-          );
-        });
       }
     );
     const errorSubscription = addWakeWordListener('error', (event) => {
@@ -177,6 +181,72 @@ export default function App() {
         );
       }
     );
+    const transcriptionStartedSubscription = addWakeWordListener(
+      'transcriptionStarted',
+      (event) => {
+        setExtensionStatus(
+          `STT reference adapter running through the public provider contract: ${event.provider}.`
+        );
+        pushRuntimeEvent('transcriptionStarted', event.provider);
+      }
+    );
+    const transcriptionResultSubscription = addWakeWordListener(
+      'transcriptionResult',
+      (event) => {
+        setSttTranscript(event.text);
+        setExtensionStatus(
+          `STT reference adapter completed through the runtime orchestration path: ${event.provider}.`
+        );
+        pushRuntimeEvent(
+          'transcriptionResult',
+          `${event.provider}: ${event.text}`
+        );
+      }
+    );
+    const transcriptionErrorSubscription = addWakeWordListener(
+      'transcriptionError',
+      (event) => {
+        setExtensionStatus(
+          `STT reference adapter failed through the public provider contract: ${event.provider}.`
+        );
+        setLastError(event);
+        pushRuntimeEvent(
+          'transcriptionError',
+          `${event.provider}: ${event.code}`
+        );
+      }
+    );
+    const speechStartedSubscription = addWakeWordListener(
+      'speechStarted',
+      (event) => {
+        setExtensionStatus(
+          `TTS reference adapter running through the public provider contract: ${event.provider}.`
+        );
+        pushRuntimeEvent('speechStarted', `${event.provider}: ${event.text}`);
+      }
+    );
+    const speechCompletedSubscription = addWakeWordListener(
+      'speechCompleted',
+      (event) => {
+        setTtsResponse(
+          `Runtime-triggered TTS completed through ${event.provider}.`
+        );
+        setExtensionStatus(
+          `TTS reference adapter completed through the runtime orchestration path: ${event.provider}.`
+        );
+        pushRuntimeEvent('speechCompleted', event.provider);
+      }
+    );
+    const speechErrorSubscription = addWakeWordListener(
+      'speechError',
+      (event) => {
+        setExtensionStatus(
+          `TTS reference adapter failed through the public provider contract: ${event.provider}.`
+        );
+        setLastError(event);
+        pushRuntimeEvent('speechError', `${event.provider}: ${event.code}`);
+      }
+    );
 
     const initialStatus = getStatus();
     syncDiagnosticsFromStatus(initialStatus);
@@ -188,6 +258,12 @@ export default function App() {
       errorSubscription.remove();
       interruptionSubscription.remove();
       routeChangeSubscription.remove();
+      transcriptionStartedSubscription.remove();
+      transcriptionResultSubscription.remove();
+      transcriptionErrorSubscription.remove();
+      speechStartedSubscription.remove();
+      speechCompletedSubscription.remove();
+      speechErrorSubscription.remove();
     };
   }, []);
 
@@ -207,27 +283,6 @@ export default function App() {
       message: 'Unknown example action error.',
       recoverable: true,
     };
-  }
-
-  async function simulateSttHandoff(event: WakeWordDetectedEvent) {
-    await Promise.resolve();
-
-    return `Transcript placeholder captured after wake phrase "${event.detectedPhrase}" at ${event.detectedAt}.`;
-  }
-
-  async function simulateTtsHandoff(transcript: string) {
-    await Promise.resolve();
-
-    return `TTS placeholder response for transcript: ${transcript}`;
-  }
-
-  async function runSttExtensionFromDetection(event: WakeWordDetectedEvent) {
-    const transcript = await simulateSttHandoff(event);
-    setSttTranscript(transcript);
-    setExtensionStatus(
-      'Optional STT extension example ran automatically from the public wakeWordDetected event.'
-    );
-    pushRuntimeEvent('sttExtension', 'transcript placeholder captured');
   }
 
   async function runAction(actionName: string, action: () => Promise<void>) {
@@ -258,7 +313,27 @@ export default function App() {
         throw new Error('Example prerequisites are not satisfied.');
       }
 
-      return initialize();
+      const referenceProviders = createReferenceProviders(
+        () => lastDetectionRef.current,
+        {
+          sttBridge: sttBridgeRef.current,
+          ttsBridge: ttsBridgeRef.current,
+        }
+      );
+
+      setExtensionStatus(
+        'Initialize configures app-owned reference providers through initialize({ sttProvider, ttsProvider, autoSpeak: true }) and keeps vendor wiring outside the package.'
+      );
+      pushRuntimeEvent(
+        'referenceProviders',
+        `${referenceProviders.sttProvider.name} + ${referenceProviders.ttsProvider.name}`
+      );
+
+      return initialize({
+        sttProvider: referenceProviders.sttProvider,
+        ttsProvider: referenceProviders.ttsProvider,
+        autoSpeak: true,
+      });
     }).catch(() => undefined);
   }
 
@@ -275,36 +350,45 @@ export default function App() {
   }
 
   async function handleSttExample() {
-    if (!lastDetection) {
-      setExtensionStatus(
-        'Wait for a wake-word detection event before triggering the STT example.'
-      );
+    const sttReference = referenceProviderCatalog.find(
+      (entry) => entry.id === 'expo-speech-recognition'
+    );
+
+    if (!sttReference) {
       return;
     }
 
-    await runSttExtensionFromDetection(lastDetection);
+    setExtensionStatus(
+      `${sttReference.label} is documented in ${sttReference.docsPath}. This example app uses the same app-owned bridge shape and a simulated host implementation to preview the contract.`
+    );
+    pushRuntimeEvent('sttReference', sttReference.packageName);
+
+    const preview = await sttBridgeRef.current.transcribe({
+      detection: lastDetectionRef.current,
+    });
+    setSttTranscript(preview.text);
+    pushRuntimeEvent('sttPreview', `${preview.provider}: ${preview.text}`);
   }
 
   async function handleTtsExample() {
-    const sourceTranscript =
-      sttTranscript ??
-      (lastDetection
-        ? `Wake phrase received: ${lastDetection.detectedPhrase}`
-        : null);
+    const ttsReference = referenceProviderCatalog.find(
+      (entry) => entry.id === 'expo-speech'
+    );
 
-    if (!sourceTranscript) {
-      setExtensionStatus(
-        'Run the STT example or wait for wake-word detection before triggering the TTS example.'
-      );
+    if (!ttsReference) {
       return;
     }
 
-    const response = await simulateTtsHandoff(sourceTranscript);
-    setTtsResponse(response);
     setExtensionStatus(
-      'Optional TTS extension example ran after the STT/public wake-word flow.'
+      `${ttsReference.label} is documented in ${ttsReference.docsPath}. This example app uses the same app-owned bridge shape and a simulated host implementation to preview the contract.`
     );
-    pushRuntimeEvent('ttsExtension', 'tts placeholder response prepared');
+    pushRuntimeEvent('ttsReference', ttsReference.packageName);
+
+    const previewText =
+      'Simulated host-app TTS preview using the same public provider contract.';
+    await ttsBridgeRef.current.speak({ text: previewText });
+    setTtsResponse(previewText);
+    pushRuntimeEvent('ttsPreview', ttsReference.packageName);
   }
 
   const availabilityText =
@@ -424,23 +508,42 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.label}>Optional STT/TTS extension examples</Text>
           <Text style={styles.meta}>
-            These examples stay outside the package runtime. They use the public
-            wake-word event and lifecycle contract only, so STT/TTS remain
-            optional downstream integrations rather than built-in package
-            features.
+            These reference adapters stay outside the package runtime. The
+            example app owns them, passes them through the public provider
+            interface, and keeps STT/TTS as optional downstream integrations
+            rather than built-in package features.
           </Text>
+          {referenceProviderCatalog.map((entry) => (
+            <View key={entry.id} style={styles.eventRow}>
+              <Text style={styles.eventLabel}>{entry.label}</Text>
+              <Text style={styles.meta}>
+                {entry.packageName} · {entry.summary}
+              </Text>
+              <Text style={styles.meta}>Reference docs: {entry.docsPath}</Text>
+            </View>
+          ))}
           <View style={styles.buttonRow}>
-            <Button title="Run STT handoff example" onPress={handleSttExample} />
+            <Button
+              title="Preview STT adapter"
+              onPress={() => {
+                void handleSttExample();
+              }}
+            />
           </View>
           <View style={styles.buttonRow}>
-            <Button title="Run TTS response example" onPress={handleTtsExample} />
+            <Button
+              title="Preview TTS adapter"
+              onPress={() => {
+                void handleTtsExample();
+              }}
+            />
           </View>
           <Text style={styles.meta}>Extension status: {extensionStatus}</Text>
           <Text style={styles.meta}>
-            STT transcript: {sttTranscript ?? 'No transcript placeholder yet.'}
+            STT transcript: {sttTranscript ?? 'No runtime-driven transcript yet.'}
           </Text>
           <Text style={styles.meta}>
-            TTS response: {ttsResponse ?? 'No TTS response placeholder yet.'}
+            TTS response: {ttsResponse ?? 'No runtime-driven TTS completion yet.'}
           </Text>
         </View>
 
@@ -455,8 +558,9 @@ export default function App() {
             notification while detection is running.
           </Text>
           <Text style={styles.meta}>
-            The STT/TTS buttons above are application-level extension examples
-            only. The package does not own transcription or speech synthesis.
+            The STT/TTS adapters above are application-level reference provider
+            examples only. The package does not own transcription or speech
+            synthesis.
           </Text>
         </View>
       </ScrollView>

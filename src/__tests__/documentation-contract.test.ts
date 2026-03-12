@@ -382,23 +382,81 @@ describe('documentation and example contract', () => {
     expect(exampleApp).toContain('syncDiagnosticsFromStatus');
     expect(exampleApp).toContain('getStatus().lastError');
     expect(exampleApp).not.toContain('setLastError(null);');
-    expect(exampleApp).toContain('void runSttExtensionFromDetection(event)');
-    expect(exampleApp).toContain('setSttTranscript(null);');
-    expect(exampleApp).toContain('setTtsResponse(null);');
+    expect(exampleApp).toContain('createReferenceProviders');
+    expect(exampleApp).toContain('referenceProviderCatalog');
+    expect(exampleApp).toContain('createDemoReferenceSttBridge');
+    expect(exampleApp).toContain('createDemoReferenceTtsBridge');
+    expect(exampleApp).toContain('transcriptionStarted');
+    expect(exampleApp).toContain('transcriptionResult');
+    expect(exampleApp).toContain('speechStarted');
+    expect(exampleApp).toContain('speechCompleted');
+    expect(exampleApp).toContain('sttProvider: referenceProviders.sttProvider');
+    expect(exampleApp).toContain('ttsProvider: referenceProviders.ttsProvider');
+    expect(exampleApp).toContain('autoSpeak: true');
     expect(exampleApp).toContain('Recent runtime events');
     expect(exampleApp).toContain('Normalized error categories');
     expect(exampleApp).toContain('Current runtime diagnostics');
     expect(exampleApp).toContain('Optional STT/TTS extension examples');
-    expect(exampleApp).toContain('Run STT handoff example');
-    expect(exampleApp).toContain('Run TTS response example');
+    expect(exampleApp).toContain('Preview STT adapter');
+    expect(exampleApp).toContain('Preview TTS adapter');
     expect(exampleApp).toContain('wakeWordDetected');
-    expect(exampleApp).toContain('application-level extension examples');
+    expect(exampleApp).toContain('application-level reference provider');
+    expect(exampleApp).toContain(
+      'simulated host implementation to preview the contract'
+    );
     expect(normalizedExampleApp).toContain(
       'iOS background continuation still requires the audio background mode and does not survive force-quit.'
     );
     expect(normalizedExampleApp).toContain(
       'Android background continuation requires a visible app context'
     );
+  });
+
+  it('ships reference provider adapters outside package core', () => {
+    const examplesIndex = readFileSync(
+      join(root, 'docs/examples/index.md'),
+      'utf8'
+    );
+    const expoSpeechTts = readFileSync(
+      join(root, 'docs/examples/expo-speech-tts-provider.md'),
+      'utf8'
+    );
+    const expoSpeechRecognitionStt = readFileSync(
+      join(root, 'docs/examples/expo-speech-recognition-stt-provider.md'),
+      'utf8'
+    );
+    const exampleReadme = readFileSync(join(root, 'example/README.md'), 'utf8');
+
+    expect(examplesIndex).toContain('SpeechToTextProvider');
+    expect(examplesIndex).toContain('TextToSpeechProvider');
+    expect(examplesIndex).toContain('They do not belong in `src/`');
+    expect(examplesIndex).toContain('mandatory package runtime');
+    expect(examplesIndex).toContain('expo-speech-tts-provider.md');
+    expect(examplesIndex).toContain('expo-speech-recognition-stt-provider.md');
+
+    expect(expoSpeechTts).toContain('expo-speech');
+    expect(expoSpeechTts).toContain('TextToSpeechProvider');
+    expect(expoSpeechTts).toContain(
+      'initialize({ ttsProvider, autoSpeak: true })'
+    );
+    expect(expoSpeechTts).toContain(
+      'Do not move it into the library package core.'
+    );
+
+    expect(expoSpeechRecognitionStt).toContain('expo-speech-recognition');
+    expect(expoSpeechRecognitionStt).toContain('SpeechToTextProvider');
+    expect(expoSpeechRecognitionStt).toContain('initialize({ sttProvider })');
+    expect(expoSpeechRecognitionStt).toContain(
+      'Do not move it into the library package core.'
+    );
+    expect(expoSpeechRecognitionStt).toContain(
+      'Implement the bridge in your app against the exact vendor version you ship.'
+    );
+    expect(expoSpeechRecognitionStt).not.toContain(
+      'ExpoSpeechRecognitionModule.addListener'
+    );
+
+    expect(exampleReadme).toContain('../docs/examples/');
   });
 
   it('replaces placeholder and migration-era documentation with Sherpa-era guidance', () => {

@@ -6,6 +6,9 @@ const requiredDocs = [
   'docs/getting-started.md',
   'docs/bare-react-native-setup.md',
   'docs/expo-setup.md',
+  'docs/examples/index.md',
+  'docs/examples/expo-speech-tts-provider.md',
+  'docs/examples/expo-speech-recognition-stt-provider.md',
   'docs/background-behavior.md',
   'docs/reliability-validation.md',
   'docs/troubleshooting.md',
@@ -54,6 +57,7 @@ if (!existsSync(readmePath)) {
     'the package itself does not own transcription or synthesis',
     'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals',
     'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features',
+    'docs/examples/',
     '## Built-In Model Configuration',
     'engineConfig.assetKeys.modelAssetKey',
     'engineConfig.assetKeys.keywordAssetKey',
@@ -196,6 +200,7 @@ if (existsSync(troubleshootingPath)) {
     'primary runtime validation path today',
     'optional STT/TTS extension-point examples',
     'downstream application integrations only',
+    'docs/examples/',
   ];
 
   for (const text of requiredTroubleshootingText) {
@@ -219,6 +224,7 @@ if (existsSync(gettingStartedPath)) {
     'application-owned STT handoff',
     'TTS response step can run after detection or transcript handling',
     'those speech flows remain outside the package runtime and use public APIs only',
+    'docs/examples/',
     'Built-In Engine Defaults',
     'native-managed Sherpa-ONNX',
     'engineConfig.assetKeys.modelAssetKey',
@@ -304,6 +310,69 @@ if (existsSync(exampleReadmePath)) {
 
   if (exampleReadme.includes('Story 4.2:')) {
     errors.push('example README still contains stale Story 4.2 framing');
+  }
+
+  if (!exampleReadme.includes('../docs/examples/')) {
+    errors.push('example README missing docs/examples reference');
+  }
+}
+
+const examplesIndexPath = join(root, 'docs/examples/index.md');
+
+if (existsSync(examplesIndexPath)) {
+  const examplesIndex = readFileSync(examplesIndexPath, 'utf8');
+  const requiredExamplesIndexText = [
+    'SpeechToTextProvider',
+    'TextToSpeechProvider',
+    'initialize({ sttProvider, ttsProvider, autoSpeak })',
+    'They do not belong in `src/`, `src/internal/`, or the mandatory package runtime.',
+    'expo-speech-tts-provider.md',
+    'expo-speech-recognition-stt-provider.md',
+  ];
+
+  for (const text of requiredExamplesIndexText) {
+    if (!examplesIndex.includes(text)) {
+      errors.push(`docs/examples/index missing required text: ${text}`);
+    }
+  }
+}
+
+const ttsExamplePath = join(root, 'docs/examples/expo-speech-tts-provider.md');
+
+if (existsSync(ttsExamplePath)) {
+  const ttsExample = readFileSync(ttsExamplePath, 'utf8');
+  const requiredTtsExampleText = [
+    'TextToSpeechProvider',
+    'expo-speech',
+    'initialize({ ttsProvider, autoSpeak: true })',
+    'Do not move it into the library package core.',
+  ];
+
+  for (const text of requiredTtsExampleText) {
+    if (!ttsExample.includes(text)) {
+      errors.push(`expo-speech TTS example missing required text: ${text}`);
+    }
+  }
+}
+
+const sttExamplePath = join(
+  root,
+  'docs/examples/expo-speech-recognition-stt-provider.md'
+);
+
+if (existsSync(sttExamplePath)) {
+  const sttExample = readFileSync(sttExamplePath, 'utf8');
+  const requiredSttExampleText = [
+    'SpeechToTextProvider',
+    'expo-speech-recognition',
+    'initialize({ sttProvider })',
+    'Do not move it into the library package core.',
+  ];
+
+  for (const text of requiredSttExampleText) {
+    if (!sttExample.includes(text)) {
+      errors.push(`expo-speech-recognition STT example missing required text: ${text}`);
+    }
   }
 }
 

@@ -42,6 +42,7 @@ the current Expo integration path:
 - runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
 - the example also shows optional STT/TTS extension points layered on top of the public wake-word event contract
 - those STT/TTS flows are application-level examples only and do not make the package own transcription or synthesis
+- concrete reference provider adapters are documented in `../docs/examples/`
 
 ## What It Does Not Prove
 

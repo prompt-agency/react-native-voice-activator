@@ -25,7 +25,9 @@ The example app now exposes the same diagnostics surface for evaluation:
 
 The example app also contains optional STT/TTS extension-point examples. Those
 examples are downstream application integrations only. If they fail, debug the
-app-level handoff code separately from the package runtime itself.
+app-level handoff code separately from the package runtime itself. Concrete
+reference adapters now live in `docs/examples/` and still remain outside the
+package core.
 
 ## Common Failure Classes
 
