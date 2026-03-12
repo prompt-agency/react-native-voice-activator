@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Button,
   PermissionsAndroid,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -57,6 +57,8 @@ type ManualRunAnywhereAdapters = {
   preparedSTTConfig?: RunAnywhereSTTConfig;
   preparedTTSConfig?: RunAnywhereTTSConfig;
 };
+
+type ActionTone = 'primary' | 'secondary' | 'danger' | 'quiet';
 
 const defaultKeywordPreset: KeywordPreset = {
   id: 'all-bundled-phrases',
@@ -153,6 +155,107 @@ const errorCategories: Array<{
     description: 'Unexpected package/runtime failure outside narrower classes.',
   },
 ];
+
+const testScenarios: Array<{
+  id: string;
+  title: string;
+  summary: string;
+  steps: string[];
+}> = [
+  {
+    id: 'wake-demo',
+    title: 'Wake word with demo providers',
+    summary:
+      'Validates the package-owned wake runtime plus application-owned STT/TTS adapters.',
+    steps: [
+      'Select a bundled keyword preset.',
+      'Choose Demo providers and press Initialize.',
+      'Start detection, say the wake phrase, and watch transcription and speech events.',
+    ],
+  },
+  {
+    id: 'runanywhere-runtime',
+    title: 'Built-in RunAnywhere runtime session',
+    summary:
+      'Exercises Initialize with built-in Whisper/Piper preparation and runtime orchestration.',
+    steps: [
+      'Choose RunAnywhere built-in.',
+      'Press Initialize and wait for model preparation to finish.',
+      'Start detection and confirm wake, STT, and TTS all progress without host-owned adapters.',
+    ],
+  },
+  {
+    id: 'manual-tts',
+    title: 'Manual text to speech',
+    summary:
+      'Fastest check for Piper model loading and device speaker playback.',
+    steps: [
+      'Type a short sentence in the manual RunAnywhere section.',
+      'Press Speak text.',
+      'Confirm you hear audio and the manual status changes to completed.',
+    ],
+  },
+  {
+    id: 'manual-stt',
+    title: 'Manual speech to text',
+    summary:
+      'Checks microphone recording, Whisper transcription, and transcript round-trip.',
+    steps: [
+      'Press Record and transcribe.',
+      'Speak a short English sentence.',
+      'Confirm the transcript appears and is copied back into the text field.',
+    ],
+  },
+];
+
+function ActionButton({
+  label,
+  description,
+  onPress,
+  disabled = false,
+  tone = 'secondary',
+}: {
+  label: string;
+  description?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: ActionTone;
+}) {
+  const toneStyle =
+    tone === 'primary'
+      ? styles.actionButtonPrimary
+      : tone === 'danger'
+        ? styles.actionButtonDanger
+        : tone === 'quiet'
+          ? styles.actionButtonQuiet
+          : styles.actionButtonSecondary;
+  const labelStyle =
+    tone === 'primary'
+      ? styles.actionButtonLabelPrimary
+      : tone === 'danger'
+        ? styles.actionButtonLabelDanger
+        : tone === 'quiet'
+          ? styles.actionButtonLabelQuiet
+          : styles.actionButtonLabelSecondary;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.actionButton,
+        toneStyle,
+        disabled ? styles.actionButtonDisabled : null,
+        pressed && !disabled ? styles.actionButtonPressed : null,
+      ]}
+    >
+      <Text style={labelStyle}>{label}</Text>
+      {description ? (
+        <Text style={styles.actionButtonDescription}>{description}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
 
 export default function App() {
   const [status, setStatus] = useState<WakeWordStatus>(() => getStatus());
@@ -680,198 +783,198 @@ export default function App() {
     `canStart: ${String(status.canStart)}`,
     `reason: ${status.reason ?? 'none'}`,
   ];
+  const latestErrorSummary = lastError
+    ? `${lastError.category}:${lastError.code}`
+    : 'No active runtime error';
+  const providerModeLabel =
+    providerMode === 'demo' ? 'Demo providers' : 'RunAnywhere built-in';
+  const runAnywhereStatusText = runAnywhereAvailable
+    ? `STT ${runAnywhereAvailability.stt ? 'ready' : 'not configured'} • TTS ${runAnywhereAvailability.tts ? 'ready' : 'not configured'}`
+    : 'Disabled until RUNANYWHERE_CONFIG enables at least one model.';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>react-native-voice-activator</Text>
-        <Text style={styles.subtitle}>
-          Wake-word runtime plus optional provider-pattern evaluation flow
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Keyword detection status</Text>
-          <Text style={styles.value}>
-            Active preset:{' '}
-            {activeKeywordPreset?.label ?? 'Not initialized yet'}
+        <View style={styles.heroCard}>
+          <Text style={styles.eyebrow}>Example app</Text>
+          <Text style={styles.title}>Voice Activator Evaluation Console</Text>
+          <Text style={styles.subtitle}>
+            Validate wake-word detection, built-in RunAnywhere speech flows, and
+            host-owned provider integration from one screen.
           </Text>
-          <Text style={styles.meta}>
-            Selected preset: {selectedKeywordPreset.label}
-          </Text>
-          <Text style={styles.meta}>
-            Preset phrases: {selectedKeywordPreset.phraseSummary}
-          </Text>
-          <Text style={styles.meta}>
-            Asset key: {selectedKeywordPreset.keywordAssetKey}
-          </Text>
-          <Text style={styles.meta}>
-            {lastDetection
-              ? `Detected phrase: ${lastDetection.detectedPhrase} at ${lastDetection.detectedAt}`
-              : 'Detected phrase: Waiting for a wake-word hit.'}
-          </Text>
-          <Text style={styles.meta}>
-            {keywordSelectionRequiresInitialize
-              ? 'Keyword selection changed. Run Initialize again before Start detection to apply the new preset.'
-              : 'The selected keyword preset is already active for the current runtime session.'}
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Assistant flow guide</Text>
-          <Text style={styles.meta}>
-            1. The package-owned native runtime detects a wake phrase.
-          </Text>
-          <Text style={styles.meta}>
-            2. The optional application-owned STT provider can turn that wake
-            event into a transcript.
-          </Text>
-          <Text style={styles.meta}>
-            3. The optional application-owned TTS provider can speak a response
-            after a successful STT result when `autoSpeak: true` is enabled.
-          </Text>
-          <Text style={styles.meta}>
-            4. This example also exposes an opt-in built-in RunAnywhere path,
-            and Initialize can download the configured Whisper/Piper models
-            from `RUNANYWHERE_CONFIG` before enabling STT/TTS for the runtime
-            session.
-          </Text>
-          <Text style={styles.meta}>
-            This screen shows the package wake runtime plus separate simulated
-            provider previews built on the same public adapter contract.
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Bundled keyword presets</Text>
-          <Text style={styles.meta}>
-            The example app ships preset keyword files and applies them through
-            `engineConfig.assetKeys.keywordAssetKey`.
-          </Text>
-          <Text style={styles.meta}>
-            Changing the selection does not hot-swap the runtime. Re-run
-            Initialize to make the new preset active.
-          </Text>
-          {bundledKeywordPresets.map((preset) => (
-            <View key={preset.id} style={styles.eventRow}>
-              <Text style={styles.eventLabel}>{preset.label}</Text>
-              <Text style={styles.meta}>{preset.phraseSummary}</Text>
-              <Text style={styles.meta}>{preset.keywordAssetKey}</Text>
-              <View style={styles.buttonRow}>
-                <Button
-                  title={
-                    selectedKeywordPresetId === preset.id
-                      ? `Selected: ${preset.label}`
-                      : `Use ${preset.label}`
-                  }
-                  onPress={() => {
-                    setSelectedKeywordPresetId(preset.id);
-                  }}
-                />
-              </View>
+          <View style={styles.badgeRow}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeLabel}>State</Text>
+              <Text style={styles.badgeValue}>{status.state}</Text>
             </View>
-          ))}
+            <View style={styles.badge}>
+              <Text style={styles.badgeLabel}>Mode</Text>
+              <Text style={styles.badgeValue}>{providerModeLabel}</Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeLabel}>Preset</Text>
+              <Text style={styles.badgeValue}>
+                {activeKeywordPreset?.label ?? selectedKeywordPreset.label}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Current runtime diagnostics</Text>
-          <Text style={styles.value}>{status.state}</Text>
-          <Text style={styles.meta}>{availabilityText}</Text>
-          <Text style={styles.meta}>
-            Known states: {wakeWordStates.join(', ')}
-          </Text>
-          {statusSnapshot.map((line) => (
-            <Text key={line} style={styles.meta}>
-              {line}
-            </Text>
-          ))}
+          <Text style={styles.sectionTitle}>Session overview</Text>
+          <View style={styles.infoGrid}>
+            <View style={styles.infoTile}>
+              <Text style={styles.infoLabel}>Availability</Text>
+              <Text style={styles.infoValue}>{availabilityText}</Text>
+            </View>
+            <View style={styles.infoTile}>
+              <Text style={styles.infoLabel}>RunAnywhere</Text>
+              <Text style={styles.infoValue}>{runAnywhereStatusText}</Text>
+            </View>
+            <View style={styles.infoTile}>
+              <Text style={styles.infoLabel}>Last detection</Text>
+              <Text style={styles.infoValue}>
+                {lastDetection
+                  ? `${lastDetection.detectedPhrase} at ${lastDetection.detectedAt}`
+                  : 'Waiting for a wake phrase.'}
+              </Text>
+            </View>
+            <View style={styles.infoTile}>
+              <Text style={styles.infoLabel}>Latest issue</Text>
+              <Text style={styles.infoValue}>{latestErrorSummary}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Actions</Text>
+          <Text style={styles.sectionTitle}>Run controls</Text>
           <Text style={styles.meta}>
-            Default engine path: package-owned native-managed runtime
+            Choose the runtime mode, initialize the current keyword preset, then
+            start or stop detection. The built-in RunAnywhere path prepares
+            Whisper and Piper from `RUNANYWHERE_CONFIG`.
           </Text>
-          <Text style={styles.meta}>
-            Expo example config: app.json registers the local plugin path and
-            Expo prebuild generates Sherpa asset manifests for the native
-            projects.
-          </Text>
-          <Text style={styles.meta}>
-            Provider mode: {providerMode === 'demo' ? 'Demo bridges' : 'RunAnywhere built-in'}
-          </Text>
-          <Text style={styles.meta}>
-            RunAnywhere availability:{' '}
-            {runAnywhereAvailable
-              ? `STT ${runAnywhereAvailability.stt ? 'configured' : 'missing'} / TTS ${runAnywhereAvailability.tts ? 'configured' : 'missing'}`
-              : 'disabled until a RunAnywhere model definition is set in example/src/reference-provider-adapters.ts'}
-          </Text>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Use demo providers"
+          <View style={styles.actionsGrid}>
+            <ActionButton
+              label="Use demo providers"
+              description="Keep STT/TTS app-owned and simulate host adapter behavior."
               onPress={() => {
                 setProviderMode('demo');
               }}
+              tone={providerMode === 'demo' ? 'primary' : 'secondary'}
             />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Use RunAnywhere built-in"
+            <ActionButton
+              label="Use RunAnywhere built-in"
+              description="Initialize the built-in Whisper/Piper path for this session."
               onPress={() => {
                 setProviderMode('runanywhere');
               }}
               disabled={!runAnywhereAvailable}
+              tone={providerMode === 'runanywhere' ? 'primary' : 'secondary'}
             />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button title="Initialize" onPress={handleInitialize} />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Start detection"
+            <ActionButton
+              label="Initialize"
+              description="Apply the selected keyword preset and configure the chosen mode."
+              onPress={handleInitialize}
+              tone="primary"
+            />
+            <ActionButton
+              label="Start detection"
+              description="Begin foreground wake-word listening with the active preset."
               onPress={handleStartDetection}
               disabled={!status.canStart}
             />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Stop detection"
+            <ActionButton
+              label="Stop detection"
+              description="End the active wake-word detection session."
               onPress={handleStopDetection}
               disabled={!status.isListening}
+              tone="quiet"
+            />
+            <ActionButton
+              label="Dispose"
+              description="Tear down the runtime and clear the active session."
+              onPress={handleDispose}
+              tone="danger"
             />
           </View>
-          <View style={styles.buttonRow}>
-            <Button title="Dispose" onPress={handleDispose} />
-          </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Last detection event</Text>
-          <Text style={styles.value}>
-            {lastDetection
-              ? `${lastDetection.detectedPhrase} at ${lastDetection.detectedAt}`
-              : 'No detection event received yet.'}
+          <Text style={styles.sectionTitle}>Bundled keyword presets</Text>
+          <Text style={styles.meta}>
+            Changing presets does not hot-swap the active runtime. Press
+            Initialize again after switching.
+          </Text>
+          {bundledKeywordPresets.map((preset) => (
+            <View key={preset.id} style={styles.listCard}>
+              <Text style={styles.eventLabel}>{preset.label}</Text>
+              <Text style={styles.meta}>{preset.phraseSummary}</Text>
+              <Text style={styles.helperText}>{preset.keywordAssetKey}</Text>
+              <ActionButton
+                label={
+                  selectedKeywordPresetId === preset.id
+                    ? `Selected: ${preset.label}`
+                    : `Use ${preset.label}`
+                }
+                onPress={() => {
+                  setSelectedKeywordPresetId(preset.id);
+                }}
+                tone={
+                  selectedKeywordPresetId === preset.id ? 'primary' : 'secondary'
+                }
+              />
+            </View>
+          ))}
+          <Text style={styles.helperText}>
+            {keywordSelectionRequiresInitialize
+              ? 'Selection changed. Re-run Initialize before starting detection.'
+              : 'The selected preset already matches the current runtime selection.'}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Latest structured error</Text>
-          <Text style={styles.value}>
-            {lastError
-              ? `${lastError.category}:${lastError.code}`
-              : 'No error recorded.'}
+          <Text style={styles.sectionTitle}>Diagnostics</Text>
+          <Text style={styles.meta}>
+            Runtime snapshot from `getStatus()` plus the current detection and
+            extension flow outputs.
+          </Text>
+          {statusSnapshot.map((line) => (
+            <Text key={line} style={styles.helperText}>
+              {line}
+            </Text>
+          ))}
+          <Text style={styles.helperText}>
+            Known states: {wakeWordStates.join(', ')}
+          </Text>
+          <View style={styles.divider} />
+          <Text style={styles.meta}>Extension status: {extensionStatus}</Text>
+          <Text style={styles.meta}>
+            STT transcript: {sttTranscript ?? 'No runtime-driven transcript yet.'}
           </Text>
           <Text style={styles.meta}>
-            {lastError
-              ? lastError.message
-              : 'The diagnostics surface mirrors getStatus().lastError.'}
+            TTS response: {ttsResponse ?? 'No runtime-driven TTS completion yet.'}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Recent runtime events</Text>
+          <Text style={styles.sectionTitle}>Active issue</Text>
+          <Text style={styles.statusBannerLabel}>
+            {lastError
+              ? `${lastError.category}:${lastError.code}`
+              : 'No active error'}
+          </Text>
+          <Text style={styles.statusBannerBody}>
+            {lastError
+              ? lastError.message
+              : 'The example is currently idle or healthy. Runtime issues will appear here when they happen.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Recent runtime events</Text>
           {recentEvents.length > 0 ? (
             recentEvents.map((event) => (
-              <View key={event.id} style={styles.eventRow}>
+              <View key={event.id} style={styles.listCard}>
                 <Text style={styles.eventLabel}>{event.label}</Text>
                 <Text style={styles.meta}>{event.detail}</Text>
               </View>
@@ -882,9 +985,13 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Normalized error categories</Text>
+          <Text style={styles.sectionTitle}>Error category reference</Text>
+          <Text style={styles.meta}>
+            This is a legend for interpreting runtime failures. It is not a live
+            error list.
+          </Text>
           {errorCategories.map((entry) => (
-            <View key={entry.category} style={styles.eventRow}>
+            <View key={entry.category} style={styles.listCard}>
               <Text style={styles.eventLabel}>{entry.category}</Text>
               <Text style={styles.meta}>{entry.description}</Text>
             </View>
@@ -892,7 +999,7 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Optional STT/TTS extension examples</Text>
+          <Text style={styles.sectionTitle}>Reference provider previews</Text>
           <Text style={styles.meta}>
             These reference adapters stay outside the package runtime. The
             example app owns them, passes them through the public provider
@@ -910,41 +1017,34 @@ export default function App() {
             during Initialize.
           </Text>
           {referenceProviderCatalog.map((entry) => (
-            <View key={entry.id} style={styles.eventRow}>
+            <View key={entry.id} style={styles.listCard}>
               <Text style={styles.eventLabel}>{entry.label}</Text>
               <Text style={styles.meta}>
                 {entry.packageName} · {entry.summary}
               </Text>
-              <Text style={styles.meta}>Reference docs: {entry.docsPath}</Text>
+              <Text style={styles.helperText}>Reference docs: {entry.docsPath}</Text>
             </View>
           ))}
-          <View style={styles.buttonRow}>
-            <Button
-              title="Preview STT adapter"
+          <View style={styles.actionsGrid}>
+            <ActionButton
+              label="Preview STT adapter"
+              description="Run the simulated host-owned STT bridge."
               onPress={() => {
                 void handleSttExample();
               }}
             />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Preview TTS adapter"
+            <ActionButton
+              label="Preview TTS adapter"
+              description="Run the simulated host-owned TTS bridge."
               onPress={() => {
                 void handleTtsExample();
               }}
             />
           </View>
-          <Text style={styles.meta}>Extension status: {extensionStatus}</Text>
-          <Text style={styles.meta}>
-            STT transcript: {sttTranscript ?? 'No runtime-driven transcript yet.'}
-          </Text>
-          <Text style={styles.meta}>
-            TTS response: {ttsResponse ?? 'No runtime-driven TTS completion yet.'}
-          </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Manual RunAnywhere STT/TTS</Text>
+          <Text style={styles.sectionTitle}>Manual RunAnywhere STT/TTS</Text>
           <Text style={styles.meta}>
             This uses the built-in RunAnywhere adapters directly so you can test
             speech synthesis from typed text and speech-to-text without waiting
@@ -957,16 +1057,17 @@ export default function App() {
             placeholder="Type text for RunAnywhere TTS"
             multiline
           />
-          <View style={styles.buttonRow}>
-            <Button
-              title="Speak text"
+          <View style={styles.actionsGrid}>
+            <ActionButton
+              label="Speak text"
+              description="Load Piper and play the typed sentence."
               onPress={handleManualRunAnywhereSpeak}
               disabled={!runAnywhereAvailability.tts}
+              tone="primary"
             />
-          </View>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Record and transcribe"
+            <ActionButton
+              label="Record and transcribe"
+              description="Record audio, run Whisper, and copy the transcript back."
               onPress={handleManualRunAnywhereTranscribe}
               disabled={!runAnywhereAvailability.stt}
             />
@@ -978,20 +1079,35 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Important note</Text>
+          <Text style={styles.sectionTitle}>Recommended test scenarios</Text>
           <Text style={styles.meta}>
-            This example validates the current API, lifecycle, typed event path,
-            and evaluator-facing runtime diagnostics surface. iOS background
-            continuation still requires the audio background mode and does not
-            survive force-quit. Android background continuation requires a
-            visible app context for start and an active foreground-service
-            notification while detection is running.
+            Use these flows to validate the example intentionally instead of
+            tapping controls at random.
+          </Text>
+          {testScenarios.map((scenario) => (
+            <View key={scenario.id} style={styles.listCard}>
+              <Text style={styles.eventLabel}>{scenario.title}</Text>
+              <Text style={styles.meta}>{scenario.summary}</Text>
+              {scenario.steps.map((step) => (
+                <Text key={step} style={styles.helperText}>
+                  • {step}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Integration notes</Text>
+          <Text style={styles.meta}>
+            iOS background continuation still requires the audio background mode
+            and does not survive force-quit. Android background continuation
+            requires a visible app context for start and an active
+            foreground-service notification while detection is running.
           </Text>
           <Text style={styles.meta}>
-            The demo STT/TTS adapters above are application-level reference
-            provider examples. The package now also supports an opt-in built-in
-            RunAnywhere STT/TTS path, and this example can prepare those models
-            from the configured official download URLs during Initialize.
+            Demo STT/TTS entries are application-level reference examples. The
+            built-in RunAnywhere path is separate and opt-in.
           </Text>
         </View>
       </ScrollView>
@@ -1002,62 +1118,207 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#eef1eb',
   },
   container: {
-    padding: 24,
-    gap: 16,
+    padding: 20,
+    gap: 18,
+    paddingBottom: 32,
+  },
+  heroCard: {
+    backgroundColor: '#17352b',
+    borderRadius: 24,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#0f221b',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  },
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: '#b7d6c6',
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '700',
+    color: '#f5f7f2',
   },
   subtitle: {
     fontSize: 16,
-    color: '#444',
+    lineHeight: 22,
+    color: '#d7e4dc',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  badge: {
+    minWidth: 96,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#23463a',
+    gap: 2,
+  },
+  badgeLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: '#a8c7b8',
+  },
+  badgeValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f4f8f4',
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#fbfbf7',
+    borderRadius: 22,
     padding: 16,
-    gap: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#dde5dc',
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#183028',
   },
   value: {
     fontSize: 16,
     color: '#111',
   },
+  infoGrid: {
+    gap: 10,
+  },
+  infoTile: {
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#f0f4ee',
+    gap: 4,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: '#607468',
+  },
+  infoValue: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#163127',
+  },
   meta: {
     fontSize: 14,
-    color: '#555',
+    lineHeight: 20,
+    color: '#43544b',
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#66776e',
   },
   input: {
     minHeight: 88,
     borderWidth: 1,
-    borderColor: '#d0d0d0',
-    borderRadius: 10,
+    borderColor: '#cbd8cd',
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
     color: '#111',
-    backgroundColor: '#fafafa',
+    backgroundColor: '#ffffff',
     textAlignVertical: 'top',
   },
-  buttonRow: {
-    marginTop: 8,
+  actionsGrid: {
+    gap: 10,
   },
-  eventRow: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
-    paddingTop: 8,
+  actionButton: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    gap: 4,
+  },
+  actionButtonPrimary: {
+    backgroundColor: '#173f2f',
+    borderColor: '#173f2f',
+  },
+  actionButtonSecondary: {
+    backgroundColor: '#edf4ef',
+    borderColor: '#cedbd1',
+  },
+  actionButtonDanger: {
+    backgroundColor: '#fff1ef',
+    borderColor: '#f3c2bb',
+  },
+  actionButtonQuiet: {
+    backgroundColor: '#f6f7f5',
+    borderColor: '#dde3dc',
+  },
+  actionButtonDisabled: {
+    opacity: 0.45,
+  },
+  actionButtonPressed: {
+    transform: [{ scale: 0.99 }],
+  },
+  actionButtonLabelPrimary: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#f7fbf8',
+  },
+  actionButtonLabelSecondary: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#17352b',
+  },
+  actionButtonLabelDanger: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#9d3428',
+  },
+  actionButtonLabelQuiet: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#405249',
+  },
+  actionButtonDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#6c7c73',
+  },
+  listCard: {
+    borderRadius: 16,
+    backgroundColor: '#f3f6f1',
+    padding: 14,
+    gap: 6,
   },
   eventLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#23362d',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#dde5dc',
+    marginVertical: 2,
+  },
+  statusBannerLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8b2f24',
+  },
+  statusBannerBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#5d3e3a',
   },
 });
