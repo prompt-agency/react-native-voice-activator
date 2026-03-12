@@ -122,6 +122,21 @@ describe('documentation and example contract', () => {
       'same public runtime API used by bare React Native consumers'
     );
     expect(expoSetup).toContain(
+      'generated Sherpa asset manifests inside the Expo-generated `ios/` and'
+    );
+    expect(expoSetup).toContain(
+      'Expo prebuild-time verification that the package-owned Sherpa native asset'
+    );
+    expect(expoSetup).toContain(
+      'bundle and selected model-file variants are present for both iOS and Android'
+    );
+    expect(expoSetup).toContain(
+      'generated Sherpa asset manifest files that record the package-owned asset'
+    );
+    expect(expoSetup).toContain(
+      'Expo config-plugin tests that verify Sherpa asset-manifest generation and'
+    );
+    expect(expoSetup).toContain(
       'validation command that executes in CI against the example app'
     );
     expect(expoSetup).toContain('prebuild --clean --no-install');
@@ -155,6 +170,9 @@ describe('documentation and example contract', () => {
     );
     expect(exampleReadme).toContain(
       'Expo CLI can generate iOS and Android native projects from a temporary copy of the example app through `expo prebuild --clean --no-install`'
+    );
+    expect(exampleReadme).toContain(
+      'Expo prebuild generates a Sherpa asset manifest in each native project and'
     );
     expect(exampleReadme).toContain('local plugin path (`../app.plugin.js`)');
     expect(exampleAppConfig).toContain('../app.plugin.js');

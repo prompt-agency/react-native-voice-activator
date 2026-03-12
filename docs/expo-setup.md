@@ -53,6 +53,10 @@ The plugin applies the current native requirements:
 - iOS `UIBackgroundModes: ["audio"]`
 - Android microphone and foreground-service permissions
 - Android `WakeWordForegroundService` manifest entry
+- generated Sherpa asset manifests inside the Expo-generated `ios/` and
+  `android/` native project folders
+- Expo prebuild-time verification that the package-owned Sherpa native asset
+  bundle and selected model-file variants are present for both iOS and Android
 
 ## What Is Automatic vs Manual
 
@@ -62,11 +66,17 @@ Automatic through the Expo config plugin:
 - iOS `UIBackgroundModes: ["audio"]`
 - Android microphone and foreground-service permissions
 - Android `WakeWordForegroundService` manifest entry
+- generated Sherpa asset manifest files that record the package-owned asset
+  bundle resolved during Expo prebuild for each native platform
+- fail-fast verification that the bundled Sherpa model files still exist under
+  the package-owned native asset roots used by the podspec and Android Gradle
 
 Manual in your app:
 
 - generate and run native projects instead of using Expo Go
 - run Expo config/prebuild as part of native project generation
+- keep your installed package contents intact so Expo prebuild can resolve the
+  bundled Sherpa native assets
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
 
@@ -93,9 +103,14 @@ The repository currently proves Expo config and prebuild compatibility through:
 - config-plugin integration tests
 - example `app.json` plugin registration
 - example runtime usage of the same public lifecycle API
+- Expo config-plugin tests that verify Sherpa asset-manifest generation and
+  accepted model-file variants against package-owned native bundle roots
 - contract checks that keep docs, app config, and package wiring aligned
 - an Expo CLI `config --type prebuild --json` validation command that executes in CI against the example app
-- an Expo CLI `prebuild --clean --no-install` validation command that executes in CI against a temporary copy of the example app
+- an Expo CLI `prebuild --clean --no-install` validation command that executes
+  in CI against a temporary copy of the example app and confirms the generated
+  native projects contain Sherpa asset manifests that resolve to real package
+  assets
 
 The example app uses a local plugin path (`../app.plugin.js`) for monorepo
 validation. Published consumers should continue to register the plugin as

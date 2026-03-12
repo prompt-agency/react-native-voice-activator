@@ -347,6 +347,11 @@ export default function App() {
           <Text style={styles.meta}>
             Default engine path: package-owned native-managed runtime
           </Text>
+          <Text style={styles.meta}>
+            Expo example config: app.json registers the local plugin path and
+            Expo prebuild generates Sherpa asset manifests for the native
+            projects.
+          </Text>
           <View style={styles.buttonRow}>
             <Button title="Initialize" onPress={handleInitialize} />
           </View>

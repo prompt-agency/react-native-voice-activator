@@ -1,4 +1,12 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -20,6 +28,14 @@ const tempExpoHome = join(tempExampleRoot, '.expo-home');
 mkdirSync(tempRepoRoot, { recursive: true });
 mkdirSync(tempExpoHome, { recursive: true });
 
+const pluginBuildPath = join(root, 'plugin/build/src/expo/config-plugin.js');
+if (!existsSync(pluginBuildPath)) {
+  console.error(
+    'Expo prebuild validation requires a current built plugin at plugin/build/src/expo/config-plugin.js. Run `yarn build:plugin` first.'
+  );
+  process.exit(1);
+}
+
 cpSync(exampleRoot, tempExampleRoot, {
   recursive: true,
   filter: (source) => {
@@ -27,7 +43,13 @@ cpSync(exampleRoot, tempExampleRoot, {
   },
 });
 
-for (const relativePath of ['app.plugin.js', 'package.json', 'plugin']) {
+for (const relativePath of [
+  'app.plugin.js',
+  'package.json',
+  'plugin',
+  'ios/Assets',
+  'android/src/main/assets',
+]) {
   cpSync(join(root, relativePath), join(tempRepoRoot, relativePath), {
     recursive: true,
   });
@@ -65,6 +87,56 @@ if (!existsSync(iosDir) || !existsSync(androidDir)) {
   console.error('Expo prebuild validation did not generate both ios and android directories.');
   rmSync(tempRoot, { recursive: true, force: true });
   process.exit(1);
+}
+
+for (const [platform, platformDir] of [
+  ['ios', iosDir],
+  ['android', androidDir],
+]) {
+  const manifestPath = join(platformDir, 'voice-activator-sherpa-assets.json');
+  if (!existsSync(manifestPath)) {
+    console.error(
+      `Expo prebuild validation did not generate ${platform} Sherpa asset manifest at ${manifestPath}.`
+    );
+    rmSync(tempRoot, { recursive: true, force: true });
+    process.exit(1);
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (manifest.platform !== platform) {
+    console.error(
+      `Expo prebuild validation generated an unexpected platform manifest payload for ${platform}.`
+    );
+    rmSync(tempRoot, { recursive: true, force: true });
+    process.exit(1);
+  }
+
+  const requiredManifestPaths = [
+    manifest.assetRootRelativeToApp,
+    manifest.modelFilesRelativeToApp?.encoder,
+    manifest.modelFilesRelativeToApp?.decoder,
+    manifest.modelFilesRelativeToApp?.joiner,
+    manifest.supportingFilesRelativeToApp?.tokens,
+    manifest.supportingFilesRelativeToApp?.keywords,
+  ];
+
+  if (requiredManifestPaths.some((relativePath) => typeof relativePath !== 'string')) {
+    console.error(
+      `Expo prebuild validation generated an incomplete Sherpa asset manifest for ${platform}.`
+    );
+    rmSync(tempRoot, { recursive: true, force: true });
+    process.exit(1);
+  }
+
+  for (const relativePath of requiredManifestPaths) {
+    if (!existsSync(join(tempExampleRoot, relativePath))) {
+      console.error(
+        `Expo prebuild validation manifest for ${platform} points to a missing path: ${relativePath}`
+      );
+      rmSync(tempRoot, { recursive: true, force: true });
+      process.exit(1);
+    }
+  }
 }
 
 console.log(`Expo prebuild validation passed for ${resolve(tempExampleRoot)}`);
