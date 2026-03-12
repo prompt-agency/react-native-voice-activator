@@ -361,6 +361,111 @@ describe('public runtime state and event contract', () => {
     });
   });
 
+  it('keeps provider registration in the shared runtime configuration while stripping it from the native initialize payload', async () => {
+    const initialize = jest.fn(async () => undefined);
+    const engineRuntime = createMockEngineRuntime();
+    const runtimeBridge = {
+      initialize,
+      startDetection: jest.fn(async () => undefined),
+      stopDetection: jest.fn(async () => undefined),
+      getStatus: jest.fn(() => ({
+        state: 'idle',
+        isAvailable: true,
+        isListening: false,
+        canStart: false,
+        lastError: null,
+      })),
+      dispose: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
+    }));
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const sttProvider = {
+      name: 'test-stt',
+      transcribe: jest.fn(async () => ({
+        text: 'hello',
+        provider: 'test-stt',
+      })),
+      cancel: jest.fn(async () => undefined),
+    };
+    const ttsProvider = {
+      name: 'test-tts',
+      speak: jest.fn(async () => undefined),
+      stop: jest.fn(async () => undefined),
+    };
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+    });
+
+    expect(initialize).toHaveBeenCalledWith({
+      profile: 'balanced',
+      enableDebugLogging: false,
+      engine: {
+        id: 'default',
+      },
+      engineConfig: {
+        sensitivity: 0.5,
+      },
+      engineMetadata: {
+        id: 'default',
+        displayName: 'Default built-in wake word engine',
+        assetRequirement: 'bundled',
+        capabilities: {
+          onDeviceDetection: true,
+          backgroundDetection: false,
+          customKeywordAssets: true,
+          runtimeConfigurationUpdates: true,
+        },
+      },
+    });
+    expect(engineRuntime.initialize).toHaveBeenCalledWith(
+      {
+        profile: 'balanced',
+        enableDebugLogging: false,
+        engine: {
+          id: 'default',
+        },
+        engineConfig: {
+          sensitivity: 0.5,
+        },
+        engineMetadata: {
+          id: 'default',
+          displayName: 'Default built-in wake word engine',
+          assetRequirement: 'bundled',
+          capabilities: {
+            onDeviceDetection: true,
+            backgroundDetection: false,
+            customKeywordAssets: true,
+            runtimeConfigurationUpdates: true,
+          },
+        },
+        sttProvider,
+        ttsProvider,
+        autoSpeak: true,
+      },
+      expect.objectContaining({
+        onDetected: expect.any(Function),
+        onError: expect.any(Function),
+      })
+    );
+  });
+
   it('surfaces interrupted and unsupported native states through registered runtime handlers', async () => {
     const runtimeStatus: WakeWordStatus = {
       state: 'idle',

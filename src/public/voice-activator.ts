@@ -6,7 +6,10 @@ import {
   setRuntimeStatusHandler,
   setWakeWordDetectedHandler,
 } from '../internal/native-module';
-import { createRuntimeConfiguration } from '../domain/detection-config';
+import {
+  createNativeRuntimeConfiguration,
+  createRuntimeConfiguration,
+} from '../domain/detection-config';
 import {
   addRuntimeListener,
   emitRuntimeEvent,
@@ -306,7 +309,9 @@ export const voiceActivator: VoiceActivatorApi = {
 
     try {
       await disposeEngineRuntime();
-      await activeRuntime.initialize(runtimeConfiguration);
+      await activeRuntime.initialize(
+        createNativeRuntimeConfiguration(runtimeConfiguration)
+      );
       await nextEngineRuntime.initialize(runtimeConfiguration, {
         onDetected(payload) {
           emitRuntimeEvent('wakeWordDetected', payload);

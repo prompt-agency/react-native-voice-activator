@@ -1,4 +1,5 @@
 import {
+  createNativeRuntimeConfiguration,
   createDefaultRuntimeConfiguration,
   createRuntimeConfiguration,
 } from '../domain/detection-config';
@@ -10,6 +11,10 @@ import {
   resolveEngineSelection,
 } from '../engines';
 import type {
+  SpeechToTextProvider,
+  TextToSpeechProvider,
+  TranscriptionResult,
+  TTSOptions,
   WakeWordEngineConfiguration,
   WakeWordInitializationOptions,
 } from '../index';
@@ -42,6 +47,7 @@ describe('engine-agnostic runtime contract', () => {
           keywordAssetKey: 'keyword/default',
         },
       },
+      autoSpeak: false,
       engineMetadata: {
         id: 'default',
         displayName: 'Default built-in wake word engine',
@@ -120,6 +126,7 @@ describe('engine-agnostic runtime contract', () => {
           runtimeConfigurationUpdates: true,
         },
       },
+      autoSpeak: false,
     });
   });
 
@@ -170,6 +177,114 @@ describe('engine-agnostic runtime contract', () => {
         modelAssetKey: 'bundle/default-model',
         keywordAssetKey: 'bundle/default-keywords',
       },
+    });
+  });
+
+  it('exports typed optional provider interfaces through the public initialization contract', () => {
+    const sttProvider: SpeechToTextProvider = {
+      name: 'test-stt',
+      transcribe: async (): Promise<TranscriptionResult> => ({
+        text: 'hello',
+        provider: 'test-stt',
+      }),
+      cancel: async () => undefined,
+    };
+    const ttsProvider: TextToSpeechProvider = {
+      name: 'test-tts',
+      speak: async (_text: string, _options?: TTSOptions) => undefined,
+      stop: async () => undefined,
+    };
+
+    const options: WakeWordInitializationOptions = {
+      engine: {
+        id: 'default',
+      },
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+    };
+
+    expect(options.sttProvider).toBe(sttProvider);
+    expect(options.ttsProvider).toBe(ttsProvider);
+    expect(options.autoSpeak).toBe(true);
+  });
+
+  it('threads provider registration through the shared runtime configuration shape', () => {
+    const sttProvider: SpeechToTextProvider = {
+      name: 'test-stt',
+      transcribe: async (): Promise<TranscriptionResult> => ({
+        text: 'hello',
+        provider: 'test-stt',
+      }),
+      cancel: async () => undefined,
+    };
+    const ttsProvider: TextToSpeechProvider = {
+      name: 'test-tts',
+      speak: async (_text: string, _options?: TTSOptions) => undefined,
+      stop: async () => undefined,
+    };
+
+    const configuration = createRuntimeConfiguration({
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+      engineConfig: {
+        sensitivity: 0.6,
+      },
+    });
+
+    expect(configuration).toEqual({
+      profile: 'balanced',
+      enableDebugLogging: false,
+      engine: {
+        id: 'default',
+      },
+      engineConfig: {
+        sensitivity: 0.6,
+      },
+      engineMetadata: defaultEngineMetadata,
+      sttProvider,
+      ttsProvider,
+      autoSpeak: true,
+    });
+  });
+
+  it('strips provider objects from the native runtime configuration shape', () => {
+    const sttProvider: SpeechToTextProvider = {
+      name: 'test-stt',
+      transcribe: async (): Promise<TranscriptionResult> => ({
+        text: 'hello',
+        provider: 'test-stt',
+      }),
+      cancel: async () => undefined,
+    };
+    const ttsProvider: TextToSpeechProvider = {
+      name: 'test-tts',
+      speak: async (_text: string, _options?: TTSOptions) => undefined,
+      stop: async () => undefined,
+    };
+
+    const nativeConfiguration = createNativeRuntimeConfiguration(
+      createRuntimeConfiguration({
+        sttProvider,
+        ttsProvider,
+        autoSpeak: true,
+        engineConfig: {
+          sensitivity: 0.6,
+        },
+      })
+    );
+
+    expect(nativeConfiguration).toEqual({
+      profile: 'balanced',
+      enableDebugLogging: false,
+      engine: {
+        id: 'default',
+      },
+      engineConfig: {
+        sensitivity: 0.6,
+      },
+      engineMetadata: defaultEngineMetadata,
     });
   });
 });

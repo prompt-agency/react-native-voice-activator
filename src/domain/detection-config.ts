@@ -1,4 +1,6 @@
 import type {
+  SpeechToTextProvider,
+  TextToSpeechProvider,
   WakeWordEngineConfiguration,
   WakeWordEngineMetadata,
   WakeWordEngineSelection,
@@ -15,6 +17,9 @@ export interface WakeWordRuntimeConfiguration {
   engine: WakeWordEngineSelection;
   engineConfig: WakeWordEngineConfiguration;
   engineMetadata: WakeWordEngineMetadata;
+  sttProvider?: SpeechToTextProvider;
+  ttsProvider?: TextToSpeechProvider;
+  autoSpeak: boolean;
 }
 
 export function createRuntimeConfiguration(
@@ -31,6 +36,9 @@ export function createRuntimeConfiguration(
     engine: resolvedEngine.selection,
     engineConfig: resolvedEngine.config,
     engineMetadata: resolvedEngine.metadata,
+    autoSpeak: options.autoSpeak ?? false,
+    ...(options.sttProvider ? { sttProvider: options.sttProvider } : {}),
+    ...(options.ttsProvider ? { ttsProvider: options.ttsProvider } : {}),
   };
 }
 
@@ -45,5 +53,23 @@ export function createDefaultRuntimeConfiguration(): WakeWordRuntimeConfiguratio
     },
     engineConfig: resolvedEngine.config,
     engineMetadata: resolvedEngine.metadata,
+    autoSpeak: false,
+  };
+}
+
+export type NativeWakeWordRuntimeConfiguration = Omit<
+  WakeWordRuntimeConfiguration,
+  'sttProvider' | 'ttsProvider' | 'autoSpeak'
+>;
+
+export function createNativeRuntimeConfiguration(
+  configuration: WakeWordRuntimeConfiguration
+): NativeWakeWordRuntimeConfiguration {
+  return {
+    profile: configuration.profile,
+    enableDebugLogging: configuration.enableDebugLogging,
+    engine: configuration.engine,
+    engineConfig: configuration.engineConfig,
+    engineMetadata: configuration.engineMetadata,
   };
 }

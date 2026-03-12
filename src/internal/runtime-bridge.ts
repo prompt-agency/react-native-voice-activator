@@ -1,8 +1,8 @@
 import type { WakeWordStatus } from '../public/types';
-import type { WakeWordRuntimeConfiguration } from '../domain/detection-config';
+import type { NativeWakeWordRuntimeConfiguration } from '../domain/detection-config';
 
 export interface VoiceActivatorRuntimeBridge {
-  initialize(options: WakeWordRuntimeConfiguration): Promise<void>;
+  initialize(options: NativeWakeWordRuntimeConfiguration): Promise<void>;
   startDetection(): Promise<void>;
   stopDetection(): Promise<void>;
   getStatus(): WakeWordStatus;

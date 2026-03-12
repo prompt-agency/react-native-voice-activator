@@ -61,11 +61,39 @@ export interface WakeWordError {
   platform?: 'ios' | 'android';
 }
 
+export interface TranscriptionResult {
+  text: string;
+  confidence?: number;
+  provider: string;
+  durationMs?: number;
+}
+
+export interface TTSOptions {
+  language?: string;
+  rate?: number;
+  pitch?: number;
+}
+
+export interface SpeechToTextProvider {
+  readonly name: string;
+  transcribe(): Promise<TranscriptionResult>;
+  cancel(): Promise<void>;
+}
+
+export interface TextToSpeechProvider {
+  readonly name: string;
+  speak(text: string, options?: TTSOptions): Promise<void>;
+  stop(): Promise<void>;
+}
+
 export interface WakeWordInitializationOptions {
   profile?: 'balanced' | 'accuracy' | 'power-save';
   enableDebugLogging?: boolean;
   engine?: WakeWordEngineSelection;
   engineConfig?: WakeWordEngineConfiguration;
+  sttProvider?: SpeechToTextProvider;
+  ttsProvider?: TextToSpeechProvider;
+  autoSpeak?: boolean;
 }
 
 export interface WakeWordStatus {
