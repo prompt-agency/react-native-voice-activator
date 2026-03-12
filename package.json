@@ -181,6 +181,5 @@
     "type": "turbo-module",
     "languages": "kotlin-objc",
     "version": "0.54.2"
-  },
-  "dependencies": {}
+  }
 }
