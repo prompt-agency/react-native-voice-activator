@@ -19,7 +19,7 @@ Pod::Spec.new do |s|
   s.resources = "ios/Assets/**/*"
 
   sherpa_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework/Headers\""
-  onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/onnxruntime.xcframework/Headers\""
+  onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Headers\""
 
   install_modules_dependencies(s)
 

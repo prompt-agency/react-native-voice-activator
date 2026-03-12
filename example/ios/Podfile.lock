@@ -224,6 +224,29 @@ PODS:
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
+  - NitroModules (0.31.10):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RCTDeprecation (0.83.2)
   - RCTRequired (0.83.2)
   - RCTSwiftUI (0.83.2)
@@ -2070,6 +2093,57 @@ PODS:
     - React-utils (= 0.83.2)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.83.2)
+  - RNAudioRecorderPlayer (3.6.14):
+    - React-Core
+  - RunAnywhereCore (0.18.1):
+    - hermes-engine
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - RunAnywhereONNX (0.18.1):
+    - hermes-engine
+    - NitroModules
+    - RCTRequired
+    - RCTTypeSafety
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - RunAnywhereCore
+    - Yoga
   - VoiceActivator (0.1.0):
     - hermes-engine
     - RCTRequired
@@ -2114,6 +2188,7 @@ DEPENDENCIES:
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - NitroModules (from `../node_modules/react-native-nitro-modules`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -2186,6 +2261,9 @@ DEPENDENCIES:
   - ReactCodegen (from `build/generated/ios/ReactCodegen`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
+  - RNAudioRecorderPlayer (from `../node_modules/react-native-audio-recorder-player`)
+  - "RunAnywhereCore (from `../node_modules/@runanywhere/core`)"
+  - "RunAnywhereONNX (from `../node_modules/@runanywhere/onnx`)"
   - VoiceActivator (from `../..`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -2229,6 +2307,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v0.14.1
+  NitroModules:
+    :path: "../node_modules/react-native-nitro-modules"
   RCTDeprecation:
     :path: "../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -2371,6 +2451,12 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   ReactNativeDependencies:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
+  RNAudioRecorderPlayer:
+    :path: "../node_modules/react-native-audio-recorder-player"
+  RunAnywhereCore:
+    :path: "../node_modules/@runanywhere/core"
+  RunAnywhereONNX:
+    :path: "../node_modules/@runanywhere/onnx"
   VoiceActivator:
     :path: "../.."
   Yoga:
@@ -2396,6 +2482,7 @@ SPEC CHECKSUMS:
   EXUpdatesInterface: d48f288b92900bd95a27c6cf92a7b9aff826d49a
   FBLazyVector: 32e9ed0301d0fcbc1b2b341dd7fcbf291f51eb83
   hermes-engine: d023397523ef3e0f6355e2b9831296476cc1ba3a
+  NitroModules: a71a5ab2911caf79e45170e6e12475b5260a12d0
   RCTDeprecation: a522c536d2c7be8f518dd834883cf6dce1d4f545
   RCTRequired: 44337def23abb244c025e9e7ab58f9cd3d63ec7d
   RCTSwiftUI: b2f0c2f2761631b8cd605767536cbb1cbf8d020f
@@ -2467,7 +2554,10 @@ SPEC CHECKSUMS:
   ReactCodegen: e67cb698a2107da1da9efa55174861d724666a3e
   ReactCommon: 8868269b67561136a7970be188b40738135af077
   ReactNativeDependencies: 3d9f35847c99dbd6aec0bf44b379097a77f4e2b6
-  VoiceActivator: 7da4ad80ea3ae1874c453ce065397c6db2c08cc7
+  RNAudioRecorderPlayer: b5ed41ccfe72a211a870bfe09ab36c046eb27d2a
+  RunAnywhereCore: b6586d3e9f67c36efcc1780f33833343876a2ce1
+  RunAnywhereONNX: ecca36920e3f51cfab9a5778cab9a63a730e4074
+  VoiceActivator: ffe94c4445150d984873f120b68636b0650194f9
   Yoga: dd994d8c85dca5cc9b10f5df8c01f9ef1d0da191
 
 PODFILE CHECKSUM: 744734761c5d2bd2fdba154386b1639cab4d5547

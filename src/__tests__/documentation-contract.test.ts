@@ -306,7 +306,10 @@ describe('documentation and example contract', () => {
     ).toBe(true);
     expect(
       existsSync(
-        join(root, 'ios/Vendor/SherpaOnnx/onnxruntime.xcframework/Info.plist')
+        join(
+          root,
+          'ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Info.plist'
+        )
       )
     ).toBe(true);
     expect(
