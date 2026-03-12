@@ -4,7 +4,7 @@ This example remains the primary runtime validation surface for the React Native
 library path.
 
 It also carries the Expo config and prebuild compatibility contract used by
-Story 4.2:
+the current Expo integration path:
 
 - `example/src/App.tsx` exercises the same public lifecycle API used by bare
   React Native consumers

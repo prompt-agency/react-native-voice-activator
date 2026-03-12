@@ -107,6 +107,20 @@ runQuickstart().catch((error) => {
 - `getStatus()` reflects runtime state transitions
 - downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals
 
+## Built-In Model Configuration
+
+The built-in default engine is the package-owned native-managed Sherpa-ONNX path.
+
+- the default path uses bundled native Sherpa model assets and requires no
+  vendor credential
+- the supported public override points remain
+  `engineConfig.assetKeys.modelAssetKey` and
+  `engineConfig.assetKeys.keywordAssetKey`
+- custom asset keys are for host apps that intentionally ship their own Sherpa
+  model bundle and keyword file through the same native asset ownership model
+- Expo consumers still configure those assets through the same config-plugin and
+  prebuild path; the package does not support JS-owned runtime model download
+
 ## Current Limitations
 
 - iOS background continuation still depends on the host app staying alive after explicit activation

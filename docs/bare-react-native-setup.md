@@ -126,6 +126,19 @@ import {
 The package does not expose a second native-only API for bare React Native
 consumers.
 
+## Built-In Sherpa Asset Model
+
+The default engine path is credential-free and package-owned.
+
+- default detection uses the bundled native Sherpa asset set shipped with the
+  package
+- no separate vendor credential setup exists on the supported default path
+- host apps that intentionally ship custom Sherpa assets can use
+  `engineConfig.assetKeys.modelAssetKey` and
+  `engineConfig.assetKeys.keywordAssetKey`
+- custom assets should still be packaged as native app assets; the package does
+  not support JS-side model download or JS-owned inference
+
 ## Current Validation Boundary
 
 The repository currently proves bare React Native support through:

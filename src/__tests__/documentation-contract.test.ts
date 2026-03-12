@@ -54,6 +54,11 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features'
     );
+    expect(readme).toContain('## Built-In Model Configuration');
+    expect(readme).toContain('the supported public override points remain');
+    expect(readme).toContain('engineConfig.assetKeys.modelAssetKey');
+    expect(readme).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(readme).not.toContain('provide an AccessKey');
     expect(readme).toContain(`React Native \`${reactNativeSupport}\``);
     expect(readme).toContain(`Expo SDK \`${expoSupport.replace('SDK ', '')}\``);
     expect(readme).not.toContain('\nawait initialize();\n');
@@ -324,6 +329,11 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain(
       'those speech flows remain outside the package runtime and use public APIs only'
     );
+    expect(gettingStarted).toContain('Built-In Engine Defaults');
+    expect(gettingStarted).toContain('native-managed Sherpa-ONNX');
+    expect(gettingStarted).toContain('engineConfig.assetKeys.modelAssetKey');
+    expect(gettingStarted).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(gettingStarted).not.toContain('provide an AccessKey');
     expect(normalizedGettingStarted).toContain(
       'permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`'
     );
@@ -389,5 +399,64 @@ describe('documentation and example contract', () => {
     expect(normalizedExampleApp).toContain(
       'Android background continuation requires a visible app context'
     );
+  });
+
+  it('replaces placeholder and migration-era documentation with Sherpa-era guidance', () => {
+    const migration = readFileSync(join(root, 'docs/migration.md'), 'utf8');
+    const androidBatteryOptimization = readFileSync(
+      join(root, 'docs/android-battery-optimization.md'),
+      'utf8'
+    );
+    const appStoreSubmission = readFileSync(
+      join(root, 'docs/app-store-submission.md'),
+      'utf8'
+    );
+    const exampleReadme = readFileSync(join(root, 'example/README.md'), 'utf8');
+    const bareSetup = readFileSync(
+      join(root, 'docs/bare-react-native-setup.md'),
+      'utf8'
+    );
+    const expoSetup = readFileSync(join(root, 'docs/expo-setup.md'), 'utf8');
+
+    expect(migration).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
+    expect(migration).toContain('credential-era built-in engine path');
+    expect(migration).toContain('native-managed Sherpa-ONNX');
+    expect(migration).toContain('engineConfig.assetKeys.modelAssetKey');
+    expect(migration).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(migration).toContain('credential-style default-engine setup step');
+
+    expect(androidBatteryOptimization).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
+    expect(androidBatteryOptimization).toContain(
+      'foreground-service ownership'
+    );
+    expect(androidBatteryOptimization).toContain(
+      'foreground_service_visible_context_required'
+    );
+    expect(androidBatteryOptimization).toContain('OEM battery management');
+
+    expect(appStoreSubmission).not.toContain(
+      'Placeholder created during Story 1.1 bootstrap.'
+    );
+    expect(appStoreSubmission).toContain('NSMicrophoneUsageDescription');
+    expect(appStoreSubmission).toContain('UIBackgroundModes');
+    expect(appStoreSubmission).toContain('on-device-first baseline detection');
+    expect(appStoreSubmission).toContain('always-on after force-quit');
+
+    expect(exampleReadme).not.toContain('Story 4.2:');
+    expect(exampleReadme).toContain('the current Expo integration path');
+
+    expect(bareSetup).toContain('Built-In Sherpa Asset Model');
+    expect(bareSetup).toContain('engineConfig.assetKeys.modelAssetKey');
+    expect(bareSetup).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(bareSetup).not.toContain('provide an AccessKey');
+
+    expect(expoSetup).toContain('Built-In Sherpa Asset Model');
+    expect(expoSetup).toContain('engineConfig.assetKeys.modelAssetKey');
+    expect(expoSetup).toContain('engineConfig.assetKeys.keywordAssetKey');
+    expect(expoSetup).not.toContain('provide an AccessKey');
   });
 });

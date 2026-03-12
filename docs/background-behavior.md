@@ -62,4 +62,6 @@ Permission and notification requirements:
 
 - treat `getStatus()` and runtime events as the source of truth for supported versus unsupported behavior
 - keep user-facing messaging explicit about force-quit and relaunch limitations
+- keep docs and app copy explicit that the built-in Sherpa engine is still
+  constrained by the same platform lifecycle limits
 - do not market this package as “always on like Siri”

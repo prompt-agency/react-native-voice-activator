@@ -10,6 +10,8 @@ const requiredDocs = [
   'docs/reliability-validation.md',
   'docs/troubleshooting.md',
   'docs/migration.md',
+  'docs/android-battery-optimization.md',
+  'docs/app-store-submission.md',
 ];
 const readmePath = join(root, 'README.md');
 
@@ -52,6 +54,9 @@ if (!existsSync(readmePath)) {
     'the package itself does not own transcription or synthesis',
     'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals',
     'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features',
+    '## Built-In Model Configuration',
+    'engineConfig.assetKeys.modelAssetKey',
+    'engineConfig.assetKeys.keywordAssetKey',
   ];
 
   if (reactNativeSupport && !readme.includes(`React Native \`${reactNativeSupport}\``)) {
@@ -66,6 +71,10 @@ if (!existsSync(readmePath)) {
     if (!readme.includes(text)) {
       errors.push(`README missing required text: ${text}`);
     }
+  }
+
+  if (readme.includes('provide an AccessKey')) {
+    errors.push('README must not instruct users to provide an AccessKey');
   }
 }
 
@@ -122,12 +131,19 @@ if (existsSync(bareSetupPath)) {
     'foreground_service_visible_context_required',
     'scripts/release-support-matrix.ts',
     'What Is Automatic vs Manual',
+    'Built-In Sherpa Asset Model',
+    'engineConfig.assetKeys.modelAssetKey',
+    'engineConfig.assetKeys.keywordAssetKey',
   ];
 
   for (const text of requiredBareSetupText) {
     if (!bareSetup.includes(text)) {
       errors.push(`bare-react-native-setup missing required text: ${text}`);
     }
+  }
+
+  if (bareSetup.includes('provide an AccessKey')) {
+    errors.push('bare-react-native-setup must not instruct users to provide an AccessKey');
   }
 }
 
@@ -141,12 +157,19 @@ if (existsSync(expoSetupPath)) {
     'The support matrix source in this repo is',
     'config-plugin and prebuild',
     `Expo SDK \`${(expoSupport ?? 'SDK 55+').replace('SDK ', '')}\``,
+    'Built-In Sherpa Asset Model',
+    'engineConfig.assetKeys.modelAssetKey',
+    'engineConfig.assetKeys.keywordAssetKey',
   ];
 
   for (const text of requiredExpoSetupText) {
     if (!expoSetup.includes(text)) {
       errors.push(`expo-setup missing required text: ${text}`);
     }
+  }
+
+  if (expoSetup.includes('provide an AccessKey')) {
+    errors.push('expo-setup must not instruct users to provide an AccessKey');
   }
 }
 
@@ -196,12 +219,91 @@ if (existsSync(gettingStartedPath)) {
     'application-owned STT handoff',
     'TTS response step can run after detection or transcript handling',
     'those speech flows remain outside the package runtime and use public APIs only',
+    'Built-In Engine Defaults',
+    'native-managed Sherpa-ONNX',
+    'engineConfig.assetKeys.modelAssetKey',
+    'engineConfig.assetKeys.keywordAssetKey',
   ];
 
   for (const text of requiredGettingStartedText) {
     if (!gettingStarted.includes(text)) {
       errors.push(`getting-started missing required text: ${text}`);
     }
+  }
+
+  if (gettingStarted.includes('provide an AccessKey')) {
+    errors.push('getting-started must not instruct users to provide an AccessKey');
+  }
+}
+
+const migrationPath = join(root, 'docs/migration.md');
+const androidBatteryOptimizationPath = join(root, 'docs/android-battery-optimization.md');
+const appStoreSubmissionPath = join(root, 'docs/app-store-submission.md');
+const exampleReadmePath = join(root, 'example/README.md');
+
+if (existsSync(migrationPath)) {
+  const migration = readFileSync(migrationPath, 'utf8');
+  const requiredMigrationText = [
+    'credential-era built-in engine path',
+    'native-managed Sherpa-ONNX',
+    'engineConfig.assetKeys.modelAssetKey',
+    'engineConfig.assetKeys.keywordAssetKey',
+  ];
+
+  if (migration.includes('Placeholder created during Story 1.1 bootstrap.')) {
+    errors.push('migration still contains bootstrap placeholder text');
+  }
+
+  for (const text of requiredMigrationText) {
+    if (!migration.includes(text)) {
+      errors.push(`migration missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(androidBatteryOptimizationPath)) {
+  const batteryDoc = readFileSync(androidBatteryOptimizationPath, 'utf8');
+  const requiredBatteryText = [
+    'foreground-service ownership',
+    'foreground_service_visible_context_required',
+    'OEM battery management',
+  ];
+
+  if (batteryDoc.includes('Placeholder created during Story 1.1 bootstrap.')) {
+    errors.push('android-battery-optimization still contains bootstrap placeholder text');
+  }
+
+  for (const text of requiredBatteryText) {
+    if (!batteryDoc.includes(text)) {
+      errors.push(`android-battery-optimization missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(appStoreSubmissionPath)) {
+  const appStoreDoc = readFileSync(appStoreSubmissionPath, 'utf8');
+  const requiredAppStoreText = [
+    'NSMicrophoneUsageDescription',
+    'UIBackgroundModes',
+    'on-device-first baseline detection',
+  ];
+
+  if (appStoreDoc.includes('Placeholder created during Story 1.1 bootstrap.')) {
+    errors.push('app-store-submission still contains bootstrap placeholder text');
+  }
+
+  for (const text of requiredAppStoreText) {
+    if (!appStoreDoc.includes(text)) {
+      errors.push(`app-store-submission missing required text: ${text}`);
+    }
+  }
+}
+
+if (existsSync(exampleReadmePath)) {
+  const exampleReadme = readFileSync(exampleReadmePath, 'utf8');
+
+  if (exampleReadme.includes('Story 4.2:')) {
+    errors.push('example README still contains stale Story 4.2 framing');
   }
 }
 

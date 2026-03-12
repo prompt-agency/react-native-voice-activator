@@ -36,6 +36,17 @@ The example app also includes optional downstream extension examples showing how
 - a TTS response step can run after detection or transcript handling
 - those speech flows remain outside the package runtime and use public APIs only
 
+## Built-In Engine Defaults
+
+- the default built-in engine is native-managed Sherpa-ONNX
+- the default path uses package-owned bundled native assets and requires no
+  engine credential or vendor account provisioning
+- if your app intentionally ships custom Sherpa assets, the public override
+  points are `engineConfig.assetKeys.modelAssetKey` and
+  `engineConfig.assetKeys.keywordAssetKey`
+- Expo and bare React Native consumers use the same public configuration shape;
+  Expo just layers the package config plugin and prebuild flow on top of it
+
 ## Current Support Boundary
 
 - Bare React Native is the primary runtime validation path.

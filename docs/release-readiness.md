@@ -50,6 +50,8 @@ Do not widen package claims beyond what those files actually prove.
 - Expo: validated through config resolution and Expo prebuild generation
 - Expo Go: unsupported
 - Expo dev-client runtime: not yet proven in automated validation
+- The built-in Sherpa engine remains credential-free, but that does not expand
+  the proof boundary beyond the automated and manual gates listed above.
 
 ## Release Decision
 

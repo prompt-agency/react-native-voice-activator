@@ -87,6 +87,7 @@ What to do:
 
 - use the documented `initialize()` shape only
 - keep engine configuration engine-neutral at the public API layer
+- remember that the built-in Sherpa path is credential-free by default
 - if you are supplying custom engine assets, validate those paths and keys before runtime start
 
 ### `engine`
@@ -100,6 +101,9 @@ Typical causes:
 What to do:
 
 - inspect `lastError.code` and `lastError.message`
+- confirm whether you are using the bundled native Sherpa assets or intentional
+  custom `engineConfig.assetKeys.modelAssetKey` /
+  `engineConfig.assetKeys.keywordAssetKey` overrides
 - verify your engine-specific configuration is valid
 - verify the runtime did not transition to `unsupported` because of a platform condition before assuming the engine itself is broken
 

@@ -80,6 +80,19 @@ Manual in your app:
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
 
+## Built-In Sherpa Asset Model
+
+- the default engine remains credential-free and uses the package-owned bundled
+  native Sherpa asset set
+- no separate engine credential or vendor account provisioning is required for
+  the built-in engine path
+- apps that intentionally ship custom Sherpa assets can still use
+  `engineConfig.assetKeys.modelAssetKey` and
+  `engineConfig.assetKeys.keywordAssetKey`
+- Expo does not introduce a separate asset runtime; the config plugin and
+  prebuild flow align generated native projects with the same package-owned
+  native asset model used by bare React Native
+
 ## Public API Contract
 
 Expo-generated native apps use the same public package contract as bare React
