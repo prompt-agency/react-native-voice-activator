@@ -46,6 +46,7 @@ if (!existsSync(exampleAppPath)) {
     'syncDiagnosticsFromStatus',
     'getStatus().lastError',
     'Optional STT/TTS extension examples',
+    'Assistant flow guide',
     'Preview STT adapter',
     'Preview TTS adapter',
     'wakeWordDetected',
@@ -103,6 +104,10 @@ if (!existsSync(exampleAppPath)) {
   }
 
   const requiredExampleLimitationText = [
+    'The package-owned native runtime detects a wake phrase.',
+    'The optional application-owned STT provider can turn that wake',
+    'This screen shows the package wake runtime plus separate simulated',
+    'The wake step is real package behavior.',
     'iOS background continuation still requires the audio',
     'background mode and does not survive force-quit.',
     'Android background continuation requires a visible app context',
@@ -114,6 +119,7 @@ if (!existsSync(exampleAppPath)) {
     'engine',
     'platform',
     'internal',
+    'after a successful STT result when `autoSpeak: true` is enabled.',
   ];
 
   for (const text of requiredExampleLimitationText) {

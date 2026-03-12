@@ -55,6 +55,8 @@ if (!existsSync(readmePath)) {
     'Expo Go is NOT supported.',
     'optional downstream STT/TTS extension examples',
     'the package itself does not own transcription or synthesis',
+    'Wake-to-Transcribe-to-Speak Flow',
+    'The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned',
     'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals',
     'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features',
     'docs/examples/',
@@ -200,6 +202,8 @@ if (existsSync(troubleshootingPath)) {
     'primary runtime validation path today',
     'optional STT/TTS extension-point examples',
     'downstream application integrations only',
+    'Troubleshoot the Provider Pattern Separately',
+    'The example app previews that provider pattern with simulated host implementations.',
     'docs/examples/',
   ];
 
@@ -224,6 +228,8 @@ if (existsSync(gettingStartedPath)) {
     'application-owned STT handoff',
     'TTS response step can run after detection or transcript handling',
     'those speech flows remain outside the package runtime and use public APIs only',
+    'Wake-to-Transcribe-to-Speak Guide',
+    'That wake -> transcribe -> optional speak flow is the supported extension model.',
     'docs/examples/',
     'Built-In Engine Defaults',
     'native-managed Sherpa-ONNX',
@@ -315,6 +321,14 @@ if (existsSync(exampleReadmePath)) {
   if (!exampleReadme.includes('../docs/examples/')) {
     errors.push('example README missing docs/examples reference');
   }
+
+  if (!exampleReadme.includes('Provider Pattern Evaluation Flow')) {
+    errors.push('example README missing provider pattern evaluation flow section');
+  }
+
+  if (!exampleReadme.includes('The wake step is real package behavior.')) {
+    errors.push('example README missing wake step ownership clarification');
+  }
 }
 
 const examplesIndexPath = join(root, 'docs/examples/index.md');
@@ -328,6 +342,9 @@ if (existsSync(examplesIndexPath)) {
     'They do not belong in `src/`, `src/internal/`, or the mandatory package runtime.',
     'expo-speech-tts-provider.md',
     'expo-speech-recognition-stt-provider.md',
+    'Recommended Evaluation Flow',
+    'real wake-word runtime',
+    'separate simulated host-provider previews',
   ];
 
   for (const text of requiredExamplesIndexText) {

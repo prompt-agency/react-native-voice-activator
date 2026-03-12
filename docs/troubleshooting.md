@@ -29,6 +29,18 @@ app-level handoff code separately from the package runtime itself. Concrete
 reference adapters now live in `docs/examples/` and still remain outside the
 package core.
 
+## Troubleshoot the Provider Pattern Separately
+
+Use this split when debugging a wake -> transcribe -> optional speak flow:
+
+- if `wakeWordDetected` never fires, debug the package-owned wake-word runtime
+- if `wakeWordDetected` fires but no transcript appears, debug the app-owned
+  `sttProvider` handoff
+- if transcription succeeds but no speech response happens, debug the app-owned
+  `ttsProvider` path and `autoSpeak` configuration
+
+The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI.
+
 ## Common Failure Classes
 
 - `permission`

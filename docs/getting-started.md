@@ -37,6 +37,17 @@ The example app also includes optional downstream extension examples showing how
 - those speech flows remain outside the package runtime and use public APIs only
 - concrete adapter examples live in `docs/examples/` and remain application-owned
 
+## Wake-to-Transcribe-to-Speak Guide
+
+Use the current provider pattern in this order:
+
+1. call `initialize()` with no providers to validate the baseline wake-word runtime first
+2. add `sttProvider` when your app is ready to turn `wakeWordDetected` into an application-owned transcript step
+3. add `ttsProvider` and `autoSpeak: true` only when your app is ready to play an optional speech response after a successful `sttProvider` transcription
+
+That wake -> transcribe -> optional speak flow is the supported extension model.
+The package owns step 1. Your app owns steps 2 and 3.
+
 ## Built-In Engine Defaults
 
 - the default built-in engine is native-managed Sherpa-ONNX

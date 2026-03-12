@@ -21,6 +21,16 @@ Architecture rule: reference adapters live in `docs/examples/` and app-level cod
 - consumers can compose wake word detection with STT/TTS without reaching into
   private runtime internals
 
+## Recommended Evaluation Flow
+
+1. validate the package-owned wake-word runtime first
+2. layer in an application-owned STT adapter for the transcribe step
+3. layer in an application-owned TTS adapter for the optional speak step
+
+The example app shows the real wake-word runtime, links back to these adapter
+docs, and includes separate simulated host-provider previews for the optional
+transcribe and speak steps.
+
 ## What These Examples Do Not Prove
 
 - this repo does not automate real vendor audio capture, recognition, or speech

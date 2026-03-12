@@ -44,6 +44,18 @@ the current Expo integration path:
 - those STT/TTS flows are application-level examples only and do not make the package own transcription or synthesis
 - concrete reference provider adapters are documented in `../docs/examples/`
 
+## Provider Pattern Evaluation Flow
+
+Use the example in this order:
+
+1. initialize and validate the package-owned wake-word runtime
+2. observe the package runtime diagnostics, including `wakeWordDetected` and any provider lifecycle events produced by the configured app-owned providers
+3. use the STT/TTS preview buttons to inspect separate simulated host-provider bridges that follow the same application-owned provider pattern documented in `../docs/examples/`
+
+The wake step is real package behavior. The STT/TTS preview path is a simulated
+host implementation that demonstrates how a consumer app can compose
+transcription and speech on top of the public runtime contract.
+
 ## What It Does Not Prove
 
 - CI does not execute a full Expo runtime session

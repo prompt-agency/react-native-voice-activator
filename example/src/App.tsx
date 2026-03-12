@@ -77,7 +77,7 @@ export default function App() {
   const [sttTranscript, setSttTranscript] = useState<string | null>(null);
   const [ttsResponse, setTtsResponse] = useState<string | null>(null);
   const [extensionStatus, setExtensionStatus] = useState<string>(
-    'Reference adapters are idle until initialize configures them through the public provider interface.'
+    'Wake -> transcribe -> optional speak preview is idle until initialize configures the application-owned provider interface.'
   );
   const sttBridgeRef = useRef(createDemoReferenceSttBridge());
   const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
@@ -409,8 +409,27 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>react-native-voice-activator</Text>
         <Text style={styles.subtitle}>
-          Foreground runtime and typed event flow example
+          Wake-word runtime plus optional provider-pattern evaluation flow
         </Text>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Assistant flow guide</Text>
+          <Text style={styles.meta}>
+            1. The package-owned native runtime detects a wake phrase.
+          </Text>
+          <Text style={styles.meta}>
+            2. The optional application-owned STT provider can turn that wake
+            event into a transcript.
+          </Text>
+          <Text style={styles.meta}>
+            3. The optional application-owned TTS provider can speak a response
+            after a successful STT result when `autoSpeak: true` is enabled.
+          </Text>
+          <Text style={styles.meta}>
+            This screen shows the package wake runtime plus separate simulated
+            provider previews built on the same public adapter contract.
+          </Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Current runtime diagnostics</Text>
@@ -512,6 +531,11 @@ export default function App() {
             example app owns them, passes them through the public provider
             interface, and keeps STT/TTS as optional downstream integrations
             rather than built-in package features.
+          </Text>
+          <Text style={styles.meta}>
+            The wake step is real package behavior. The transcribe/speak preview
+            buttons below use simulated host implementations of the same
+            application-owned provider pattern documented in `docs/examples/`.
           </Text>
           {referenceProviderCatalog.map((entry) => (
             <View key={entry.id} style={styles.eventRow}>

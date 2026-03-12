@@ -27,6 +27,16 @@ The example app also includes optional downstream STT/TTS extension examples:
 - these are example-level integrations only; the package itself does not own transcription or synthesis
 - concrete reference adapter examples now live under `docs/examples/` and stay outside package core
 
+## Wake-to-Transcribe-to-Speak Flow
+
+The current evaluator path for a broader assistant experience is:
+
+1. the package-owned native wake-word runtime detects a phrase and emits `wakeWordDetected`
+2. the optional JS provider orchestration path can call an application-owned `sttProvider`
+3. the runtime can optionally call an application-owned `ttsProvider` after a successful transcription when both `sttProvider` and `autoSpeak: true` are configured
+
+This flow is demonstrated through the public API and typed events only. The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned integrations documented in `docs/examples/`. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
+
 ## Reliability evaluation artifacts
 
 The current evaluation harness for quiet/noisy and endurance validation is tracked in:
