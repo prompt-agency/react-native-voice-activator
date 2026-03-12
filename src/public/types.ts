@@ -148,6 +148,47 @@ export interface SpeechCompletedEvent {
 
 export interface SpeechErrorEvent extends ProviderError {}
 
+export type WakeWordTranscriptionState =
+  | 'idle'
+  | 'transcribing'
+  | 'completed'
+  | 'error';
+
+export type WakeWordSpeechState = 'idle' | 'speaking' | 'completed' | 'error';
+
+export interface UseWakeWordTranscriptionSnapshot {
+  state: WakeWordTranscriptionState;
+  started: TranscriptionStartedEvent | null;
+  result: TranscriptionResultEvent | null;
+  error: TranscriptionErrorEvent | null;
+}
+
+export interface UseWakeWordSpeechSnapshot {
+  state: WakeWordSpeechState;
+  started: SpeechStartedEvent | null;
+  completed: SpeechCompletedEvent | null;
+  error: SpeechErrorEvent | null;
+}
+
+export interface UseWakeWordSnapshot {
+  status: WakeWordStatus;
+  latestWakeWordEvent: WakeWordDetectedEvent | null;
+  latestRuntimeError: WakeWordError | null;
+  latestInterruption: WakeWordInterruptionEvent | null;
+  latestAudioRouteChange: WakeWordAudioRouteChangedEvent | null;
+  transcription: UseWakeWordTranscriptionSnapshot;
+  speech: UseWakeWordSpeechSnapshot;
+}
+
+export interface UseWakeWordResult extends UseWakeWordSnapshot {
+  initialize: VoiceActivatorApi['initialize'];
+  startDetection: VoiceActivatorApi['startDetection'];
+  stopDetection: VoiceActivatorApi['stopDetection'];
+  getStatus: VoiceActivatorApi['getStatus'];
+  dispose: VoiceActivatorApi['dispose'];
+  addWakeWordListener: VoiceActivatorApi['addListener'];
+}
+
 export interface WakeWordEventMap {
   stateChanged: WakeWordStateChangedEvent;
   wakeWordDetected: WakeWordDetectedEvent;

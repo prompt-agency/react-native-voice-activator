@@ -7,6 +7,7 @@ export {
   stopDetection,
   voiceActivator,
 } from './public/voice-activator';
+export { useWakeWord } from './public/useWakeWord';
 export { wakeWordStates } from './public/types';
 export type {
   ProviderError,
@@ -20,6 +21,12 @@ export type {
   TranscriptionResultEvent,
   TranscriptionStartedEvent,
   TTSOptions,
+  UseWakeWordResult,
+  UseWakeWordSnapshot,
+  UseWakeWordSpeechSnapshot,
+  WakeWordSpeechState,
+  UseWakeWordTranscriptionSnapshot,
+  WakeWordTranscriptionState,
   VoiceActivatorApi,
   WakeWordEngineAssetKeys,
   WakeWordEngineCapabilities,
