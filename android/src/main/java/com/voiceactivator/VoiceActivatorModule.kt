@@ -16,6 +16,7 @@ import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
 class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
+    applicationContext = reactContext.applicationContext,
     serviceLauncher = ServiceLauncher(reactContext.applicationContext),
     audioRouteMonitor = AudioRouteMonitor(reactContext.applicationContext),
     hasVisibleActivityContext = {
@@ -27,6 +28,9 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       ) == PackageManager.PERMISSION_GRANTED
     },
   ).apply {
+    wakeWordDetectedHandler = { payload ->
+      emitEvent(NATIVE_WAKE_WORD_DETECTED_EVENT, payload)
+    }
     runtimeStatusHandler = { payload ->
       emitEvent(NATIVE_RUNTIME_STATE_CHANGED_EVENT, payload)
     }
@@ -93,6 +97,8 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
 
   companion object {
     const val NAME = "VoiceActivator"
+    private const val NATIVE_WAKE_WORD_DETECTED_EVENT =
+      "VoiceActivatorOnWakeWordDetected"
     private const val NATIVE_RUNTIME_STATE_CHANGED_EVENT =
       "VoiceActivatorOnRuntimeStateChanged"
     private const val NATIVE_RUNTIME_ERROR_EVENT = "VoiceActivatorOnRuntimeError"

@@ -7,4 +7,5 @@ export {
   resolveEngineRuntimeConfiguration,
   resolveEngineSelection,
 } from './shared/engine-selection';
+export { createNativeManagedEngineRuntime } from './native-managed-engine-runtime';
 export { createPorcupineEngineRuntime } from './porcupine';

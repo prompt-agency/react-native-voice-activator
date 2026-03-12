@@ -39,6 +39,7 @@ describe('public runtime state and event contract', () => {
     jest.resetModules();
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
   });
@@ -542,6 +543,7 @@ describe('public runtime state and event contract', () => {
   it('re-arms the engine runtime when a native interruption resumes into running', async () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
@@ -636,6 +638,7 @@ describe('public runtime state and event contract', () => {
   it('does not publish running if native interruption recovery cannot restart the engine runtime', async () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
@@ -731,6 +734,7 @@ describe('public runtime state and event contract', () => {
     });
 
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
@@ -1225,6 +1229,7 @@ describe('public runtime state and event contract', () => {
     jest.resetModules();
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
@@ -1311,6 +1316,7 @@ describe('public runtime state and event contract', () => {
     };
 
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
@@ -1696,6 +1702,7 @@ describe('public runtime state and event contract', () => {
     };
 
     jest.doMock('../engines', () => ({
+      createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
       createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 

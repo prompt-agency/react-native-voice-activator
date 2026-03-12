@@ -60,6 +60,7 @@ android {
         "generated/java",
         "generated/jni"
       ]
+      assets.srcDirs += ["src/main/assets"]
     }
   }
 }
@@ -74,4 +75,5 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  implementation files("libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar")
 }

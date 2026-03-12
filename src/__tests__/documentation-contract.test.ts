@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 describe('documentation and example contract', () => {
@@ -160,7 +160,7 @@ describe('documentation and example contract', () => {
     expect(exampleAppConfig).toContain('../app.plugin.js');
     expect(exampleAppConfig).toContain('voice-activator-example');
     expect(examplePackage).toContain('"expo": "^55.0.0"');
-    expect(examplePackage).not.toContain('"expo-dev-client"');
+    expect(examplePackage).toContain('"expo-dev-client"');
     expect(examplePackage).toContain('"start": "expo start"');
     expect(examplePackage).toContain(
       '"prebuild": "CI=1 expo prebuild --clean"'
@@ -189,6 +189,91 @@ describe('documentation and example contract', () => {
     expect(expoSetup).toContain(
       `Expo SDK \`${expoSupport.replace('SDK ', '')}\``
     );
+  });
+
+  it('keeps the bundled Sherpa native integration assets wired through package-owned paths', () => {
+    const podspec = readFileSync(join(root, 'VoiceActivator.podspec'), 'utf8');
+    const androidBuildGradle = readFileSync(
+      join(root, 'android/build.gradle'),
+      'utf8'
+    );
+    const iosAssetLoader = readFileSync(
+      join(root, 'ios/Engines/SherpaOnnx/SherpaOnnxAssetLoader.mm'),
+      'utf8'
+    );
+    const androidAssetLoader = readFileSync(
+      join(
+        root,
+        'android/src/main/java/com/voiceactivator/Engines/SherpaOnnx/SherpaOnnxAssetLoader.kt'
+      ),
+      'utf8'
+    );
+    const androidRuntimeCoordinator = readFileSync(
+      join(
+        root,
+        'android/src/main/java/com/voiceactivator/Runtime/WakeWordRuntimeCoordinator.kt'
+      ),
+      'utf8'
+    );
+    const publicRuntime = readFileSync(
+      join(root, 'src/public/voice-activator.ts'),
+      'utf8'
+    );
+
+    expect(podspec).toContain(
+      's.vendored_frameworks = "ios/Vendor/SherpaOnnx/*.xcframework"'
+    );
+    expect(podspec).toContain('s.resources = "ios/Assets/**/*"');
+    expect(androidBuildGradle).toContain(
+      'implementation files("libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar")'
+    );
+    expect(androidBuildGradle).toContain(
+      'assets.srcDirs += ["src/main/assets"]'
+    );
+    expect(iosAssetLoader).toContain('pathForResource:assetName');
+    expect(iosAssetLoader).not.toContain(
+      '@"ios/Assets/SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01"'
+    );
+    expect(androidAssetLoader).toContain('modelAssetKey');
+    expect(androidAssetLoader).toContain('keywordAssetKey');
+    expect(androidRuntimeCoordinator).toContain(
+      'detector?.ensureInitialized()'
+    );
+    expect(publicRuntime).toContain('createNativeManagedEngineRuntime()');
+    expect(
+      existsSync(
+        join(
+          root,
+          'ios/Assets/SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01/README.md'
+        )
+      )
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(
+          root,
+          'android/src/main/assets/voice-activator-sherpa-onnx/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01/README.md'
+        )
+      )
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(root, 'ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework/Info.plist')
+      )
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(root, 'ios/Vendor/SherpaOnnx/onnxruntime.xcframework/Info.plist')
+      )
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(
+          root,
+          'android/libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar'
+        )
+      )
+    ).toBe(true);
   });
 
   it('replaces bootstrap placeholders in adjacent setup docs', () => {

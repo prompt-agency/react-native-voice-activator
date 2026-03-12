@@ -54,6 +54,7 @@ function mockLocalRuntimeBridge() {
   }));
 
   jest.doMock('../engines', () => ({
+    createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
     createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
   }));
 }

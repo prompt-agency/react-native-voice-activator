@@ -1,5 +1,7 @@
 #import "WakeWordSessionCoordinator.h"
 
+#import "../Engines/SherpaOnnx/SherpaOnnxAssetLoader.h"
+#import "../Engines/SherpaOnnx/SherpaOnnxDetector.h"
 #import "VoiceActivatorAudioSessionController.h"
 #import "VoiceActivatorAppLifecycleObserver.h"
 #import "VoiceActivatorInterruptionObserver.h"
@@ -31,6 +33,8 @@ static NSDictionary *VoiceActivatorMakeError(
   VoiceActivatorInterruptionObserver *_interruptionObserver;
   VoiceActivatorRouteChangeObserver *_routeChangeObserver;
   VoiceActivatorAppLifecycleObserver *_appLifecycleObserver;
+  SherpaOnnxAssetLoader *_assetLoader;
+  SherpaOnnxDetector *_detector;
   BOOL _isObservingInterruptions;
   BOOL _isObservingRouteChanges;
   BOOL _isObservingAppLifecycle;
@@ -41,6 +45,8 @@ static NSDictionary *VoiceActivatorMakeError(
   self = [super init];
   if (self) {
     _audioSessionController = [VoiceActivatorAudioSessionController new];
+    _assetLoader = [SherpaOnnxAssetLoader new];
+    _detector = [SherpaOnnxDetector new];
     _runtimeStateStore = [[VoiceActivatorRuntimeStateStore alloc]
         initWithInitialStatus:@{
           @"state" : @"idle",
@@ -66,6 +72,20 @@ static NSDictionary *VoiceActivatorMakeError(
                  willEnterForegroundHandler:^{
                    [weakSelf handleWillEnterForeground];
                  }];
+    _detector.detectionHandler = ^(NSString *detectedPhrase) {
+      if (weakSelf.wakeWordDetectedHandler != nil) {
+        weakSelf.wakeWordDetectedHandler(@{
+          @"detectedPhrase" : detectedPhrase,
+          @"detectedAt" : [[NSISO8601DateFormatter new] stringFromDate:[NSDate date]]
+        });
+      }
+    };
+    _detector.errorHandler = ^(NSError *detectorError) {
+      [weakSelf setErrorStateWithCategory:@"engine"
+                                     code:@"sherpa_detector_failed"
+                                  message:detectorError.localizedDescription
+                                 canStart:YES];
+    };
   }
   return self;
 }
@@ -107,6 +127,44 @@ static NSDictionary *VoiceActivatorMakeError(
   [self stopObservingInterruptions];
   [self startObservingRouteChanges];
   [self startObservingAppLifecycle];
+
+  double sensitivity = 0.5;
+  NSDictionary *engineConfig = [options[@"engineConfig"] isKindOfClass:[NSDictionary class]]
+      ? options[@"engineConfig"]
+      : nil;
+  NSDictionary *assetKeys = [engineConfig[@"assetKeys"] isKindOfClass:[NSDictionary class]]
+      ? engineConfig[@"assetKeys"]
+      : nil;
+  NSNumber *configuredSensitivity = [engineConfig[@"sensitivity"] isKindOfClass:[NSNumber class]]
+      ? engineConfig[@"sensitivity"]
+      : nil;
+  if (configuredSensitivity != nil) {
+    sensitivity = configuredSensitivity.doubleValue;
+  }
+
+  NSError *assetError = nil;
+  NSString *modelAssetKey = [assetKeys[@"modelAssetKey"] isKindOfClass:[NSString class]]
+      ? assetKeys[@"modelAssetKey"]
+      : nil;
+  NSString *keywordAssetKey = [assetKeys[@"keywordAssetKey"] isKindOfClass:[NSString class]]
+      ? assetKeys[@"keywordAssetKey"]
+      : nil;
+  SherpaOnnxAssetPaths *assetPaths =
+      [_assetLoader loadAssetPathsWithModelAssetKey:modelAssetKey
+                                    keywordAssetKey:keywordAssetKey
+                                              error:&assetError];
+  if (assetPaths == nil || ![_detector configureWithAssetPaths:assetPaths
+                                                   sensitivity:sensitivity
+                                                         error:&assetError]) {
+    [self setErrorStateWithCategory:@"engine"
+                               code:@"sherpa_assets_unavailable"
+                            message:assetError.localizedDescription
+                           canStart:NO];
+    if (error != nil) {
+      *error = assetError;
+    }
+    return NO;
+  }
 
   [self setStatus:@{
     @"state" : @"ready",
@@ -150,6 +208,18 @@ static NSDictionary *VoiceActivatorMakeError(
 
   [self startObservingInterruptions];
 
+  NSError *detectorError = nil;
+  if (![_detector start:&detectorError]) {
+    [self setErrorStateWithCategory:@"engine"
+                               code:@"sherpa_start_failed"
+                            message:detectorError.localizedDescription
+                           canStart:YES];
+    if (error != nil) {
+      *error = detectorError;
+    }
+    return NO;
+  }
+
   [self setStatus:@{
     @"state" : @"running",
     @"isAvailable" : @YES,
@@ -171,6 +241,7 @@ static NSDictionary *VoiceActivatorMakeError(
   NSString *nextState = shouldRemainStartable ? @"stopped" : @"idle";
 
   NSError *audioSessionError = nil;
+  [_detector stop:nil];
   [_audioSessionController deactivateSession:&audioSessionError];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
@@ -199,6 +270,7 @@ static NSDictionary *VoiceActivatorMakeError(
 - (BOOL)dispose:(NSError * _Nullable __autoreleasing * _Nullable)error
 {
   NSError *audioSessionError = nil;
+  [_detector dispose];
   [_audioSessionController deactivateSession:&audioSessionError];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
@@ -254,6 +326,15 @@ static NSDictionary *VoiceActivatorMakeError(
       [self setErrorStateWithCategory:@"platform"
                                  code:@"audio_session_activation_failed"
                               message:audioSessionError.localizedDescription
+                             canStart:YES];
+      return;
+    }
+
+    NSError *detectorError = nil;
+    if (![_detector start:&detectorError]) {
+      [self setErrorStateWithCategory:@"engine"
+                                 code:@"sherpa_resume_failed"
+                              message:detectorError.localizedDescription
                              canStart:YES];
       return;
     }

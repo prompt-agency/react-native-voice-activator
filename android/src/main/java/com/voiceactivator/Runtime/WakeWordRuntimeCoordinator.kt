@@ -1,8 +1,14 @@
 package com.voiceactivator.Runtime
 
+import android.content.Context
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxAssetRequest
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxDetector
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val PLATFORM = "android"
 private const val ANDROID_FOREGROUND_SERVICE_REASON =
@@ -13,6 +19,7 @@ private const val ANDROID_AUDIO_PERMISSION_REQUIRED_REASON =
   "Android wake word detection requires RECORD_AUDIO permission before the foreground-service runtime can start."
 
 internal class WakeWordRuntimeCoordinator(
+  private val applicationContext: Context,
   private val runtimeStateStore: RuntimeStateStore = RuntimeStateStore(
     initialStatus = mapOf(
       "state" to "idle",
@@ -28,14 +35,21 @@ internal class WakeWordRuntimeCoordinator(
   private val hasVisibleActivityContext: () -> Boolean = { true },
   private val hasRecordAudioPermission: () -> Boolean = { true },
 ) {
+  var wakeWordDetectedHandler: ((WritableMap) -> Unit)? = null
   var runtimeStatusHandler: ((WritableMap) -> Unit)? = null
   var runtimeErrorHandler: ((WritableMap) -> Unit)? = null
   var interruptionHandler: ((WritableMap) -> Unit)? = null
   var audioRouteChangedHandler: ((WritableMap) -> Unit)? = null
+  private var detector: SherpaOnnxDetector? = null
+  private var detectorAssetRequest = SherpaOnnxAssetRequest(
+    modelAssetKey = null,
+    keywordAssetKey = null,
+  )
+  private var detectorSensitivity = 0.5
 
   fun currentStatus(): WritableMap = runtimeStateStore.currentStatus()
 
-  fun initialize(@Suppress("UNUSED_PARAMETER") options: ReadableMap?) {
+  fun initialize(options: ReadableMap?) {
     if (audioCaptureThread.isCapturing() || serviceLauncher.hasRuntimeOwnership()) {
       if (!stopOwnedRuntime()) {
         throw platformFailure(
@@ -54,6 +68,46 @@ internal class WakeWordRuntimeCoordinator(
       throw IllegalStateException(
         "Android runtime ownership became inconsistent during initialize()."
       )
+    }
+
+    val engineConfig = options?.getMap("engineConfig")
+    val sensitivity =
+      engineConfig
+        ?.takeIf { it.hasKey("sensitivity") }
+        ?.getDouble("sensitivity")
+        ?: 0.5
+    detectorSensitivity = sensitivity
+    detectorAssetRequest = SherpaOnnxAssetRequest(
+      modelAssetKey = engineConfig.readOptionalString("assetKeys", "modelAssetKey"),
+      keywordAssetKey = engineConfig.readOptionalString("assetKeys", "keywordAssetKey"),
+    )
+
+    releaseDetector()
+    detector = SherpaOnnxDetector(
+      context = applicationContext,
+      onDetected = { detectedPhrase ->
+        wakeWordDetectedHandler?.invoke(
+          Arguments.createMap().apply {
+            putString("detectedPhrase", detectedPhrase)
+            putString(
+              "detectedAt",
+              SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+                .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                .format(Date())
+            )
+          }
+        )
+      },
+    ).also {
+      try {
+        it.initialize(sensitivity, detectorAssetRequest)
+      } catch (error: Throwable) {
+        throw platformFailure(
+          code = "sherpa_initialize_failed",
+          message = error.message ?: "Sherpa-ONNX detector initialization failed.",
+          canStart = false,
+        )
+      }
     }
 
     setStatus(
@@ -125,7 +179,28 @@ internal class WakeWordRuntimeCoordinator(
       )
     }
 
-    if (!audioCaptureThread.startCapture()) {
+    try {
+      detector?.ensureInitialized()
+    } catch (error: Throwable) {
+      throw platformFailure(
+        code = "sherpa_initialize_failed",
+        message = error.message ?: "Sherpa-ONNX detector initialization failed.",
+        canStart = true,
+      )
+    }
+
+    if (!audioCaptureThread.startCapture { samples, sampleRate ->
+        try {
+          detector?.processSamples(samples, sampleRate)
+        } catch (error: Throwable) {
+          setErrorState(
+            category = "engine",
+            code = "sherpa_decode_failed",
+            message = error.message ?: "Sherpa-ONNX keyword detection failed.",
+            canStart = true,
+          )
+        }
+      }) {
       serviceLauncher.stopRuntimeOwnership()
       throw platformFailure(
         code = "audio_capture_unavailable",
@@ -200,6 +275,7 @@ internal class WakeWordRuntimeCoordinator(
         "lastError" to null,
       )
     )
+    releaseDetector()
   }
 
   fun surfaceUnsupportedState(
@@ -207,6 +283,7 @@ internal class WakeWordRuntimeCoordinator(
     code: String = "runtime_unsupported",
   ) {
     val ownershipReleased = stopOwnedRuntime()
+    releaseDetector()
     val payload = Arguments.createMap().apply {
       putString("reason", reason)
       putBoolean("recoverable", false)
@@ -245,6 +322,22 @@ internal class WakeWordRuntimeCoordinator(
     val ownershipReleased = serviceLauncher.stopRuntimeOwnership()
     audioRouteMonitor.stopMonitoring()
     return captureStopped && ownershipReleased && !hasInconsistentRuntimeOwnership()
+  }
+
+  private fun releaseDetector() {
+    detector?.release()
+    detector = null
+  }
+
+  private fun ReadableMap?.readOptionalString(parentKey: String, childKey: String): String? {
+    val parent =
+      this?.takeIf { it.hasKey(parentKey) }?.getMap(parentKey)
+        ?: return null
+    if (!parent.hasKey(childKey)) {
+      return null
+    }
+
+    return parent.getString(childKey)?.takeIf { it.isNotBlank() }
   }
 
   private fun hasInconsistentRuntimeOwnership(): Boolean =
