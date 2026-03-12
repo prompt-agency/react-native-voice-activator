@@ -7,6 +7,13 @@ import type {
   TranscriptionResult,
   WakeWordDetectedEvent,
 } from 'react-native-voice-activator';
+import {
+  ModelCategory,
+  RunAnywhere,
+  SDKEnvironment,
+  type RunAnywhereDownloadProgress,
+} from '@runanywhere/core';
+import { ModelArtifactType, ONNX } from '@runanywhere/onnx';
 
 type DetectionGetter = () => WakeWordDetectedEvent | null;
 
@@ -37,6 +44,24 @@ export type ReferenceProviderEntry = {
   summary: string;
 };
 
+type RunAnywhereModelDefinition = {
+  id: string;
+  name: string;
+  url: string;
+  memoryRequirement: number;
+  modelType: string;
+};
+
+type RunAnywherePreparedOptions = {
+  builtInSTT?: RunAnywhereSTTConfig;
+  builtInTTS?: RunAnywhereTTSConfig;
+};
+
+export type RunAnywherePreparationUpdate = {
+  message: string;
+  progress?: number;
+};
+
 export const referenceProviderCatalog: ReferenceProviderEntry[] = [
   {
     id: 'expo-speech-recognition',
@@ -65,17 +90,25 @@ export const referenceProviderCatalog: ReferenceProviderEntry[] = [
 ];
 
 export const RUNANYWHERE_CONFIG: {
-  stt: RunAnywhereSTTConfig | null;
-  tts: RunAnywhereTTSConfig | null;
+  stt: (RunAnywhereSTTConfig & RunAnywhereModelDefinition) | null;
+  tts: (RunAnywhereTTSConfig & RunAnywhereModelDefinition) | null;
 } = {
   stt: {
+    id: 'sherpa-onnx-whisper-tiny.en',
+    name: 'Sherpa Whisper Tiny (English)',
+    url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/sherpa-onnx-whisper-tiny.en.tar.gz',
     modelPath: '',
     modelType: 'whisper',
+    memoryRequirement: 75_000_000,
     maxRecordingMs: 10_000,
   },
   tts: {
+    id: 'vits-piper-en_US-lessac-medium',
+    name: 'Piper TTS (US English Lessac Medium)',
+    url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/vits-piper-en_US-lessac-medium.tar.gz',
     modelPath: '',
     modelType: 'piper',
+    memoryRequirement: 65_000_000,
     voice: undefined,
     rate: undefined,
     pitch: undefined,
@@ -87,33 +120,120 @@ export function getRunAnywhereAvailability(): {
   tts: boolean;
 } {
   return {
-    stt: Boolean(RUNANYWHERE_CONFIG.stt?.modelPath),
-    tts: Boolean(RUNANYWHERE_CONFIG.tts?.modelPath),
+    stt: RUNANYWHERE_CONFIG.stt !== null,
+    tts: RUNANYWHERE_CONFIG.tts !== null,
   };
 }
 
-export function createRunAnywhereBuiltInOptions(): {
-  builtInSTT?: RunAnywhereSTTConfig;
-  builtInTTS?: RunAnywhereTTSConfig;
-} | null {
+async function ensureRunAnywhereInitialized(): Promise<void> {
+  if (!RunAnywhere.isSDKInitialized) {
+    await RunAnywhere.initialize({
+      environment: SDKEnvironment.Development,
+    });
+  }
+
+  ONNX.register();
+}
+
+async function ensureModelRegistered(
+  model: RunAnywhereModelDefinition,
+  modality: ModelCategory
+): Promise<void> {
+  await ONNX.addModel({
+    id: model.id,
+    name: model.name,
+    url: model.url,
+    modality,
+    artifactType: ModelArtifactType.TarGzArchive,
+    memoryRequirement: model.memoryRequirement,
+  });
+}
+
+async function ensureModelLocalPath(
+  model: RunAnywhereModelDefinition,
+  modality: ModelCategory,
+  onUpdate?: (update: RunAnywherePreparationUpdate) => void
+): Promise<string> {
+  await ensureModelRegistered(model, modality);
+
+  const alreadyDownloaded = await RunAnywhere.isModelDownloaded(model.id);
+  if (!alreadyDownloaded) {
+    onUpdate?.({
+      message: `Downloading ${model.name}...`,
+      progress: 0,
+    });
+
+    await RunAnywhere.downloadModel(
+      model.id,
+      (progress: RunAnywhereDownloadProgress) => {
+        onUpdate?.({
+          message: `Downloading ${model.name}...`,
+          progress: Math.round(progress.progress * 100),
+        });
+      }
+    );
+  }
+
+  const modelInfo = await RunAnywhere.getModelInfo(model.id);
+  if (!modelInfo?.localPath) {
+    throw new Error(`RunAnywhere model did not resolve a local path: ${model.id}`);
+  }
+
+  return modelInfo.localPath;
+}
+
+export async function prepareRunAnywhereBuiltInOptions(
+  onUpdate?: (update: RunAnywherePreparationUpdate) => void
+): Promise<RunAnywherePreparedOptions | null> {
   const availability = getRunAnywhereAvailability();
 
   if (!availability.stt && !availability.tts) {
     return null;
   }
 
-  return {
-    ...(availability.stt
-      ? {
-          builtInSTT: RUNANYWHERE_CONFIG.stt ?? undefined,
-        }
-      : {}),
-    ...(availability.tts
-      ? {
-          builtInTTS: RUNANYWHERE_CONFIG.tts ?? undefined,
-        }
-      : {}),
-  };
+  onUpdate?.({
+    message: 'Initializing RunAnywhere model registry...',
+  });
+  await ensureRunAnywhereInitialized();
+
+  const builtInOptions: RunAnywherePreparedOptions = {};
+
+  if (availability.stt && RUNANYWHERE_CONFIG.stt) {
+    const modelPath = await ensureModelLocalPath(
+      RUNANYWHERE_CONFIG.stt,
+      ModelCategory.SpeechRecognition,
+      onUpdate
+    );
+
+    builtInOptions.builtInSTT = {
+      modelPath,
+      modelType: RUNANYWHERE_CONFIG.stt.modelType,
+      maxRecordingMs: RUNANYWHERE_CONFIG.stt.maxRecordingMs,
+    };
+  }
+
+  if (availability.tts && RUNANYWHERE_CONFIG.tts) {
+    const modelPath = await ensureModelLocalPath(
+      RUNANYWHERE_CONFIG.tts,
+      ModelCategory.SpeechSynthesis,
+      onUpdate
+    );
+
+    builtInOptions.builtInTTS = {
+      modelPath,
+      modelType: RUNANYWHERE_CONFIG.tts.modelType,
+      voice: RUNANYWHERE_CONFIG.tts.voice,
+      rate: RUNANYWHERE_CONFIG.tts.rate,
+      pitch: RUNANYWHERE_CONFIG.tts.pitch,
+    };
+  }
+
+  onUpdate?.({
+    message: 'RunAnywhere models are ready for initialize().',
+    progress: 100,
+  });
+
+  return builtInOptions;
 }
 
 class ExpoSpeechRecognitionReferenceSttProvider

@@ -41,7 +41,7 @@ Use this split when debugging a wake -> transcribe -> optional speak flow:
   app-owned `ttsProvider` path or the built-in RunAnywhere TTS setup together
   with `autoSpeak` configuration
 
-The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. The example also shows a disabled built-in RunAnywhere option until real model paths are configured.
+The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. The example also shows a built-in RunAnywhere option that can download the configured Whisper/Piper models during Initialize.
 
 ## Common Failure Classes
 

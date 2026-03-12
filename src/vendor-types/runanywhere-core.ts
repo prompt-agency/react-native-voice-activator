@@ -4,6 +4,32 @@ export interface RunAnywhereSTTResult {
   duration: number;
 }
 
+export enum SDKEnvironment {
+  Development = 'development',
+  Staging = 'staging',
+  Production = 'production',
+}
+
+export enum ModelCategory {
+  SpeechRecognition = 'speech-recognition',
+  SpeechSynthesis = 'speech-synthesis',
+}
+
+export interface RunAnywhereModelInfo {
+  id: string;
+  name?: string;
+  downloadURL?: string;
+  localPath?: string;
+  isDownloaded?: boolean;
+}
+
+export interface RunAnywhereDownloadProgress {
+  modelId: string;
+  bytesDownloaded: number;
+  totalBytes: number;
+  progress: number;
+}
+
 export interface RunAnywhereTTSOptions {
   voice?: string;
   rate?: number;
@@ -19,6 +45,14 @@ export interface RunAnywhereSpeakResult {
 }
 
 export const RunAnywhere = null as unknown as {
+  readonly isSDKInitialized: boolean;
+  initialize(options: {
+    environment: SDKEnvironment;
+    apiKey?: string;
+    baseURL?: string;
+    supabaseURL?: string;
+    supabaseKey?: string;
+  }): Promise<void>;
   loadSTTModel(
     modelPath: string,
     modelType?: string,
@@ -40,4 +74,10 @@ export const RunAnywhere = null as unknown as {
     options?: RunAnywhereTTSOptions
   ): Promise<RunAnywhereSpeakResult>;
   stopSpeaking(): Promise<void>;
+  downloadModel(
+    modelId: string,
+    onProgress?: (progress: RunAnywhereDownloadProgress) => void
+  ): Promise<string>;
+  getModelInfo(modelId: string): Promise<RunAnywhereModelInfo | null>;
+  isModelDownloaded(modelId: string): Promise<boolean>;
 };

@@ -23,11 +23,11 @@ import {
   type WakeWordStatus,
 } from 'react-native-voice-activator';
 import {
-  createRunAnywhereBuiltInOptions,
   createDemoReferenceSttBridge,
   createDemoReferenceTtsBridge,
   createReferenceProviders,
   getRunAnywhereAvailability,
+  prepareRunAnywhereBuiltInOptions,
   referenceProviderCatalog,
 } from './reference-provider-adapters';
 
@@ -154,7 +154,7 @@ export default function App() {
   const [sttTranscript, setSttTranscript] = useState<string | null>(null);
   const [ttsResponse, setTtsResponse] = useState<string | null>(null);
   const [extensionStatus, setExtensionStatus] = useState<string>(
-    'Wake -> transcribe -> optional speak preview is idle until initialize configures the application-owned provider interface.'
+    'Wake -> transcribe -> optional speak preview is idle until initialize configures either the demo bridges or the RunAnywhere built-in path.'
   );
   const [providerMode, setProviderMode] = useState<ProviderMode>('demo');
   const [selectedKeywordPresetId, setSelectedKeywordPresetId] = useState<string>(
@@ -416,11 +416,20 @@ export default function App() {
           ttsBridge: ttsBridgeRef.current,
         }
       );
-      const runAnywhereOptions = createRunAnywhereBuiltInOptions();
+      const runAnywhereOptions =
+        providerMode === 'runanywhere'
+          ? await prepareRunAnywhereBuiltInOptions((update) => {
+              setExtensionStatus(
+                update.progress == null
+                  ? update.message
+                  : `${update.message} (${update.progress}%)`
+              );
+            })
+          : null;
 
       if (providerMode === 'runanywhere' && !runAnywhereOptions) {
         setExtensionStatus(
-          'RunAnywhere built-in mode is selected, but no STT or TTS config is enabled in example/src/reference-provider-adapters.ts.'
+          'RunAnywhere built-in mode is selected, but no STT or TTS model definition is enabled in example/src/reference-provider-adapters.ts.'
         );
         throw new Error('RunAnywhere built-in mode is not configured.');
       }
@@ -428,7 +437,7 @@ export default function App() {
       setExtensionStatus(
         providerMode === 'demo'
           ? `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
-          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere path for this runtime session (${runAnywhereAvailability.stt ? 'STT enabled' : 'STT unavailable'}, ${runAnywhereAvailability.tts ? 'TTS enabled' : 'TTS unavailable'}).`
+          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere path for this runtime session (${runAnywhereAvailability.stt ? 'STT configured for download' : 'STT unavailable'}, ${runAnywhereAvailability.tts ? 'TTS configured for download' : 'TTS unavailable'}).`
       );
       setLastDetection(null);
       lastDetectionRef.current = null;
@@ -590,8 +599,9 @@ export default function App() {
           </Text>
           <Text style={styles.meta}>
             4. This example also exposes an opt-in built-in RunAnywhere path,
-            and enables whichever of STT or TTS has a real local config set in
-            `RUNANYWHERE_CONFIG`.
+            and Initialize can download the configured Whisper/Piper models
+            from `RUNANYWHERE_CONFIG` before enabling STT/TTS for the runtime
+            session.
           </Text>
           <Text style={styles.meta}>
             This screen shows the package wake runtime plus separate simulated
@@ -661,7 +671,7 @@ export default function App() {
             RunAnywhere availability:{' '}
             {runAnywhereAvailable
               ? `STT ${runAnywhereAvailability.stt ? 'configured' : 'missing'} / TTS ${runAnywhereAvailability.tts ? 'configured' : 'missing'}`
-              : 'disabled until config is set in example/src/reference-provider-adapters.ts'}
+              : 'disabled until a RunAnywhere model definition is set in example/src/reference-provider-adapters.ts'}
           </Text>
           <View style={styles.buttonRow}>
             <Button
@@ -763,8 +773,9 @@ export default function App() {
             application-owned provider pattern documented in `docs/examples/`.
           </Text>
           <Text style={styles.meta}>
-            The RunAnywhere entry below is intentionally unavailable until this
-            example is given real local STT/TTS model paths.
+            The RunAnywhere entry below uses the official Whisper/Piper model
+            definitions in `RUNANYWHERE_CONFIG` and downloads them on demand
+            during Initialize.
           </Text>
           {referenceProviderCatalog.map((entry) => (
             <View key={entry.id} style={styles.eventRow}>
@@ -813,8 +824,8 @@ export default function App() {
           <Text style={styles.meta}>
             The demo STT/TTS adapters above are application-level reference
             provider examples. The package now also supports an opt-in built-in
-            RunAnywhere STT/TTS path, but this example keeps that path disabled
-            until real model assets are configured.
+            RunAnywhere STT/TTS path, and this example can prepare those models
+            from the configured official download URLs during Initialize.
           </Text>
         </View>
       </ScrollView>

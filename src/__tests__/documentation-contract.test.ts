@@ -404,7 +404,7 @@ describe('documentation and example contract', () => {
       'The example app previews that provider pattern with simulated host implementations.'
     );
     expect(troubleshooting).toContain(
-      'disabled built-in RunAnywhere option until real model paths are configured'
+      'built-in RunAnywhere option that can download the configured Whisper/Piper models during Initialize'
     );
   });
 
