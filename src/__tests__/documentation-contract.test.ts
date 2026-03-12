@@ -60,6 +60,12 @@ describe('documentation and example contract', () => {
     );
     expect(readme).toContain('## Built-In RunAnywhere STT/TTS Provider');
     expect(readme).toContain('builtin_provider_init_failed');
+    expect(readme).toContain(
+      '`react-native-audio-recorder-player` currently works for the built-in STT path, but the package is deprecated upstream'
+    );
+    expect(readme).toContain(
+      '`react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive`'
+    );
     expect(readme).toContain('## Built-In Model Configuration');
     expect(readme).toContain('the supported public override points remain');
     expect(readme).toContain('engineConfig.assetKeys.modelAssetKey');
@@ -212,9 +218,17 @@ describe('documentation and example contract', () => {
     expect(bareSetup).toContain('What Is Automatic vs Manual');
     expect(bareSetup).toContain(`React Native \`${reactNativeSupport}\``);
     expect(bareSetup).toContain('scripts/release-support-matrix.ts');
+    expect(bareSetup).toContain('react-native-fs');
+    expect(bareSetup).toContain(
+      '`react-native-audio-recorder-player` is also deprecated upstream'
+    );
     expect(expoSetup).toContain('What Is Automatic vs Manual');
     expect(expoSetup).toContain('Expo Go is NOT supported.');
     expect(expoSetup).toContain('scripts/release-support-matrix.ts');
+    expect(expoSetup).toContain('react-native-device-info');
+    expect(expoSetup).toContain(
+      'the current built-in STT path still depends on the deprecated upstream'
+    );
     expect(expoSetup).toContain(
       `Expo SDK \`${expoSupport.replace('SDK ', '')}\``
     );

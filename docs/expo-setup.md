@@ -80,6 +80,10 @@ Manual in your app:
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
 - evaluate the extra dependency stack carefully before relying on built-in RunAnywhere STT/TTS in Expo-generated native apps
+- remember that `@runanywhere/core` also lists optional peers such as
+  `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and
+  `react-native-zip-archive`; those matter more for broader RunAnywhere SDK
+  flows than for the narrow local-model STT/TTS bridge used here
 
 ## Built-In Sherpa Asset Model
 
@@ -95,6 +99,9 @@ Manual in your app:
   native asset model used by bare React Native
 - built-in RunAnywhere STT/TTS adds optional extra dependencies and local model
   management beyond the default bundled Sherpa wake-word path
+- the current built-in STT path still depends on the deprecated upstream
+  `react-native-audio-recorder-player` package; treat that recorder dependency
+  as an implementation detail that may change in a future package release
 
 ## Public API Contract
 

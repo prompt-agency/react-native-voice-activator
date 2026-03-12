@@ -52,13 +52,13 @@ Use the example in this order:
 2. choose a bundled keyword preset and re-run Initialize when you want to apply a different `keywordAssetKey`
 3. observe the package runtime diagnostics, including `wakeWordDetected` and any provider lifecycle events produced by the configured app-owned providers
 4. use the STT/TTS preview buttons to inspect separate simulated host-provider bridges that follow the same application-owned provider pattern documented in `../docs/examples/`
-5. if you want to evaluate the built-in RunAnywhere path, supply real model paths in `example/src/reference-provider-adapters.ts` and re-run Initialize with the built-in option enabled
+5. if you want to evaluate the built-in RunAnywhere path, edit `RUNANYWHERE_CONFIG` in `example/src/reference-provider-adapters.ts` and re-run Initialize with the built-in option enabled
 
 The wake step is real package behavior. The STT/TTS preview path is a simulated
 host implementation that demonstrates how a consumer app can compose
 transcription and speech on top of the public runtime contract. The built-in
 RunAnywhere option is intentionally disabled in the example until real local
-model assets are configured.
+STT and/or TTS config is supplied.
 
 The bundled example presets currently cover `HELLO WORLD`, `HI GOOGLE`,
 `HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW

@@ -9,6 +9,7 @@ const mockAudioRecorderPlayer = jest.fn(() => mockRecorderInstance);
 jest.mock('@runanywhere/core', () => ({
   RunAnywhere: {
     loadSTTModel: jest.fn(async () => true),
+    unloadSTTModel: jest.fn(async () => true),
     transcribeFile: jest.fn(async () => ({
       text: 'hello world',
       confidence: 0.91,
@@ -50,7 +51,10 @@ jest.mock('react-native-audio-recorder-player', () => ({
 
 import { RunAnywhere } from '@runanywhere/core';
 import { ONNX } from '@runanywhere/onnx';
-import { RunAnywhereSTTAdapter } from '../providers/runanywhere/RunAnywhereSTTAdapter';
+import {
+  RunAnywhereSTTAdapter,
+  RunAnywhereSTTCancelledError,
+} from '../providers/runanywhere/RunAnywhereSTTAdapter';
 
 describe('RunAnywhereSTTAdapter', () => {
   beforeEach(() => {
@@ -131,8 +135,8 @@ describe('RunAnywhereSTTAdapter', () => {
     await Promise.resolve();
     await adapter.cancel();
 
-    await expect(transcriptionPromise).rejects.toThrow(
-      'Transcription was cancelled.'
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      RunAnywhereSTTCancelledError
     );
 
     expect(mockRecorderInstance.stopRecorder).toHaveBeenCalledTimes(1);
@@ -165,8 +169,8 @@ describe('RunAnywhereSTTAdapter', () => {
       resolveStartRecorder();
     }
 
-    await expect(transcriptionPromise).rejects.toThrow(
-      'Transcription was cancelled.'
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      RunAnywhereSTTCancelledError
     );
 
     expect(mockRecorderInstance.stopRecorder).toHaveBeenCalledTimes(1);
@@ -181,5 +185,49 @@ describe('RunAnywhereSTTAdapter', () => {
     await expect(adapter.transcribe()).rejects.toThrow(
       'RunAnywhereSTTAdapter: call initialize() first'
     );
+  });
+
+  it('unloads the model on dispose and can be initialized again for a later session', async () => {
+    const adapter = new RunAnywhereSTTAdapter({
+      modelPath: '/models/whisper.onnx',
+      maxRecordingMs: 1000,
+    });
+
+    await adapter.initialize();
+    await adapter.dispose();
+
+    expect(RunAnywhere.unloadSTTModel).toHaveBeenCalledTimes(1);
+
+    await adapter.initialize();
+
+    expect(ONNX.register).toHaveBeenCalledTimes(2);
+    expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(2);
+    expect(RunAnywhere.loadSTTModel).toHaveBeenNthCalledWith(
+      2,
+      '/models/whisper.onnx',
+      'whisper'
+    );
+  });
+
+  it('cancels any active transcription while disposing and still unloads the model', async () => {
+    const adapter = new RunAnywhereSTTAdapter({
+      modelPath: '/models/whisper.onnx',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const transcriptionPromise = adapter.transcribe();
+    await Promise.resolve();
+    const disposePromise = adapter.dispose();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      RunAnywhereSTTCancelledError
+    );
+    await expect(disposePromise).resolves.toBeUndefined();
+
+    expect(mockRecorderInstance.stopRecorder).toHaveBeenCalledTimes(1);
+    expect(RunAnywhere.unloadSTTModel).toHaveBeenCalledTimes(1);
+    expect(RunAnywhere.transcribeFile).not.toHaveBeenCalled();
   });
 });

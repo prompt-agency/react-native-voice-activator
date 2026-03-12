@@ -27,7 +27,7 @@ import {
   createDemoReferenceSttBridge,
   createDemoReferenceTtsBridge,
   createReferenceProviders,
-  isRunAnywhereConfigured,
+  getRunAnywhereAvailability,
   referenceProviderCatalog,
 } from './reference-provider-adapters';
 
@@ -174,7 +174,9 @@ export default function App() {
     null;
   const keywordSelectionRequiresInitialize =
     activeKeywordPresetId !== selectedKeywordPreset.id;
-  const runAnywhereAvailable = isRunAnywhereConfigured();
+  const runAnywhereAvailability = getRunAnywhereAvailability();
+  const runAnywhereAvailable =
+    runAnywhereAvailability.stt || runAnywhereAvailability.tts;
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -418,7 +420,7 @@ export default function App() {
 
       if (providerMode === 'runanywhere' && !runAnywhereOptions) {
         setExtensionStatus(
-          'RunAnywhere built-in mode is selected, but real STT/TTS model paths are not configured in example/src/reference-provider-adapters.ts.'
+          'RunAnywhere built-in mode is selected, but no STT or TTS config is enabled in example/src/reference-provider-adapters.ts.'
         );
         throw new Error('RunAnywhere built-in mode is not configured.');
       }
@@ -426,7 +428,7 @@ export default function App() {
       setExtensionStatus(
         providerMode === 'demo'
           ? `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
-          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere STT/TTS path for this runtime session.`
+          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere path for this runtime session (${runAnywhereAvailability.stt ? 'STT enabled' : 'STT unavailable'}, ${runAnywhereAvailability.tts ? 'TTS enabled' : 'TTS unavailable'}).`
       );
       setLastDetection(null);
       lastDetectionRef.current = null;
@@ -588,7 +590,8 @@ export default function App() {
           </Text>
           <Text style={styles.meta}>
             4. This example also exposes an opt-in built-in RunAnywhere path,
-            but keeps it disabled until real local model paths are configured.
+            and enables whichever of STT or TTS has a real local config set in
+            `RUNANYWHERE_CONFIG`.
           </Text>
           <Text style={styles.meta}>
             This screen shows the package wake runtime plus separate simulated
@@ -657,8 +660,8 @@ export default function App() {
           <Text style={styles.meta}>
             RunAnywhere availability:{' '}
             {runAnywhereAvailable
-              ? 'configured with real local model paths'
-              : 'disabled until model paths are set in example/src/reference-provider-adapters.ts'}
+              ? `STT ${runAnywhereAvailability.stt ? 'configured' : 'missing'} / TTS ${runAnywhereAvailability.tts ? 'configured' : 'missing'}`
+              : 'disabled until config is set in example/src/reference-provider-adapters.ts'}
           </Text>
           <View style={styles.buttonRow}>
             <Button

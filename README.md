@@ -152,6 +152,9 @@ Notes:
 - explicit `sttProvider` / `ttsProvider` always override `builtInSTT` / `builtInTTS`
 - `TTSOptions.language` is not supported by the RunAnywhere adapters
 - adapter initialization failures surface `builtin_provider_init_failed`
+- `react-native-audio-recorder-player` currently works for the built-in STT path, but the package is deprecated upstream; treat it as a compatibility dependency and expect this package to migrate away from it in a future release rather than building new app-level abstractions around that recorder API
+- `@runanywhere/core` also declares optional peers such as `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive`; they are mainly relevant for broader RunAnywhere model download, storage, or device-info flows, not the narrow local-model STT/TTS path implemented here
+- this repo typechecks against local RunAnywhere shim types because the vendor packages publish React Native source files as their `types` entry; CI counterbalances that with `yarn verify:runanywhere-contract`, which checks the installed vendor source surface still matches the built-in adapter contract this package expects
 - setup docs contain additional native/prebuild requirements for bare React Native and Expo consumers
 
 ## Built-In Model Configuration

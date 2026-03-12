@@ -1,3 +1,4 @@
+import type { AudioSet } from 'react-native-audio-recorder-player';
 import type {
   RunAnywhereSTTConfig,
   SpeechToTextProvider,
@@ -11,6 +12,15 @@ type ActiveTranscription = {
   cancelled: boolean;
   resolveWait: () => void;
 };
+
+export class RunAnywhereSTTCancelledError extends Error {
+  readonly code = 'stt_cancelled';
+
+  constructor() {
+    super('Transcription was cancelled.');
+    this.name = 'RunAnywhereSTTCancelledError';
+  }
+}
 
 export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
   readonly name = 'runanywhere-onnx';
@@ -51,9 +61,7 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     this.audioRecorderModule = audioRecorderModule;
   }
 
-  private getAudioSet(): InstanceType<AudioRecorderPlayerModule['default']> extends never
-    ? never
-    : AudioRecorderPlayerModule['AudioSet'] {
+  private getAudioSet(): AudioSet {
     if (!this.audioRecorderModule) {
       throw new Error('RunAnywhereSTTAdapter: call initialize() first');
     }
@@ -104,7 +112,7 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
 
     if (activeTranscription.cancelled) {
       await recorder.stopRecorder();
-      throw new Error('Transcription was cancelled.');
+      throw new RunAnywhereSTTCancelledError();
     }
 
     const waitForRecording = new Promise<void>((resolve) => {
@@ -122,7 +130,7 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
       const audioPath = await recorder.stopRecorder();
 
       if (activeTranscription.cancelled) {
-        throw new Error('Transcription was cancelled.');
+        throw new RunAnywhereSTTCancelledError();
       }
 
       const result = await this.runAnywhere.transcribeFile(audioPath);

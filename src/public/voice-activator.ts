@@ -230,13 +230,21 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
             )
           );
         } else {
+          const errorCode =
+            isCancelledTranscriptionError(cause)
+              ? 'stt_cancelled'
+              : 'stt_transcribe_failed';
+          const fallbackMessage =
+            isCancelledTranscriptionError(cause)
+              ? 'Transcription was cancelled.'
+              : 'Transcription failed.';
           emitRuntimeEvent(
             'transcriptionError',
             createProviderErrorFromCause(
               sttProvider.name,
-              'stt_transcribe_failed',
+              errorCode,
               cause,
-              'Transcription failed.'
+              fallbackMessage
             )
           );
         }
@@ -488,6 +496,20 @@ function isRunAnywhereDisposableProvider(
     value.isBuiltInRunAnywhereProvider === true &&
     'dispose' in value &&
     typeof value.dispose === 'function'
+  );
+}
+
+function isCancelledTranscriptionError(value: unknown): value is {
+  code: 'stt_cancelled';
+  message: string;
+} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'code' in value &&
+    value.code === 'stt_cancelled' &&
+    'message' in value &&
+    typeof value.message === 'string'
   );
 }
 

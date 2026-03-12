@@ -64,33 +64,55 @@ export const referenceProviderCatalog: ReferenceProviderEntry[] = [
   },
 ];
 
-export const RUNANYWHERE_MODEL_PATHS: {
-  stt: string;
-  tts: string;
+export const RUNANYWHERE_CONFIG: {
+  stt: RunAnywhereSTTConfig | null;
+  tts: RunAnywhereTTSConfig | null;
 } = {
-  stt: '',
-  tts: '',
+  stt: {
+    modelPath: '',
+    modelType: 'whisper',
+    maxRecordingMs: 10_000,
+  },
+  tts: {
+    modelPath: '',
+    modelType: 'piper',
+    voice: undefined,
+    rate: undefined,
+    pitch: undefined,
+  },
 };
 
-export function isRunAnywhereConfigured(): boolean {
-  return RUNANYWHERE_MODEL_PATHS.stt.length > 0 && RUNANYWHERE_MODEL_PATHS.tts.length > 0;
+export function getRunAnywhereAvailability(): {
+  stt: boolean;
+  tts: boolean;
+} {
+  return {
+    stt: Boolean(RUNANYWHERE_CONFIG.stt?.modelPath),
+    tts: Boolean(RUNANYWHERE_CONFIG.tts?.modelPath),
+  };
 }
 
 export function createRunAnywhereBuiltInOptions(): {
-  builtInSTT: RunAnywhereSTTConfig;
-  builtInTTS: RunAnywhereTTSConfig;
+  builtInSTT?: RunAnywhereSTTConfig;
+  builtInTTS?: RunAnywhereTTSConfig;
 } | null {
-  if (!isRunAnywhereConfigured()) {
+  const availability = getRunAnywhereAvailability();
+
+  if (!availability.stt && !availability.tts) {
     return null;
   }
 
   return {
-    builtInSTT: {
-      modelPath: RUNANYWHERE_MODEL_PATHS.stt,
-    },
-    builtInTTS: {
-      modelPath: RUNANYWHERE_MODEL_PATHS.tts,
-    },
+    ...(availability.stt
+      ? {
+          builtInSTT: RUNANYWHERE_CONFIG.stt ?? undefined,
+        }
+      : {}),
+    ...(availability.tts
+      ? {
+          builtInTTS: RUNANYWHERE_CONFIG.tts ?? undefined,
+        }
+      : {}),
   };
 }
 

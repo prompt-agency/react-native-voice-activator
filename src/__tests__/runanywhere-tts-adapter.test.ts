@@ -1,6 +1,7 @@
 jest.mock('@runanywhere/core', () => ({
   RunAnywhere: {
     loadTTSModel: jest.fn(async () => true),
+    unloadTTSModel: jest.fn(async () => true),
     speak: jest.fn(async () => ({
       duration: 1,
       voice: 'default',
@@ -74,5 +75,31 @@ describe('RunAnywhereTTSAdapter', () => {
     await expect(adapter.speak('hello')).rejects.toThrow(
       'RunAnywhereTTSAdapter: call initialize() first'
     );
+  });
+
+  it('stops and unloads the model on dispose, then supports a fresh later session', async () => {
+    const adapter = new RunAnywhereTTSAdapter({
+      modelPath: '/models/piper.onnx',
+      voice: 'voice-1',
+    });
+
+    await adapter.initialize();
+    await adapter.speak('first session');
+    await adapter.dispose();
+
+    expect(RunAnywhere.stopSpeaking).toHaveBeenCalledTimes(1);
+    expect(RunAnywhere.unloadTTSModel).toHaveBeenCalledTimes(1);
+
+    await adapter.initialize();
+    await adapter.speak('second session');
+
+    expect(ONNX.register).toHaveBeenCalledTimes(2);
+    expect(RunAnywhere.loadTTSModel).toHaveBeenCalledTimes(2);
+    expect(RunAnywhere.speak).toHaveBeenNthCalledWith(2, 'second session', {
+      voice: 'voice-1',
+      rate: undefined,
+      pitch: undefined,
+      language: undefined,
+    });
   });
 });

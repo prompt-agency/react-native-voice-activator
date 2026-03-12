@@ -55,6 +55,17 @@ If you opt into built-in RunAnywhere STT/TTS, install the additional optional de
 npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player
 ```
 
+RunAnywhere also declares optional peers such as `react-native-fs`,
+`react-native-blob-util`, `react-native-device-info`, and
+`react-native-zip-archive`. Those are mainly for broader SDK flows such as
+model download/storage and device metadata, not the narrow local-model STT/TTS
+integration described in this package.
+
+`react-native-audio-recorder-player` is also deprecated upstream. It remains the
+current recorder dependency for the built-in STT adapter, but you should treat
+it as package-managed compatibility glue rather than an app-level API contract;
+future versions of this package may replace it.
+
 ## What Is Automatic vs Manual
 
 Automatic through the package:

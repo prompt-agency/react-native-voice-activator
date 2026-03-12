@@ -1136,6 +1136,100 @@ describe('public runtime state and event contract', () => {
     expect(speechErrors).toEqual([]);
   });
 
+  it('distinguishes cancellation from transcription failure in provider errors', async () => {
+    let wakeWordDetectedHandler:
+      | ((payload: WakeWordDetectedEvent) => void)
+      | null = null;
+    const runtimeStatus: WakeWordStatus = {
+      state: 'idle',
+      isAvailable: true,
+      isListening: false,
+      canStart: true,
+      lastError: null,
+    };
+    const runtimeBridge = {
+      initialize: jest.fn(async () => {
+        runtimeStatus.state = 'ready';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      startDetection: jest.fn(async () => {
+        runtimeStatus.state = 'running';
+        runtimeStatus.isListening = true;
+        runtimeStatus.canStart = false;
+      }),
+      stopDetection: jest.fn(async () => {
+        runtimeStatus.state = 'stopped';
+        runtimeStatus.isListening = false;
+        runtimeStatus.canStart = true;
+      }),
+      getStatus: jest.fn(() => ({ ...runtimeStatus })),
+      dispose: jest.fn(async () => undefined),
+    };
+    const sttProvider = {
+      name: 'runanywhere-onnx',
+      transcribe: jest.fn(async () => {
+        throw {
+          code: 'stt_cancelled',
+          message: 'Transcription was cancelled.',
+        };
+      }),
+      cancel: jest.fn(async () => undefined),
+    };
+
+    jest.doMock('../internal/native-module', () => ({
+      nativeVoiceActivatorModule: runtimeBridge,
+      getVoiceActivatorRuntimeBridge: jest.fn(() => runtimeBridge),
+      setWakeWordDetectedHandler: jest.fn(
+        (handler: ((payload: WakeWordDetectedEvent) => void) | null) => {
+          wakeWordDetectedHandler = handler;
+        }
+      ),
+      setRuntimeStatusHandler: jest.fn(),
+      setRuntimeErrorHandler: jest.fn(),
+      setRuntimeInterruptionHandler: jest.fn(),
+      setRuntimeAudioRouteChangedHandler: jest.fn(),
+    }));
+
+    const VoiceActivator = await import('../index');
+    const transcriptionErrors: TranscriptionErrorEvent[] = [];
+    const subscription = VoiceActivator.addWakeWordListener(
+      'transcriptionError',
+      (payload) => {
+        transcriptionErrors.push(payload);
+      }
+    );
+
+    await VoiceActivator.initialize({
+      sttProvider,
+      autoSpeak: false,
+    });
+    await VoiceActivator.startDetection();
+
+    if (!wakeWordDetectedHandler) {
+      throw new Error('Expected wake word detected handler to be registered');
+    }
+    const registeredWakeWordDetectedHandler: (
+      payload: WakeWordDetectedEvent
+    ) => void = wakeWordDetectedHandler;
+
+    registeredWakeWordDetectedHandler({
+      detectedPhrase: 'hey cancel',
+      detectedAt: '2026-03-12T10:00:05.000Z',
+    });
+
+    await flushRuntimeUpdate();
+    subscription.remove();
+
+    expect(transcriptionErrors).toEqual([
+      expect.objectContaining({
+        provider: 'runanywhere-onnx',
+        code: 'stt_cancelled',
+        message: 'Transcription was cancelled.',
+      }),
+    ]);
+  });
+
   it('suppresses queued provider orchestration after stop and dispose', async () => {
     let wakeWordDetectedHandler:
       | ((payload: WakeWordDetectedEvent) => void)
