@@ -6,7 +6,7 @@ Current implementation status:
 
 - the public lifecycle API is implemented
 - typed runtime state and detection events are implemented
-- real engine-backed local wake word detection is implemented through the built-in Porcupine adapter
+- real engine-backed local wake word detection is implemented through the built-in native-managed engine path
 - a supported foreground runtime flow exists
 - iOS background continuation is supported only when the app declares the audio background mode and remains alive
 - Android background continuation is supported only when detection starts from a visible app context with microphone permission and the package can hold an active foreground-service notification

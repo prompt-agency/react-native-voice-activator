@@ -40,7 +40,6 @@ describe('public runtime state and event contract', () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
   });
 
@@ -544,7 +543,6 @@ describe('public runtime state and event contract', () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtimeStatus: WakeWordStatus = {
@@ -591,13 +589,7 @@ describe('public runtime state and event contract', () => {
 
     const VoiceActivator = await import('../index');
 
-    await VoiceActivator.initialize({
-      engineConfig: {
-        metadata: {
-          accessKey: 'test-access-key',
-        },
-      },
-    });
+    await VoiceActivator.initialize();
     await VoiceActivator.startDetection();
 
     expect(engineRuntime.start).toHaveBeenCalledTimes(1);
@@ -639,7 +631,6 @@ describe('public runtime state and event contract', () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtimeStatus: WakeWordStatus = {
@@ -686,13 +677,7 @@ describe('public runtime state and event contract', () => {
 
     const VoiceActivator = await import('../index');
 
-    await VoiceActivator.initialize({
-      engineConfig: {
-        metadata: {
-          accessKey: 'test-access-key',
-        },
-      },
-    });
+    await VoiceActivator.initialize();
     await VoiceActivator.startDetection();
 
     runtimeStatus.state = 'interrupted';
@@ -735,7 +720,6 @@ describe('public runtime state and event contract', () => {
 
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtimeStatus: WakeWordStatus = {
@@ -782,13 +766,7 @@ describe('public runtime state and event contract', () => {
 
     const VoiceActivator = await import('../index');
 
-    await VoiceActivator.initialize({
-      engineConfig: {
-        metadata: {
-          accessKey: 'test-access-key',
-        },
-      },
-    });
+    await VoiceActivator.initialize();
     await VoiceActivator.startDetection();
 
     runtimeStatus.state = 'interrupted';
@@ -1230,7 +1208,6 @@ describe('public runtime state and event contract', () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtimeStatus: WakeWordStatus = {
@@ -1317,7 +1294,6 @@ describe('public runtime state and event contract', () => {
 
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtimeStatus: WakeWordStatus = {
@@ -1703,7 +1679,6 @@ describe('public runtime state and event contract', () => {
 
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
 
     const runtime = jest
@@ -1723,13 +1698,7 @@ describe('public runtime state and event contract', () => {
 
     const VoiceActivator = await import('../index');
 
-    await VoiceActivator.initialize({
-      engineConfig: {
-        metadata: {
-          accessKey: 'test-access-key',
-        },
-      },
-    });
+    await VoiceActivator.initialize();
     await VoiceActivator.startDetection();
 
     engineRuntime.reportError?.({

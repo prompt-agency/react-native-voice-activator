@@ -182,8 +182,5 @@
     "languages": "kotlin-objc",
     "version": "0.54.2"
   },
-  "dependencies": {
-    "@picovoice/porcupine-react-native": "^4.0.0",
-    "@picovoice/react-native-voice-processor": "^1.2.3"
-  }
+  "dependencies": {}
 }

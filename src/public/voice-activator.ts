@@ -13,11 +13,7 @@ import {
 } from '../internal/runtime-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
-import {
-  createNativeManagedEngineRuntime,
-  createPorcupineEngineRuntime,
-} from '../engines';
-import { nativeVoiceActivatorModule } from '../internal/native-module';
+import { createNativeManagedEngineRuntime } from '../engines';
 import type {
   VoiceActivatorApi,
   WakeWordError,
@@ -278,11 +274,7 @@ function syncKnownRuntimeFailure(
 }
 
 function resolveEngineRuntime(): VoiceActivatorEngineRuntime {
-  if (nativeVoiceActivatorModule) {
-    return createNativeManagedEngineRuntime();
-  }
-
-  return createPorcupineEngineRuntime();
+  return createNativeManagedEngineRuntime();
 }
 
 async function disposeEngineRuntime() {

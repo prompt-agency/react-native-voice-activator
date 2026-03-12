@@ -22,7 +22,7 @@ describe('documentation and example contract', () => {
     expect(readme).toContain('stopDetection');
     expect(readme).toContain('dispose');
     expect(readme).toContain(
-      'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter'
+      'real engine-backed local wake word detection is implemented through the built-in native-managed engine path'
     );
     expect(readme).toContain('Reliability evaluation artifacts');
     expect(readme).toContain('tests/fixtures/reliability/latest-results.json');

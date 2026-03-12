@@ -93,7 +93,7 @@ What to do:
 
 Typical causes:
 
-- built-in Porcupine adapter initialization failure
+- built-in native-managed engine initialization failure
 - engine start/stop failure
 - engine restart failure after interruption recovery
 

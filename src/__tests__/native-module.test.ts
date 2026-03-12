@@ -16,7 +16,6 @@ describe('native module bridge selection', () => {
     const engineRuntime = createMockEngineRuntime();
     jest.doMock('../engines', () => ({
       createNativeManagedEngineRuntime: jest.fn(() => engineRuntime),
-      createPorcupineEngineRuntime: jest.fn(() => engineRuntime),
     }));
   });
 

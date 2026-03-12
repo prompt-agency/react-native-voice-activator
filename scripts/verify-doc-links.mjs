@@ -37,7 +37,7 @@ if (!existsSync(readmePath)) {
     'startDetection',
     'stopDetection',
     'dispose',
-    'real engine-backed local wake word detection is implemented through the built-in Porcupine adapter',
+    'real engine-backed local wake word detection is implemented through the built-in native-managed engine path',
     'Reliability evaluation artifacts',
     'tests/fixtures/reliability/latest-results.json',
     'The example app also exposes evaluator-facing runtime diagnostics',

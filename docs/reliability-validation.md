@@ -41,7 +41,7 @@ Reference-device classes currently in use:
 
 ## Quiet / Noisy Validation
 
-Use the current Porcupine-backed runtime through the public lifecycle API and the existing example app or equivalent host app path.
+Use the current built-in native-managed runtime through the public lifecycle API and the existing example app or equivalent host app path.
 
 Fixture definitions:
 

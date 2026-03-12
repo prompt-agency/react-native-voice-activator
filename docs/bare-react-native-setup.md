@@ -55,7 +55,7 @@ Automatic through the package:
 
 - native module registration
 - iOS and Android runtime/state/event contract
-- built-in Porcupine adapter wiring
+- built-in native-managed engine wiring
 - Android native module and foreground-service runtime implementation
 
 Manual in your app:

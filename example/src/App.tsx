@@ -23,9 +23,6 @@ import {
   type WakeWordStatus,
 } from 'react-native-voice-activator';
 
-const configuredAccessKey =
-  process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY?.trim() ?? '';
-
 type RuntimeEventEntry = {
   id: string;
   label: string;
@@ -77,23 +74,6 @@ export default function App() {
   );
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
-    if (!configuredAccessKey) {
-      const configurationError: WakeWordError = {
-        category: 'configuration',
-        code: 'missing_access_key',
-        message:
-          'Set EXPO_PUBLIC_PICOVOICE_ACCESS_KEY before initializing the example app.',
-        recoverable: true,
-      };
-
-      setLastError(configurationError);
-      pushRuntimeEvent(
-        'prerequisite',
-        'Missing EXPO_PUBLIC_PICOVOICE_ACCESS_KEY for the built-in Porcupine engine.'
-      );
-      return false;
-    }
-
     if (Platform.OS !== 'android') {
       return true;
     }
@@ -278,13 +258,7 @@ export default function App() {
         throw new Error('Example prerequisites are not satisfied.');
       }
 
-      return initialize({
-        engineConfig: {
-          metadata: {
-            accessKey: configuredAccessKey,
-          },
-        },
-      });
+      return initialize();
     }).catch(() => undefined);
   }
 
@@ -371,21 +345,10 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.label}>Actions</Text>
           <Text style={styles.meta}>
-            Picovoice access key:{' '}
-            {configuredAccessKey ? 'configured' : 'missing'}
+            Default engine path: package-owned native-managed runtime
           </Text>
-          {!configuredAccessKey ? (
-            <Text style={styles.meta}>
-              Set `EXPO_PUBLIC_PICOVOICE_ACCESS_KEY` and rebuild/restart the
-              example before initializing detection.
-            </Text>
-          ) : null}
           <View style={styles.buttonRow}>
-            <Button
-              title="Initialize"
-              onPress={handleInitialize}
-              disabled={!configuredAccessKey}
-            />
+            <Button title="Initialize" onPress={handleInitialize} />
           </View>
           <View style={styles.buttonRow}>
             <Button
