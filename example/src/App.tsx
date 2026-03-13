@@ -21,8 +21,7 @@ import {
   startDetection,
   stopDetection,
   wakeWordStates,
-  type RunAnywhereSTTConfig,
-  type RunAnywhereTTSConfig,
+  type BuiltInProviderProgress,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordErrorCategory,
@@ -33,7 +32,6 @@ import {
   createDemoReferenceTtsBridge,
   createReferenceProviders,
   getRunAnywhereAvailability,
-  prepareRunAnywhereBuiltInOptions,
   referenceProviderCatalog,
 } from './reference-provider-adapters';
 
@@ -55,8 +53,6 @@ type ProviderMode = 'demo' | 'runanywhere';
 type ManualRunAnywhereAdapters = {
   sttAdapter: RunAnywhereSTTAdapter | null;
   ttsAdapter: RunAnywhereTTSAdapter | null;
-  preparedSTTConfig?: RunAnywhereSTTConfig;
-  preparedTTSConfig?: RunAnywhereTTSConfig;
 };
 
 type ActionTone = 'primary' | 'secondary' | 'danger' | 'quiet';
@@ -85,9 +81,7 @@ function speakWithExpoSpeech(text: string): Promise<void> {
           event instanceof Error && event.message
             ? event.message
             : 'Expo Speech failed to play audio.';
-        reject(
-          new Error(`Expo Speech failed: ${message}`)
-        );
+        reject(new Error(`Expo Speech failed: ${message}`));
       },
     });
   });
@@ -310,12 +304,10 @@ export default function App() {
   );
   const [manualRunAnywhereTranscript, setManualRunAnywhereTranscript] =
     useState<string | null>(null);
-  const [manualRunAnywhereStatus, setManualRunAnywhereStatus] = useState<string>(
-    'Manual RunAnywhere STT/TTS controls are idle.'
-  );
-  const [selectedKeywordPresetId, setSelectedKeywordPresetId] = useState<string>(
-    defaultKeywordPreset.id
-  );
+  const [manualRunAnywhereStatus, setManualRunAnywhereStatus] =
+    useState<string>('Manual RunAnywhere STT/TTS controls are idle.');
+  const [selectedKeywordPresetId, setSelectedKeywordPresetId] =
+    useState<string>(defaultKeywordPreset.id);
   const [activeKeywordPresetId, setActiveKeywordPresetId] = useState<
     string | null
   >(null);
@@ -327,11 +319,13 @@ export default function App() {
   });
   const eventSequenceRef = useRef(0);
   const selectedKeywordPreset =
-    bundledKeywordPresets.find((preset) => preset.id === selectedKeywordPresetId) ??
-    defaultKeywordPreset;
+    bundledKeywordPresets.find(
+      (preset) => preset.id === selectedKeywordPresetId
+    ) ?? defaultKeywordPreset;
   const activeKeywordPreset =
-    bundledKeywordPresets.find((preset) => preset.id === activeKeywordPresetId) ??
-    null;
+    bundledKeywordPresets.find(
+      (preset) => preset.id === activeKeywordPresetId
+    ) ?? null;
   const keywordSelectionRequiresInitialize =
     activeKeywordPresetId !== selectedKeywordPreset.id;
   const runAnywhereAvailability = getRunAnywhereAvailability();
@@ -534,61 +528,31 @@ export default function App() {
   async function ensureManualRunAnywhereAdapters(
     requestedMode: 'stt' | 'tts' | 'both'
   ): Promise<ManualRunAnywhereAdapters> {
-    const preparedOptions = await prepareRunAnywhereBuiltInOptions(
-      (update) => {
-        const nextStatus =
-          update.progress == null
-            ? update.message
-            : `${update.message} (${update.progress}%)`;
-        setExtensionStatus(nextStatus);
-        setManualRunAnywhereStatus(nextStatus);
-      },
-      {
-        includeSTT: requestedMode !== 'tts',
-        includeTTS: requestedMode !== 'stt',
-      }
-    );
-
-    if (!preparedOptions) {
-      throw new Error(
-        'RunAnywhere built-in mode requires at least one model definition in example/src/reference-provider-adapters.ts.'
-      );
-    }
-
     const currentAdapters = manualRunAnywhereAdaptersRef.current;
-    const requestedSTTConfig = preparedOptions.builtInSTT;
-    const requestedTTSConfig = preparedOptions.builtInTTS;
-    const shouldEnsureSTT = requestedMode !== 'tts';
-    const shouldEnsureTTS = requestedMode !== 'stt';
-    const sttConfigChanged =
-      JSON.stringify(currentAdapters.preparedSTTConfig ?? null) !==
-      JSON.stringify(requestedSTTConfig ?? null);
-    const ttsConfigChanged =
-      JSON.stringify(currentAdapters.preparedTTSConfig ?? null) !==
-      JSON.stringify(requestedTTSConfig ?? null);
 
-    if (shouldEnsureSTT && sttConfigChanged && currentAdapters.sttAdapter) {
-      await currentAdapters.sttAdapter.dispose();
-      currentAdapters.sttAdapter = null;
-    }
+    const onProgress = (update: BuiltInProviderProgress) => {
+      const nextStatus =
+        update.progress == null
+          ? update.message
+          : `${update.message} (${update.progress}%)`;
+      setExtensionStatus(nextStatus);
+      setManualRunAnywhereStatus(nextStatus);
+    };
 
-    if (shouldEnsureTTS && ttsConfigChanged && currentAdapters.ttsAdapter) {
-      await currentAdapters.ttsAdapter.dispose();
-      currentAdapters.ttsAdapter = null;
-    }
-
-    if (shouldEnsureSTT && requestedSTTConfig && !currentAdapters.sttAdapter) {
-      const sttAdapter = new RunAnywhereSTTAdapter(requestedSTTConfig);
-      await sttAdapter.initialize();
+    if (requestedMode !== 'tts' && !currentAdapters.sttAdapter) {
+      const sttAdapter = new RunAnywhereSTTAdapter({
+        modelId: 'whisper-tiny-en',
+      });
+      await sttAdapter.initialize(onProgress);
       currentAdapters.sttAdapter = sttAdapter;
-      currentAdapters.preparedSTTConfig = requestedSTTConfig;
     }
 
-    if (shouldEnsureTTS && requestedTTSConfig && !currentAdapters.ttsAdapter) {
-      const ttsAdapter = new RunAnywhereTTSAdapter(requestedTTSConfig);
-      await ttsAdapter.initialize();
+    if (requestedMode !== 'stt' && !currentAdapters.ttsAdapter) {
+      const ttsAdapter = new RunAnywhereTTSAdapter({
+        modelId: 'piper-en-lessac',
+      });
+      await ttsAdapter.initialize(onProgress);
       currentAdapters.ttsAdapter = ttsAdapter;
-      currentAdapters.preparedTTSConfig = requestedTTSConfig;
     }
 
     return currentAdapters;
@@ -620,7 +584,8 @@ export default function App() {
       pushRuntimeEvent(actionName, `completed in state ${latestStatus.state}`);
     } catch (error) {
       const currentStatus = getStatus();
-      const resolvedError = currentStatus.lastError ?? createFallbackError(error);
+      const resolvedError =
+        currentStatus.lastError ?? createFallbackError(error);
 
       syncDiagnosticsFromStatus({
         ...currentStatus,
@@ -647,28 +612,10 @@ export default function App() {
           ttsBridge: ttsBridgeRef.current,
         }
       );
-      const runAnywhereOptions =
-        providerMode === 'runanywhere'
-          ? await prepareRunAnywhereBuiltInOptions((update) => {
-              setExtensionStatus(
-                update.progress == null
-                  ? update.message
-                  : `${update.message} (${update.progress}%)`
-              );
-            })
-          : null;
-
-      if (providerMode === 'runanywhere' && !runAnywhereOptions) {
-        setExtensionStatus(
-          'RunAnywhere built-in mode is selected, but no STT or TTS model definition is enabled in example/src/reference-provider-adapters.ts.'
-        );
-        throw new Error('RunAnywhere built-in mode is not configured.');
-      }
-
       setExtensionStatus(
         providerMode === 'demo'
           ? `Initialize applies the "${selectedKeywordPreset.label}" keyword preset through initialize({ engineConfig: { assetKeys: { keywordAssetKey } } }) and keeps provider wiring outside the package.`
-          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere path for this runtime session (${runAnywhereAvailability.stt ? 'STT configured for download' : 'STT unavailable'}, ${runAnywhereAvailability.tts ? 'TTS configured for download' : 'TTS unavailable'}).`
+          : `Initialize applies the "${selectedKeywordPreset.label}" keyword preset and opts into the built-in RunAnywhere path — the package will download Whisper STT and Piper TTS on first use.`
       );
       setLastDetection(null);
       lastDetectionRef.current = null;
@@ -697,7 +644,17 @@ export default function App() {
               sttProvider: referenceProviders.sttProvider,
               ttsProvider: referenceProviders.ttsProvider,
             }
-          : runAnywhereOptions),
+          : {
+              builtInSTT: { modelId: 'whisper-tiny-en' },
+              builtInTTS: { modelId: 'piper-en-lessac' },
+              onBuiltInProgress: (update: BuiltInProviderProgress) => {
+                setExtensionStatus(
+                  update.progress == null
+                    ? update.message
+                    : `${update.message} (${update.progress}%)`
+                );
+              },
+            }),
         autoSpeak: true,
       });
     }).catch(() => undefined);
@@ -845,8 +802,8 @@ export default function App() {
   const providerModeLabel =
     providerMode === 'demo' ? 'Demo providers' : 'RunAnywhere built-in';
   const runAnywhereStatusText = runAnywhereAvailable
-    ? `STT ${runAnywhereAvailability.stt ? 'ready' : 'not configured'} • TTS ${runAnywhereAvailability.tts ? 'ready' : 'not configured'}`
-    : 'Disabled until RUNANYWHERE_CONFIG enables at least one model.';
+    ? `STT ${runAnywhereAvailability.stt ? 'ready' : 'unavailable'} • TTS ${runAnywhereAvailability.tts ? 'ready' : 'unavailable'}`
+    : 'RunAnywhere built-in STT and TTS are always available.';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -906,8 +863,8 @@ export default function App() {
           <Text style={styles.sectionTitle}>Run controls</Text>
           <Text style={styles.meta}>
             Choose the runtime mode, initialize the current keyword preset, then
-            start or stop detection. The built-in RunAnywhere path prepares
-            Whisper and Piper from `RUNANYWHERE_CONFIG`.
+            start or stop detection. The built-in RunAnywhere path downloads
+            Whisper STT and Piper TTS automatically on first initialize.
           </Text>
           <View style={styles.actionsGrid}>
             <ActionButton
@@ -976,7 +933,9 @@ export default function App() {
                   setSelectedKeywordPresetId(preset.id);
                 }}
                 tone={
-                  selectedKeywordPresetId === preset.id ? 'primary' : 'secondary'
+                  selectedKeywordPresetId === preset.id
+                    ? 'primary'
+                    : 'secondary'
                 }
               />
             </View>
@@ -1005,10 +964,12 @@ export default function App() {
           <View style={styles.divider} />
           <Text style={styles.meta}>Extension status: {extensionStatus}</Text>
           <Text style={styles.meta}>
-            STT transcript: {sttTranscript ?? 'No runtime-driven transcript yet.'}
+            STT transcript:{' '}
+            {sttTranscript ?? 'No runtime-driven transcript yet.'}
           </Text>
           <Text style={styles.meta}>
-            TTS response: {ttsResponse ?? 'No runtime-driven TTS completion yet.'}
+            TTS response:{' '}
+            {ttsResponse ?? 'No runtime-driven TTS completion yet.'}
           </Text>
         </View>
 
@@ -1068,9 +1029,8 @@ export default function App() {
             application-owned provider pattern documented in `docs/examples/`.
           </Text>
           <Text style={styles.meta}>
-            The RunAnywhere entry below uses the official Whisper/Piper model
-            definitions in `RUNANYWHERE_CONFIG` and downloads them on demand
-            during Initialize.
+            The RunAnywhere entry below uses the package built-in Whisper STT
+            and Piper TTS models — downloaded automatically on first initialize.
           </Text>
           {referenceProviderCatalog.map((entry) => (
             <View key={entry.id} style={styles.listCard}>
@@ -1078,7 +1038,9 @@ export default function App() {
               <Text style={styles.meta}>
                 {entry.packageName} · {entry.summary}
               </Text>
-              <Text style={styles.helperText}>Reference docs: {entry.docsPath}</Text>
+              <Text style={styles.helperText}>
+                Reference docs: {entry.docsPath}
+              </Text>
             </View>
           ))}
           <View style={styles.actionsGrid}>
@@ -1130,7 +1092,8 @@ export default function App() {
           </View>
           <Text style={styles.meta}>Status: {manualRunAnywhereStatus}</Text>
           <Text style={styles.meta}>
-            Transcript: {manualRunAnywhereTranscript ?? 'No manual transcription yet.'}
+            Transcript:{' '}
+            {manualRunAnywhereTranscript ?? 'No manual transcription yet.'}
           </Text>
         </View>
 

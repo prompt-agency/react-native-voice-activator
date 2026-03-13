@@ -34,6 +34,7 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     null;
   private audioRecorderModule: AudioRecorderPlayerModule | null = null;
   private activeTranscription: ActiveTranscription | null = null;
+  private modelRegistered = false;
 
   constructor(private readonly config: RunAnywhereSTTConfig) {}
 
@@ -66,14 +67,17 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     const modelEntry = RUNANYWHERE_STT_MODELS[this.config.modelId];
     const registryId = modelEntry.registryId;
 
-    await ONNX.addModel({
-      id: registryId,
-      name: this.config.modelId,
-      url: modelEntry.url,
-      modality: ModelCategory.SpeechRecognition,
-      artifactType: ModelArtifactType.TarGzArchive,
-      memoryRequirement: modelEntry.memoryRequirement,
-    });
+    if (!this.modelRegistered) {
+      await ONNX.addModel({
+        id: registryId,
+        name: this.config.modelId,
+        url: modelEntry.url,
+        modality: ModelCategory.SpeechRecognition,
+        artifactType: ModelArtifactType.TarGzArchive,
+        memoryRequirement: modelEntry.memoryRequirement,
+      });
+      this.modelRegistered = true;
+    }
 
     const alreadyDownloaded = await RunAnywhere.isModelDownloaded(registryId);
     if (!alreadyDownloaded) {
@@ -222,5 +226,6 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     this.runAnywhere = null;
     this.AudioRecorderPlayer = null;
     this.audioRecorderModule = null;
+    this.modelRegistered = false;
   }
 }

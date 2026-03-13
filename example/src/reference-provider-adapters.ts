@@ -1,19 +1,10 @@
 import type {
-  RunAnywhereSTTConfig,
-  RunAnywhereTTSConfig,
   SpeechToTextProvider,
   TextToSpeechProvider,
   TTSOptions,
   TranscriptionResult,
   WakeWordDetectedEvent,
 } from 'react-native-voice-activator';
-import {
-  ModelCategory,
-  RunAnywhere,
-  SDKEnvironment,
-  type RunAnywhereDownloadProgress,
-} from '@runanywhere/core';
-import { ModelArtifactType, ONNX, ONNXProvider } from '@runanywhere/onnx';
 
 type DetectionGetter = () => WakeWordDetectedEvent | null;
 
@@ -44,28 +35,6 @@ export type ReferenceProviderEntry = {
   summary: string;
 };
 
-type RunAnywhereModelDefinition = {
-  id: string;
-  name: string;
-  url: string;
-  memoryRequirement: number;
-};
-
-type RunAnywherePreparedOptions = {
-  builtInSTT?: RunAnywhereSTTConfig;
-  builtInTTS?: RunAnywhereTTSConfig;
-};
-
-type PrepareRunAnywhereOptions = {
-  includeSTT?: boolean;
-  includeTTS?: boolean;
-};
-
-export type RunAnywherePreparationUpdate = {
-  message: string;
-  progress?: number;
-};
-
 export const referenceProviderCatalog: ReferenceProviderEntry[] = [
   {
     id: 'expo-speech-recognition',
@@ -89,161 +58,15 @@ export const referenceProviderCatalog: ReferenceProviderEntry[] = [
     packageName: '@runanywhere/onnx',
     docsPath: 'docs/examples/runanywhere-stt-tts-provider.md',
     summary:
-      'Built-in on-device STT and TTS backed by RunAnywhere ONNX. Configure builtInSTT / builtInTTS during initialize() when real model paths are available.',
+      'Built-in on-device STT and TTS backed by RunAnywhere ONNX. Configure builtInSTT / builtInTTS during initialize() — the package owns SDK initialization and model downloads.',
   },
 ];
-
-export const RUNANYWHERE_CONFIG: {
-  stt: (RunAnywhereSTTConfig & RunAnywhereModelDefinition) | null;
-  tts: (RunAnywhereTTSConfig & RunAnywhereModelDefinition) | null;
-} = {
-  stt: {
-    id: 'sherpa-onnx-whisper-tiny.en',
-    name: 'Sherpa Whisper Tiny (English)',
-    url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/sherpa-onnx-whisper-tiny.en.tar.gz',
-    modelId: 'whisper-tiny-en' as const,
-    memoryRequirement: 75_000_000,
-    maxRecordingMs: 10_000,
-  },
-  tts: {
-    id: 'vits-piper-en_US-lessac-medium',
-    name: 'Piper TTS (US English Lessac Medium)',
-    url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/vits-piper-en_US-lessac-medium.tar.gz',
-    modelId: 'piper-en-lessac' as const,
-    memoryRequirement: 65_000_000,
-    voice: undefined,
-    rate: undefined,
-    pitch: undefined,
-  },
-};
 
 export function getRunAnywhereAvailability(): {
   stt: boolean;
   tts: boolean;
 } {
-  return {
-    stt: RUNANYWHERE_CONFIG.stt !== null,
-    tts: RUNANYWHERE_CONFIG.tts !== null,
-  };
-}
-
-async function ensureRunAnywhereInitialized(): Promise<void> {
-  if (!RunAnywhere.isSDKInitialized) {
-    await RunAnywhere.initialize({
-      environment: SDKEnvironment.Development,
-    });
-  }
-
-  const registered = await ONNXProvider.register();
-  if (!registered) {
-    throw new Error('RunAnywhere ONNX backend failed to register.');
-  }
-}
-
-async function ensureModelRegistered(
-  model: RunAnywhereModelDefinition,
-  modality: ModelCategory
-): Promise<void> {
-  await ONNX.addModel({
-    id: model.id,
-    name: model.name,
-    url: model.url,
-    modality,
-    artifactType: ModelArtifactType.TarGzArchive,
-    memoryRequirement: model.memoryRequirement,
-  });
-}
-
-async function ensureModelLocalPath(
-  model: RunAnywhereModelDefinition,
-  modality: ModelCategory,
-  onUpdate?: (update: RunAnywherePreparationUpdate) => void
-): Promise<string> {
-  await ensureModelRegistered(model, modality);
-
-  const alreadyDownloaded = await RunAnywhere.isModelDownloaded(model.id);
-  if (!alreadyDownloaded) {
-    onUpdate?.({
-      message: `Downloading ${model.name}...`,
-      progress: 0,
-    });
-
-    await RunAnywhere.downloadModel(
-      model.id,
-      (progress: RunAnywhereDownloadProgress) => {
-        onUpdate?.({
-          message: `Downloading ${model.name}...`,
-          progress: Math.round(progress.progress * 100),
-        });
-      }
-    );
-  }
-
-  const modelInfo = await RunAnywhere.getModelInfo(model.id);
-  if (!modelInfo?.localPath) {
-    throw new Error(
-      `RunAnywhere model did not resolve a local path: ${model.id}`
-    );
-  }
-
-  return modelInfo.localPath;
-}
-
-export async function prepareRunAnywhereBuiltInOptions(
-  onUpdate?: (update: RunAnywherePreparationUpdate) => void,
-  options: PrepareRunAnywhereOptions = {}
-): Promise<RunAnywherePreparedOptions | null> {
-  const availability = getRunAnywhereAvailability();
-  const includeSTT = options.includeSTT ?? true;
-  const includeTTS = options.includeTTS ?? true;
-  const shouldPrepareSTT = availability.stt && includeSTT;
-  const shouldPrepareTTS = availability.tts && includeTTS;
-
-  if (!shouldPrepareSTT && !shouldPrepareTTS) {
-    return null;
-  }
-
-  onUpdate?.({
-    message: 'Initializing RunAnywhere model registry...',
-  });
-  await ensureRunAnywhereInitialized();
-
-  const builtInOptions: RunAnywherePreparedOptions = {};
-
-  if (shouldPrepareSTT && RUNANYWHERE_CONFIG.stt) {
-    await ensureModelLocalPath(
-      RUNANYWHERE_CONFIG.stt,
-      ModelCategory.SpeechRecognition,
-      onUpdate
-    );
-
-    builtInOptions.builtInSTT = {
-      modelId: RUNANYWHERE_CONFIG.stt.modelId,
-      maxRecordingMs: RUNANYWHERE_CONFIG.stt.maxRecordingMs,
-    };
-  }
-
-  if (shouldPrepareTTS && RUNANYWHERE_CONFIG.tts) {
-    await ensureModelLocalPath(
-      RUNANYWHERE_CONFIG.tts,
-      ModelCategory.SpeechSynthesis,
-      onUpdate
-    );
-
-    builtInOptions.builtInTTS = {
-      modelId: RUNANYWHERE_CONFIG.tts.modelId,
-      voice: RUNANYWHERE_CONFIG.tts.voice,
-      rate: RUNANYWHERE_CONFIG.tts.rate,
-      pitch: RUNANYWHERE_CONFIG.tts.pitch,
-    };
-  }
-
-  onUpdate?.({
-    message: 'RunAnywhere models are ready for initialize().',
-    progress: 100,
-  });
-
-  return builtInOptions;
+  return { stt: true, tts: true };
 }
 
 class ExpoSpeechRecognitionReferenceSttProvider implements SpeechToTextProvider {

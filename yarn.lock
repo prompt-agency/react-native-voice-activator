@@ -11808,7 +11808,6 @@ __metadata:
     react-native: 0.83.2
     react-native-audio-recorder-player: ^3.6.0
     react-native-builder-bob: ^0.40.18
-    react-native-fs: ^2.20.0
     react-native-monorepo-config: ^0.1.9
     react-native-nitro-modules: ^0.31.3
     react-native-safe-area-context: ^5.5.2

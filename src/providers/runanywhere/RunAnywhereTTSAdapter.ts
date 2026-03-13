@@ -55,6 +55,7 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
 
   private runAnywhere: RunAnywhereModule['RunAnywhere'] | null = null;
   private nativeONNX: NativeRunAnywhereONNXModule | null = null;
+  private modelRegistered = false;
 
   constructor(private readonly config: RunAnywhereTTSConfig) {}
 
@@ -87,14 +88,17 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
     const modelEntry = RUNANYWHERE_TTS_MODELS[this.config.modelId];
     const registryId = modelEntry.registryId;
 
-    await ONNX.addModel({
-      id: registryId,
-      name: this.config.modelId,
-      url: modelEntry.url,
-      modality: ModelCategory.SpeechSynthesis,
-      artifactType: ModelArtifactType.TarGzArchive,
-      memoryRequirement: modelEntry.memoryRequirement,
-    });
+    if (!this.modelRegistered) {
+      await ONNX.addModel({
+        id: registryId,
+        name: this.config.modelId,
+        url: modelEntry.url,
+        modality: ModelCategory.SpeechSynthesis,
+        artifactType: ModelArtifactType.TarGzArchive,
+        memoryRequirement: modelEntry.memoryRequirement,
+      });
+      this.modelRegistered = true;
+    }
 
     const alreadyDownloaded = await RunAnywhere.isModelDownloaded(registryId);
     if (!alreadyDownloaded) {
@@ -187,5 +191,6 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
     await this.nativeONNX.unloadTTSModel();
     this.runAnywhere = null;
     this.nativeONNX = null;
+    this.modelRegistered = false;
   }
 }
