@@ -1055,9 +1055,11 @@ export default function App() {
             }
           </Text>
           <Text style={styles.meta}>
-            The wake step is real package behavior. The transcribe/speak preview
-            buttons below use simulated host implementations of the same
-            application-owned provider pattern documented in `docs/examples/`.
+            The package-owned native runtime detects a wake phrase. The wake
+            step is real package behavior. The transcribe/speak preview buttons
+            below use simulated host implementations of the same
+            application-level reference provider pattern documented in
+            `docs/examples/`.
           </Text>
           <Text style={styles.meta}>
             The RunAnywhere entry below uses the package built-in Whisper STT

@@ -24,12 +24,17 @@ Install the optional peer dependencies that the built-in STT/TTS path requires:
 
 ```bash
 yarn add @runanywhere/core @runanywhere/onnx \
-  react-native-audio-recorder-player react-native-nitro-modules
+  react-native-audio-recorder-player react-native-nitro-modules \
+  react-native-fs
 ```
 
-`react-native-fs` is not required by this package's built-in STT/TTS bridge.
-You may still encounter it as an optional peer from the upstream RunAnywhere
-SDK when using broader download or storage flows.
+`react-native-fs` is required by the built-in TTS path. The Piper TTS model
+downloads as a `.tar.gz` archive that extracts to a directory; the adapter
+uses `react-native-fs` to locate the `.onnx` file inside that directory
+before loading it. The built-in STT path does not use `react-native-fs`.
+`react-native-blob-util`, `react-native-device-info`, and
+`react-native-zip-archive` are optional upstream RunAnywhere SDK peers that
+are not required for this package's built-in STT/TTS bridge.
 
 ## Available model IDs
 

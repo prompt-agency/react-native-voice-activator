@@ -35,7 +35,7 @@ The current evaluator path for a broader assistant experience is:
 2. the optional JS provider orchestration path can call an application-owned `sttProvider`
 3. the runtime can optionally call an application-owned `ttsProvider` after a successful transcription when both `sttProvider` and `autoSpeak: true` are configured
 
-This flow is demonstrated through the public API and typed events. The package owns the wake-word runtime; STT and TTS remain opt-in integrations. Custom providers stay application-owned and are documented in `docs/examples/`, while built-in RunAnywhere adapters are available as an explicit opt-in exception. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
+This flow is demonstrated through the public API and typed events. The package owns the wake-word runtime; STT and TTS remain opt-in integrations. STT and TTS stay opt-in, application-owned — the package itself does not own transcription or synthesis. Custom providers stay application-owned and are documented in `docs/examples/`, while built-in RunAnywhere adapters are available as an explicit opt-in exception. STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features, with the exception of the opt-in built-in RunAnywhere path. The example app shows the real wake-word runtime plus separate simulated provider previews that use the same app-owned adapter shape.
 
 The bundled Sherpa keyword set currently includes `HELLO WORLD`, `HI GOOGLE`,
 `HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW
@@ -123,37 +123,39 @@ runQuickstart().catch((error) => {
 - `stateChanged` and `wakeWordDetected` events are wired correctly
 - `getStatus()` reflects runtime state transitions
 - downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals
+- The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned: the package itself does not own transcription or synthesis
 
 ## Built-In RunAnywhere STT/TTS Provider
 
 Install the optional speech dependencies:
 
 ```sh
-npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player
+npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player react-native-fs
 ```
 
 Use them through `initialize()`:
 
 ```ts
 await initialize({
-  builtInSTT: {
-    modelPath: '/path/to/whisper-tiny.onnx',
-  },
-  builtInTTS: {
-    modelPath: '/path/to/piper-en.onnx',
+  builtInSTT: { modelId: 'whisper-tiny-en' },
+  builtInTTS: { modelId: 'piper-en-lessac' },
+  onBuiltInProgress: ({ message, progress }) => {
+    console.log(message, progress); // optional download progress UI
   },
   autoSpeak: true,
 });
 ```
 
+Supported model IDs: `whisper-tiny-en` (STT, ~75 MB) and `piper-en-lessac` (TTS, ~65 MB). The package handles SDK initialization, model registry, download, and path resolution inside `initialize()` — no manual model management is required.
+
 Notes:
 
-- models must be downloaded and stored by the host app separately
 - explicit `sttProvider` / `ttsProvider` always override `builtInSTT` / `builtInTTS`
 - `TTSOptions.language` is not supported by the RunAnywhere adapters
 - adapter initialization failures surface `builtin_provider_init_failed`
 - `react-native-audio-recorder-player` currently works for the built-in STT path, but the package is deprecated upstream; treat it as a compatibility dependency and expect this package to migrate away from it in a future release rather than building new app-level abstractions around that recorder API
-- `@runanywhere/core` also declares optional peers such as `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive`; they are mainly relevant for broader RunAnywhere model download, storage, or device-info flows, not the narrow local-model STT/TTS path implemented here
+- `react-native-fs` is required by the built-in TTS path to locate the `.onnx` file inside the extracted Piper archive; it is not needed for STT only
+- `@runanywhere/core` also declares optional peers such as `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive`; `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive` are relevant for broader RunAnywhere model download, storage, or device-info flows and are not required for the built-in STT/TTS path
 - this repo typechecks against local RunAnywhere shim types because the vendor packages publish React Native source files as their `types` entry; CI counterbalances that with `yarn verify:runanywhere-contract`, which checks the installed vendor source surface still matches the built-in adapter contract this package expects
 - setup docs contain additional native/prebuild requirements for bare React Native and Expo consumers
 

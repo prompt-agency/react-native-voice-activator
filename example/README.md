@@ -41,7 +41,7 @@ the current Expo integration path:
 - the example app exposes current runtime diagnostics, recent runtime events, and normalized error categories for evaluator troubleshooting
 - runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
 - the example also shows optional STT/TTS extension points layered on top of the public wake-word event contract
-- the demo STT/TTS flows remain application-level examples, while the RunAnywhere built-in path is exposed separately as an opt-in package feature
+- the demo STT/TTS flows remain application-level examples only, while the RunAnywhere built-in path is exposed separately as an opt-in package feature
 - concrete reference provider adapters are documented in `../docs/examples/`
 
 ## Provider Pattern Evaluation Flow

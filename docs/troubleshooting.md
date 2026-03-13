@@ -23,8 +23,8 @@ The example app now exposes the same diagnostics surface for evaluation:
 - recent runtime events
 - normalized error categories for quick failure triage
 
-The example app also contains optional STT/TTS extension-point examples. Most
-of those examples are downstream application integrations. If they fail, debug
+The example app also contains optional STT/TTS extension-point examples. Those
+examples are downstream application integrations only. If they fail, debug
 the app-level handoff code separately from the package runtime itself. Concrete
 reference adapters live in `docs/examples/`, while the built-in RunAnywhere
 path is a separate opt-in package feature.

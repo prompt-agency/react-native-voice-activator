@@ -7,7 +7,7 @@ package core while still using the public provider interfaces:
 - `TextToSpeechProvider`
 - `initialize({ sttProvider, ttsProvider, autoSpeak })`
 
-Architecture rule: reference adapters live in `docs/examples/` and app-level code only. User-owned custom adapters belong in application code, not in the library package. The package ships built-in RunAnywhere adapters in `src/providers/runanywhere/` as opt-in defaults; these are the exception, not the pattern for user adapters.
+Architecture rule: reference adapters live in `docs/examples/` and app-level code only. User-owned custom adapters belong in application code, not in the library package. They do not belong in `src/`, `src/internal/`, or the mandatory package runtime. The package ships built-in RunAnywhere adapters in `src/providers/runanywhere/` as opt-in defaults; these are the exception, not the pattern for user adapters.
 
 ## Current Reference Adapters
 
