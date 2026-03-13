@@ -156,6 +156,7 @@ Notes:
 - `react-native-audio-recorder-player` currently works for the built-in STT path, but the package is deprecated upstream; treat it as a compatibility dependency and expect this package to migrate away from it in a future release rather than building new app-level abstractions around that recorder API
 - `react-native-fs` is required by the built-in TTS path to locate the `.onnx` file inside the extracted Piper archive; it is not needed for STT only
 - `@runanywhere/core` also declares optional peers such as `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive`; `react-native-blob-util`, `react-native-device-info`, and `react-native-zip-archive` are relevant for broader RunAnywhere model download, storage, or device-info flows and are not required for the built-in STT/TTS path
+- **iOS ONNX conflict**: this package bundles `sherpa-onnxruntime.xcframework` for wake-word detection; RunAnywhere bundles its own ONNX runtime; on iOS both are linked into the same binary and produce duplicate symbol warnings — the RunAnywhere ONNX backend registration will fail with error -401 at runtime, so `builtInSTT` / `builtInTTS` are not currently usable on iOS alongside the wake-word engine; use an application-owned `ttsProvider` (e.g. expo-speech or a cloud TTS provider) and `sttProvider` instead
 - this repo typechecks against local RunAnywhere shim types because the vendor packages publish React Native source files as their `types` entry; CI counterbalances that with `yarn verify:runanywhere-contract`, which checks the installed vendor source surface still matches the built-in adapter contract this package expects
 - setup docs contain additional native/prebuild requirements for bare React Native and Expo consumers
 
@@ -181,6 +182,7 @@ The built-in default engine is the package-owned native-managed Sherpa-ONNX path
 - Android background behavior can still be constrained by OEM battery management and unsupported hidden-start scenarios.
 - Expo automation and production detection quality hardening are later stories
 - STT/TTS examples in the repo now cover both built-in RunAnywhere adapters in `src/providers/runanywhere/` and illustrative downstream application-owned adapters in `docs/examples/`
+- `builtInSTT` / `builtInTTS` are not usable on iOS when the package's Sherpa-ONNX wake-word engine is active (ONNX symbol conflict); use `sttProvider` / `ttsProvider` with application-owned adapters on iOS
 
 ## Compatibility Notes
 

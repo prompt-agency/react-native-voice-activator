@@ -2099,6 +2099,13 @@ PODS:
     - React-Core
   - RNFS (2.20.0):
     - React-Core
+  - RNZipArchive (4.1.5):
+    - React
+    - RNZipArchive/Core (= 4.1.5)
+    - SSZipArchive (= 2.2.2)
+  - RNZipArchive/Core (4.1.5):
+    - React
+    - SSZipArchive (= 2.2.2)
   - RunAnywhereCore (0.18.1):
     - hermes-engine
     - NitroModules
@@ -2148,6 +2155,7 @@ PODS:
     - ReactNativeDependencies
     - RunAnywhereCore
     - Yoga
+  - SSZipArchive (2.2.2)
   - VoiceActivator (0.1.0):
     - hermes-engine
     - RCTRequired
@@ -2268,10 +2276,15 @@ DEPENDENCIES:
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - RNAudioRecorderPlayer (from `../node_modules/react-native-audio-recorder-player`)
   - RNFS (from `../node_modules/react-native-fs`)
+  - RNZipArchive (from `../node_modules/react-native-zip-archive`)
   - "RunAnywhereCore (from `../node_modules/@runanywhere/core`)"
   - "RunAnywhereONNX (from `../node_modules/@runanywhere/onnx`)"
   - VoiceActivator (from `../..`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
+
+SPEC REPOS:
+  trunk:
+    - SSZipArchive
 
 EXTERNAL SOURCES:
   EXConstants:
@@ -2463,6 +2476,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-audio-recorder-player"
   RNFS:
     :path: "../node_modules/react-native-fs"
+  RNZipArchive:
+    :path: "../node_modules/react-native-zip-archive"
   RunAnywhereCore:
     :path: "../node_modules/@runanywhere/core"
   RunAnywhereONNX:
@@ -2567,8 +2582,10 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 3d9f35847c99dbd6aec0bf44b379097a77f4e2b6
   RNAudioRecorderPlayer: b5ed41ccfe72a211a870bfe09ab36c046eb27d2a
   RNFS: 89de7d7f4c0f6bafa05343c578f61118c8282ed8
+  RNZipArchive: 310fe357d755aac11990bc0748487ba155237fb4
   RunAnywhereCore: b6586d3e9f67c36efcc1780f33833343876a2ce1
   RunAnywhereONNX: ecca36920e3f51cfab9a5778cab9a63a730e4074
+  SSZipArchive: fa16b8cc4cdeceb698e5e5d9f67e9558532fbf23
   VoiceActivator: ffe94c4445150d984873f120b68636b0650194f9
   Yoga: dd994d8c85dca5cc9b10f5df8c01f9ef1d0da191
 

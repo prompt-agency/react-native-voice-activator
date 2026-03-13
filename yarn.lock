@@ -11813,6 +11813,7 @@ __metadata:
     react-native-nitro-modules: ^0.31.3
     react-native-safe-area-context: ^5.5.2
     react-native-voice-activator: "portal:.."
+    react-native-zip-archive: ^4.1.5
   languageName: unknown
   linkType: soft
 
@@ -11903,6 +11904,16 @@ __metadata:
       optional: true
   languageName: unknown
   linkType: soft
+
+"react-native-zip-archive@npm:^4.1.5":
+  version: 4.1.5
+  resolution: "react-native-zip-archive@npm:4.1.5"
+  peerDependencies:
+    react: <=16.8.3
+    react-native: ">=0.51.0 <0.60.0"
+  checksum: 70b4d9dbcb7048abe1aeef2b52d78660694997b7877739f7bb07a4dbe4ad108ca33d56ee922086c5dd8a9a5c473ea07423d9ec350a13b0fea9316dc13a871cd8
+  languageName: node
+  linkType: hard
 
 "react-native@npm:0.83.2":
   version: 0.83.2

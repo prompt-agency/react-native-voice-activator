@@ -24,7 +24,8 @@
     "react-native-fs": "^2.20.0",
     "react-native-nitro-modules": "^0.31.3",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-voice-activator": "portal:.."
+    "react-native-voice-activator": "portal:..",
+    "react-native-zip-archive": "^4.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
