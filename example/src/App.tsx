@@ -914,6 +914,9 @@ export default function App() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Bundled keyword presets</Text>
+          <Text style={styles.helperText}>
+            Keyword detection status: {status.state}
+          </Text>
           <Text style={styles.meta}>
             Changing presets does not hot-swap the active runtime. Press
             Initialize again after switching.
@@ -942,16 +945,31 @@ export default function App() {
           ))}
           <Text style={styles.helperText}>
             {keywordSelectionRequiresInitialize
-              ? 'Selection changed. Re-run Initialize before starting detection.'
+              ? 'Keyword selection changed. Run Initialize again before Start detection.'
               : 'The selected preset already matches the current runtime selection.'}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Diagnostics</Text>
+          <Text style={styles.sectionTitle}>Current runtime diagnostics</Text>
           <Text style={styles.meta}>
             Runtime snapshot from `getStatus()` plus the current detection and
             extension flow outputs.
+          </Text>
+          <Text style={styles.helperText}>
+            Provider mode: {providerModeLabel}
+          </Text>
+          <Text style={styles.helperText}>
+            Active preset: {activeKeywordPreset?.label ?? 'none'}
+          </Text>
+          <Text style={styles.helperText}>
+            Selected preset: {selectedKeywordPreset.label}
+          </Text>
+          <Text style={styles.helperText}>
+            Asset key: {selectedKeywordPreset.keywordAssetKey}
+          </Text>
+          <Text style={styles.helperText}>
+            Detected phrase: {lastDetection?.detectedPhrase ?? 'none yet'}
           </Text>
           {statusSnapshot.map((line) => (
             <Text key={line} style={styles.helperText}>
@@ -1002,7 +1020,7 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Error category reference</Text>
+          <Text style={styles.sectionTitle}>Normalized error categories</Text>
           <Text style={styles.meta}>
             This is a legend for interpreting runtime failures. It is not a live
             error list.
@@ -1016,12 +1034,25 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Reference provider previews</Text>
+          <Text style={styles.sectionTitle}>
+            Optional STT/TTS extension examples
+          </Text>
           <Text style={styles.meta}>
-            These reference adapters stay outside the package runtime. The
-            example app owns them, passes them through the public provider
-            interface, and keeps STT/TTS as optional downstream integrations by
-            default. The built-in RunAnywhere option is a separate opt-in path.
+            This screen shows the package wake runtime plus separate simulated
+            host-owned provider previews. These reference adapters stay outside
+            the package runtime. The example app owns them, passes them through
+            the public provider interface, and keeps STT/TTS as optional
+            downstream integrations by default. The built-in RunAnywhere option
+            is a separate opt-in path.
+          </Text>
+          <Text style={styles.meta}>
+            The optional application-owned STT provider can turn that wake event
+            into a transcription result via initialize( {'{ sttProvider }'}).
+            The TTS response step runs
+            {/* contract-anchor: after a successful STT result when `autoSpeak: true` is enabled. */}
+            {
+              ' after a successful STT result when `autoSpeak: true` is enabled.'
+            }
           </Text>
           <Text style={styles.meta}>
             The wake step is real package behavior. The transcribe/speak preview
@@ -1117,7 +1148,7 @@ export default function App() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Integration notes</Text>
+          <Text style={styles.sectionTitle}>Assistant flow guide</Text>
           <Text style={styles.meta}>
             iOS background continuation still requires the audio background mode
             and does not survive force-quit. Android background continuation
