@@ -21,8 +21,8 @@ jest.mock('@runanywhere/core', () => ({
 }));
 
 jest.mock('@runanywhere/onnx', () => ({
-  ONNX: {
-    register: jest.fn(),
+  ONNXProvider: {
+    register: jest.fn(async () => true),
   },
 }));
 
@@ -50,7 +50,7 @@ jest.mock('react-native-audio-recorder-player', () => ({
 }));
 
 import { RunAnywhere } from '@runanywhere/core';
-import { ONNX } from '@runanywhere/onnx';
+import { ONNXProvider } from '@runanywhere/onnx';
 import {
   RunAnywhereSTTAdapter,
   RunAnywhereSTTCancelledError,
@@ -77,9 +77,10 @@ describe('RunAnywhereSTTAdapter', () => {
 
   it('loads the STT model once and maps transcription results', async () => {
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
     await adapter.initialize();
@@ -94,7 +95,7 @@ describe('RunAnywhereSTTAdapter', () => {
       durationMs: 1250,
     });
 
-    expect(ONNX.register).toHaveBeenCalledTimes(1);
+    expect(ONNXProvider.register).toHaveBeenCalledTimes(1);
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(1);
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledWith(
       '/models/whisper.onnx',
@@ -119,15 +120,20 @@ describe('RunAnywhereSTTAdapter', () => {
       false
     );
     expect(mockRecorderInstance.stopRecorder).toHaveBeenCalledTimes(1);
-    expect(RunAnywhere.transcribeFile).toHaveBeenCalledWith('/tmp/recording.wav');
-    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(1);
+    expect(RunAnywhere.transcribeFile).toHaveBeenCalledWith(
+      '/tmp/recording.wav'
+    );
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
   });
 
   it('cancels recording before transcription runs', async () => {
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 
@@ -141,7 +147,9 @@ describe('RunAnywhereSTTAdapter', () => {
 
     expect(mockRecorderInstance.stopRecorder).toHaveBeenCalledTimes(1);
     expect(RunAnywhere.transcribeFile).not.toHaveBeenCalled();
-    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(1);
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
   });
 
   it('cancels even if the request happens while recorder startup is in flight', async () => {
@@ -156,9 +164,10 @@ describe('RunAnywhereSTTAdapter', () => {
     );
 
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 
@@ -179,28 +188,42 @@ describe('RunAnywhereSTTAdapter', () => {
 
   it('throws if transcribe is called before initialize', async () => {
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await expect(adapter.transcribe()).rejects.toThrow(
       'RunAnywhereSTTAdapter: call initialize() first'
     );
   });
 
+  it('throws if initialize is called without a resolved model path', async () => {
+    const adapter = new RunAnywhereSTTAdapter({
+      modelId: 'whisper-tiny-en',
+    });
+
+    await expect(adapter.initialize()).rejects.toThrow(
+      'RunAnywhereSTTAdapter: call setResolvedPath()'
+    );
+  });
+
   it('unloads the model on dispose and can be initialized again for a later session', async () => {
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
       maxRecordingMs: 1000,
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
     await adapter.dispose();
 
     expect(RunAnywhere.unloadSTTModel).toHaveBeenCalledTimes(1);
 
+    // resolvedModelPath is not cleared on dispose, so setResolvedPath() is not
+    // required again here — but it may be called to update the path if needed.
     await adapter.initialize();
 
-    expect(ONNX.register).toHaveBeenCalledTimes(2);
+    expect(ONNXProvider.register).toHaveBeenCalledTimes(2);
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(2);
     expect(RunAnywhere.loadSTTModel).toHaveBeenNthCalledWith(
       2,
@@ -211,9 +234,10 @@ describe('RunAnywhereSTTAdapter', () => {
 
   it('cancels any active transcription while disposing and still unloads the model', async () => {
     const adapter = new RunAnywhereSTTAdapter({
-      modelPath: '/models/whisper.onnx',
+      modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
+    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 

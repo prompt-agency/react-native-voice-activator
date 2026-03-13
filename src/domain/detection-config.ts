@@ -1,4 +1,5 @@
 import type {
+  BuiltInProviderProgress,
   RunAnywhereSTTConfig,
   RunAnywhereTTSConfig,
   SpeechToTextProvider,
@@ -24,6 +25,7 @@ export interface WakeWordRuntimeConfiguration {
   builtInSTT?: RunAnywhereSTTConfig;
   builtInTTS?: RunAnywhereTTSConfig;
   autoSpeak: boolean;
+  onBuiltInProgress?: (update: BuiltInProviderProgress) => void;
 }
 
 export function createRuntimeConfiguration(
@@ -45,6 +47,9 @@ export function createRuntimeConfiguration(
     ...(options.ttsProvider ? { ttsProvider: options.ttsProvider } : {}),
     ...(options.builtInSTT ? { builtInSTT: options.builtInSTT } : {}),
     ...(options.builtInTTS ? { builtInTTS: options.builtInTTS } : {}),
+    ...(options.onBuiltInProgress
+      ? { onBuiltInProgress: options.onBuiltInProgress }
+      : {}),
   };
 }
 
@@ -65,7 +70,12 @@ export function createDefaultRuntimeConfiguration(): WakeWordRuntimeConfiguratio
 
 export type NativeWakeWordRuntimeConfiguration = Omit<
   WakeWordRuntimeConfiguration,
-  'sttProvider' | 'ttsProvider' | 'autoSpeak' | 'builtInSTT' | 'builtInTTS'
+  | 'sttProvider'
+  | 'ttsProvider'
+  | 'autoSpeak'
+  | 'builtInSTT'
+  | 'builtInTTS'
+  | 'onBuiltInProgress'
 >;
 
 export function createNativeRuntimeConfiguration(

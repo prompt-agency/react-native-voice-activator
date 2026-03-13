@@ -49,7 +49,6 @@ type RunAnywhereModelDefinition = {
   name: string;
   url: string;
   memoryRequirement: number;
-  modelType: string;
 };
 
 type RunAnywherePreparedOptions = {
@@ -102,8 +101,7 @@ export const RUNANYWHERE_CONFIG: {
     id: 'sherpa-onnx-whisper-tiny.en',
     name: 'Sherpa Whisper Tiny (English)',
     url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/sherpa-onnx-whisper-tiny.en.tar.gz',
-    modelPath: '',
-    modelType: 'whisper',
+    modelId: 'whisper-tiny-en' as const,
     memoryRequirement: 75_000_000,
     maxRecordingMs: 10_000,
   },
@@ -111,8 +109,7 @@ export const RUNANYWHERE_CONFIG: {
     id: 'vits-piper-en_US-lessac-medium',
     name: 'Piper TTS (US English Lessac Medium)',
     url: 'https://github.com/RunanywhereAI/sherpa-onnx/releases/download/runanywhere-models-v1/vits-piper-en_US-lessac-medium.tar.gz',
-    modelPath: '',
-    modelType: 'piper',
+    modelId: 'piper-en-lessac' as const,
     memoryRequirement: 65_000_000,
     voice: undefined,
     rate: undefined,
@@ -184,77 +181,12 @@ async function ensureModelLocalPath(
 
   const modelInfo = await RunAnywhere.getModelInfo(model.id);
   if (!modelInfo?.localPath) {
-    throw new Error(`RunAnywhere model did not resolve a local path: ${model.id}`);
+    throw new Error(
+      `RunAnywhere model did not resolve a local path: ${model.id}`
+    );
   }
 
   return modelInfo.localPath;
-}
-
-async function findFirstMatchingFile(
-  rootPath: string,
-  patterns: RegExp[]
-): Promise<string | null> {
-  const RNFS = await import('react-native-fs');
-  const pendingPaths = [rootPath];
-
-  while (pendingPaths.length > 0) {
-    const currentPath = pendingPaths.shift();
-    if (!currentPath) {
-      continue;
-    }
-
-    const entries = await RNFS.readDir(currentPath);
-    const directories = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.path);
-    const files = entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.path);
-
-    for (const pattern of patterns) {
-      const match = files.find((filePath) => pattern.test(filePath));
-      if (match) {
-        return match;
-      }
-    }
-
-    pendingPaths.push(...directories);
-  }
-
-  return null;
-}
-
-async function resolveBuiltInModelPath(
-  model: RunAnywhereModelDefinition,
-  modality: ModelCategory,
-  localPath: string
-): Promise<string> {
-  const RNFS = await import('react-native-fs');
-  const stat = await RNFS.stat(localPath);
-
-  if (!stat.isDirectory()) {
-    return localPath;
-  }
-
-  if (
-    modality === ModelCategory.SpeechRecognition &&
-    model.modelType === 'whisper'
-  ) {
-    return localPath;
-  }
-
-  if (
-    modality === ModelCategory.SpeechSynthesis &&
-    model.modelType === 'piper'
-  ) {
-    const piperVoicePath = await findFirstMatchingFile(localPath, [/\.onnx$/i]);
-
-    if (piperVoicePath) {
-      return piperVoicePath;
-    }
-  }
-
-  return localPath;
 }
 
 export async function prepareRunAnywhereBuiltInOptions(
@@ -279,39 +211,27 @@ export async function prepareRunAnywhereBuiltInOptions(
   const builtInOptions: RunAnywherePreparedOptions = {};
 
   if (shouldPrepareSTT && RUNANYWHERE_CONFIG.stt) {
-    const localPath = await ensureModelLocalPath(
+    await ensureModelLocalPath(
       RUNANYWHERE_CONFIG.stt,
       ModelCategory.SpeechRecognition,
       onUpdate
     );
-    const modelPath = await resolveBuiltInModelPath(
-      RUNANYWHERE_CONFIG.stt,
-      ModelCategory.SpeechRecognition,
-      localPath
-    );
 
     builtInOptions.builtInSTT = {
-      modelPath,
-      modelType: RUNANYWHERE_CONFIG.stt.modelType,
+      modelId: RUNANYWHERE_CONFIG.stt.modelId,
       maxRecordingMs: RUNANYWHERE_CONFIG.stt.maxRecordingMs,
     };
   }
 
   if (shouldPrepareTTS && RUNANYWHERE_CONFIG.tts) {
-    const localPath = await ensureModelLocalPath(
+    await ensureModelLocalPath(
       RUNANYWHERE_CONFIG.tts,
       ModelCategory.SpeechSynthesis,
       onUpdate
     );
-    const modelPath = await resolveBuiltInModelPath(
-      RUNANYWHERE_CONFIG.tts,
-      ModelCategory.SpeechSynthesis,
-      localPath
-    );
 
     builtInOptions.builtInTTS = {
-      modelPath,
-      modelType: RUNANYWHERE_CONFIG.tts.modelType,
+      modelId: RUNANYWHERE_CONFIG.tts.modelId,
       voice: RUNANYWHERE_CONFIG.tts.voice,
       rate: RUNANYWHERE_CONFIG.tts.rate,
       pitch: RUNANYWHERE_CONFIG.tts.pitch,
@@ -326,9 +246,7 @@ export async function prepareRunAnywhereBuiltInOptions(
   return builtInOptions;
 }
 
-class ExpoSpeechRecognitionReferenceSttProvider
-  implements SpeechToTextProvider
-{
+class ExpoSpeechRecognitionReferenceSttProvider implements SpeechToTextProvider {
   readonly name = 'expo-speech-recognition';
 
   constructor(
@@ -379,7 +297,9 @@ export function createDemoReferenceSttBridge(): ReferenceSttBridge {
       await wait(350);
 
       if (cancelled) {
-        throw new Error('Reference STT bridge was cancelled before completion.');
+        throw new Error(
+          'Reference STT bridge was cancelled before completion.'
+        );
       }
 
       return {
@@ -402,7 +322,10 @@ export function createDemoReferenceTtsBridge(): ReferenceTtsBridge {
     async speak({ text, options }): Promise<void> {
       stopped = false;
       void options;
-      const estimatedDurationMs = Math.max(250, Math.min(text.length * 18, 1500));
+      const estimatedDurationMs = Math.max(
+        250,
+        Math.min(text.length * 18, 1500)
+      );
       await wait(estimatedDurationMs);
 
       if (stopped) {

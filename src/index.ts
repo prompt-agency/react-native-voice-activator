@@ -14,9 +14,12 @@ export {
 export { useWakeWord } from './public/useWakeWord';
 export { wakeWordStates } from './public/types';
 export type {
+  BuiltInProviderProgress,
   ProviderError,
   RunAnywhereSTTConfig,
+  RunAnywhereSTTModelId,
   RunAnywhereTTSConfig,
+  RunAnywhereTTSModelId,
   SpeechToTextProvider,
   SpeechCompletedEvent,
   SpeechErrorEvent,
@@ -35,6 +38,7 @@ export type {
   WakeWordTranscriptionState,
   VoiceActivatorApi,
   WakeWordEngineAssetKeys,
+  WakeWordEngineAssetRequirement,
   WakeWordEngineCapabilities,
   WakeWordEngineConfiguration,
   WakeWordEngineId,

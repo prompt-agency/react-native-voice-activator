@@ -230,14 +230,12 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
             )
           );
         } else {
-          const errorCode =
-            isCancelledTranscriptionError(cause)
-              ? 'stt_cancelled'
-              : 'stt_transcribe_failed';
-          const fallbackMessage =
-            isCancelledTranscriptionError(cause)
-              ? 'Transcription was cancelled.'
-              : 'Transcription failed.';
+          const errorCode = isCancelledTranscriptionError(cause)
+            ? 'stt_cancelled'
+            : 'stt_transcribe_failed';
+          const fallbackMessage = isCancelledTranscriptionError(cause)
+            ? 'Transcription was cancelled.'
+            : 'Transcription failed.';
           emitRuntimeEvent(
             'transcriptionError',
             createProviderErrorFromCause(
@@ -475,9 +473,7 @@ function createConfigurationFailure(error: WakeWordError): WakeWordError {
   };
 }
 
-function createBuiltInProviderInitFailure(
-  message: string
-): WakeWordError {
+function createBuiltInProviderInitFailure(message: string): WakeWordError {
   return {
     category: 'configuration',
     code: 'builtin_provider_init_failed',
@@ -606,8 +602,18 @@ export const voiceActivator: VoiceActivatorApi = {
       await cleanupBuiltInProviders(activeRuntimeConfiguration);
       activeRuntimeConfiguration = null;
 
+      let createdSttAdapter: RunAnywhereSTTAdapter | null = null;
+
       if (!resolvedSttProvider && runtimeConfiguration.builtInSTT) {
-        const adapter = new RunAnywhereSTTAdapter(runtimeConfiguration.builtInSTT);
+        const adapter = new RunAnywhereSTTAdapter(
+          runtimeConfiguration.builtInSTT
+        );
+
+        // TODO (Story 7-2): resolve model path from catalog, then call
+        // adapter.setResolvedPath(resolvedPath) here before adapter.initialize().
+        runtimeConfiguration.onBuiltInProgress?.({
+          message: 'Initializing built-in STT provider...',
+        });
 
         try {
           await adapter.initialize();
@@ -621,15 +627,29 @@ export const voiceActivator: VoiceActivatorApi = {
           throw configError;
         }
 
+        createdSttAdapter = adapter;
         resolvedSttProvider = adapter;
       }
 
       if (!resolvedTtsProvider && runtimeConfiguration.builtInTTS) {
-        const adapter = new RunAnywhereTTSAdapter(runtimeConfiguration.builtInTTS);
+        const adapter = new RunAnywhereTTSAdapter(
+          runtimeConfiguration.builtInTTS
+        );
+
+        // TODO (Story 7-2): resolve model path from catalog, then call
+        // adapter.setResolvedPath(resolvedPath) here before adapter.initialize().
+        runtimeConfiguration.onBuiltInProgress?.({
+          message: 'Initializing built-in TTS provider...',
+        });
 
         try {
           await adapter.initialize();
         } catch (cause) {
+          // Dispose the STT adapter if it was created in this same call and
+          // TTS initialization now fails — prevents a loaded model from leaking.
+          if (createdSttAdapter) {
+            await createdSttAdapter.dispose().catch(() => undefined);
+          }
           const configError = createBuiltInProviderInitFailure(
             cause instanceof Error
               ? cause.message

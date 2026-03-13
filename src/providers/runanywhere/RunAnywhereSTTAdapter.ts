@@ -6,7 +6,8 @@ import type {
 } from '../../public/types';
 
 type RunAnywhereModule = typeof import('@runanywhere/core');
-type AudioRecorderPlayerModule = typeof import('react-native-audio-recorder-player');
+type AudioRecorderPlayerModule =
+  typeof import('react-native-audio-recorder-player');
 
 type ActiveTranscription = {
   cancelled: boolean;
@@ -27,11 +28,22 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
   readonly isBuiltInRunAnywhereProvider = true;
 
   private runAnywhere: RunAnywhereModule['RunAnywhere'] | null = null;
-  private AudioRecorderPlayer: AudioRecorderPlayerModule['default'] | null = null;
+  private AudioRecorderPlayer: AudioRecorderPlayerModule['default'] | null =
+    null;
   private audioRecorderModule: AudioRecorderPlayerModule | null = null;
   private activeTranscription: ActiveTranscription | null = null;
+  private resolvedModelPath: string | null = null;
 
   constructor(private readonly config: RunAnywhereSTTConfig) {}
+
+  /**
+   * Set the resolved local filesystem path for the STT model.
+   * Called by the built-in provider orchestration layer (Story 7-2) after
+   * model download and path resolution. Must be called before initialize().
+   */
+  setResolvedPath(path: string): void {
+    this.resolvedModelPath = path;
+  }
 
   async initialize(): Promise<void> {
     if (this.runAnywhere && this.AudioRecorderPlayer) {
@@ -50,9 +62,15 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
       throw new Error('RunAnywhere ONNX backend failed to register.');
     }
 
+    if (!this.resolvedModelPath) {
+      throw new Error(
+        'RunAnywhereSTTAdapter: call setResolvedPath() with the downloaded model path before initialize().'
+      );
+    }
+
     const loaded = await RunAnywhere.loadSTTModel(
-      this.config.modelPath,
-      this.config.modelType ?? 'whisper'
+      this.resolvedModelPath,
+      'whisper'
     );
 
     if (!loaded) {
@@ -99,7 +117,9 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     }
 
     if (this.activeTranscription) {
-      throw new Error('RunAnywhereSTTAdapter: transcription already in progress');
+      throw new Error(
+        'RunAnywhereSTTAdapter: transcription already in progress'
+      );
     }
 
     const recorder = new this.AudioRecorderPlayer();

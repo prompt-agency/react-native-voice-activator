@@ -78,15 +78,22 @@ export interface TTSOptions {
   pitch?: number;
 }
 
+export type RunAnywhereSTTModelId = 'whisper-tiny-en';
+
+export type RunAnywhereTTSModelId = 'piper-en-lessac';
+
+export interface BuiltInProviderProgress {
+  message: string;
+  progress?: number;
+}
+
 export interface RunAnywhereSTTConfig {
-  modelPath: string;
-  modelType?: string;
+  modelId: RunAnywhereSTTModelId;
   maxRecordingMs?: number;
 }
 
 export interface RunAnywhereTTSConfig {
-  modelPath: string;
-  modelType?: string;
+  modelId: RunAnywhereTTSModelId;
   voice?: string;
   rate?: number;
   pitch?: number;
@@ -114,6 +121,7 @@ export interface WakeWordInitializationOptions {
   builtInSTT?: RunAnywhereSTTConfig;
   builtInTTS?: RunAnywhereTTSConfig;
   autoSpeak?: boolean;
+  onBuiltInProgress?: (update: BuiltInProviderProgress) => void;
 }
 
 export interface WakeWordStatus {

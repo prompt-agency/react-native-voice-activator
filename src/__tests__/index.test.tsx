@@ -522,13 +522,17 @@ describe('public runtime state and event contract', () => {
     };
     const initializeSttAdapter = jest.fn(async () => undefined);
     const initializeTtsAdapter = jest.fn(async () => undefined);
+    const setResolvedPathStt = jest.fn();
+    const setResolvedPathTts = jest.fn();
     const RunAnywhereSTTAdapter = jest.fn(() => ({
       ...sttProvider,
       initialize: initializeSttAdapter,
+      setResolvedPath: setResolvedPathStt,
     }));
     const RunAnywhereTTSAdapter = jest.fn(() => ({
       ...ttsProvider,
       initialize: initializeTtsAdapter,
+      setResolvedPath: setResolvedPathTts,
     }));
 
     jest.doMock('../engines', () => ({
@@ -554,22 +558,26 @@ describe('public runtime state and event contract', () => {
 
     await VoiceActivator.initialize({
       builtInSTT: {
-        modelPath: '/models/stt.onnx',
+        modelId: 'whisper-tiny-en',
       },
       builtInTTS: {
-        modelPath: '/models/tts.onnx',
+        modelId: 'piper-en-lessac',
       },
       autoSpeak: true,
     });
 
     expect(RunAnywhereSTTAdapter).toHaveBeenCalledWith({
-      modelPath: '/models/stt.onnx',
+      modelId: 'whisper-tiny-en',
     });
     expect(RunAnywhereTTSAdapter).toHaveBeenCalledWith({
-      modelPath: '/models/tts.onnx',
+      modelId: 'piper-en-lessac',
     });
     expect(initializeSttAdapter).toHaveBeenCalledTimes(1);
     expect(initializeTtsAdapter).toHaveBeenCalledTimes(1);
+    // Story 7-2 will call setResolvedPath() with the downloaded model path
+    // before adapter.initialize(). Until then it is intentionally not called.
+    expect(setResolvedPathStt).not.toHaveBeenCalled();
+    expect(setResolvedPathTts).not.toHaveBeenCalled();
     expect(initialize).toHaveBeenCalledWith({
       profile: 'balanced',
       enableDebugLogging: false,
@@ -596,10 +604,10 @@ describe('public runtime state and event contract', () => {
         sttProvider: expect.objectContaining({ name: 'runanywhere-onnx' }),
         ttsProvider: expect.objectContaining({ name: 'runanywhere-onnx' }),
         builtInSTT: {
-          modelPath: '/models/stt.onnx',
+          modelId: 'whisper-tiny-en',
         },
         builtInTTS: {
-          modelPath: '/models/tts.onnx',
+          modelId: 'piper-en-lessac',
         },
         autoSpeak: true,
       }),
@@ -652,7 +660,7 @@ describe('public runtime state and event contract', () => {
     await expect(
       VoiceActivator.initialize({
         builtInSTT: {
-          modelPath: '/models/missing.onnx',
+          modelId: 'whisper-tiny-en',
         },
       })
     ).rejects.toMatchObject({
@@ -708,6 +716,7 @@ describe('public runtime state and event contract', () => {
           cancel: jest.fn(async () => undefined),
           initialize: jest.fn(async () => undefined),
           dispose: jest.fn(async () => undefined),
+          setResolvedPath: jest.fn(),
         };
         sttInstances.push(instance);
         return instance;
@@ -722,6 +731,7 @@ describe('public runtime state and event contract', () => {
           stop: jest.fn(async () => undefined),
           initialize: jest.fn(async () => undefined),
           dispose: jest.fn(async () => undefined),
+          setResolvedPath: jest.fn(),
         };
         ttsInstances.push(instance);
         return instance;
@@ -740,12 +750,12 @@ describe('public runtime state and event contract', () => {
     const VoiceActivator = await import('../index');
 
     await VoiceActivator.initialize({
-      builtInSTT: { modelPath: '/models/one-stt.onnx' },
-      builtInTTS: { modelPath: '/models/one-tts.onnx' },
+      builtInSTT: { modelId: 'whisper-tiny-en' },
+      builtInTTS: { modelId: 'piper-en-lessac' },
     });
     await VoiceActivator.initialize({
-      builtInSTT: { modelPath: '/models/two-stt.onnx' },
-      builtInTTS: { modelPath: '/models/two-tts.onnx' },
+      builtInSTT: { modelId: 'whisper-tiny-en' },
+      builtInTTS: { modelId: 'piper-en-lessac' },
     });
 
     expect(sttInstances[0]?.dispose).toHaveBeenCalledTimes(1);

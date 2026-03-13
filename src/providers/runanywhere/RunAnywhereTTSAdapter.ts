@@ -22,8 +22,18 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
 
   private runAnywhere: RunAnywhereModule['RunAnywhere'] | null = null;
   private nativeONNX: NativeRunAnywhereONNXModule | null = null;
+  private resolvedModelPath: string | null = null;
 
   constructor(private readonly config: RunAnywhereTTSConfig) {}
+
+  /**
+   * Set the resolved local filesystem path for the TTS model.
+   * Called by the built-in provider orchestration layer (Story 7-2) after
+   * model download and path resolution. Must be called before initialize().
+   */
+  setResolvedPath(path: string): void {
+    this.resolvedModelPath = path;
+  }
 
   async initialize(): Promise<void> {
     if (this.runAnywhere && this.nativeONNX) {
@@ -32,8 +42,8 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
 
     const [{ ONNXProvider, requireNativeONNXModule }, { RunAnywhere }] =
       await Promise.all([
-      import('@runanywhere/onnx'),
-      import('@runanywhere/core'),
+        import('@runanywhere/onnx'),
+        import('@runanywhere/core'),
       ]);
 
     const registered = await ONNXProvider.register();
@@ -41,10 +51,16 @@ export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
       throw new Error('RunAnywhere ONNX backend failed to register.');
     }
 
+    if (!this.resolvedModelPath) {
+      throw new Error(
+        'RunAnywhereTTSAdapter: call setResolvedPath() with the downloaded model path before initialize().'
+      );
+    }
+
     const nativeONNX = requireNativeONNXModule();
     const loaded = await nativeONNX.loadTTSModel(
-      this.config.modelPath,
-      this.config.modelType ?? 'piper'
+      this.resolvedModelPath,
+      'piper'
     );
 
     if (!loaded) {
