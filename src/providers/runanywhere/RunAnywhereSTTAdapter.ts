@@ -1,9 +1,11 @@
 import type { AudioSet } from 'react-native-audio-recorder-player';
 import type {
+  BuiltInProviderProgress,
   RunAnywhereSTTConfig,
   SpeechToTextProvider,
   TranscriptionResult,
 } from '../../public/types';
+import { RUNANYWHERE_STT_MODELS } from './catalog';
 
 type RunAnywhereModule = typeof import('@runanywhere/core');
 type AudioRecorderPlayerModule =
@@ -32,45 +34,74 @@ export class RunAnywhereSTTAdapter implements SpeechToTextProvider {
     null;
   private audioRecorderModule: AudioRecorderPlayerModule | null = null;
   private activeTranscription: ActiveTranscription | null = null;
-  private resolvedModelPath: string | null = null;
 
   constructor(private readonly config: RunAnywhereSTTConfig) {}
 
-  /**
-   * Set the resolved local filesystem path for the STT model.
-   * Called by the built-in provider orchestration layer (Story 7-2) after
-   * model download and path resolution. Must be called before initialize().
-   */
-  setResolvedPath(path: string): void {
-    this.resolvedModelPath = path;
-  }
-
-  async initialize(): Promise<void> {
+  async initialize(
+    onProgress?: (update: BuiltInProviderProgress) => void
+  ): Promise<void> {
     if (this.runAnywhere && this.AudioRecorderPlayer) {
       return;
     }
 
-    const [onnxModule, { RunAnywhere }, audioRecorderModule] =
-      await Promise.all([
-        import('@runanywhere/onnx'),
-        import('@runanywhere/core'),
-        import('react-native-audio-recorder-player'),
-      ]);
+    const [onnxModule, coreModule, audioRecorderModule] = await Promise.all([
+      import('@runanywhere/onnx'),
+      import('@runanywhere/core'),
+      import('react-native-audio-recorder-player'),
+    ]);
 
-    const registered = await onnxModule.ONNXProvider.register();
+    const { RunAnywhere, SDKEnvironment, ModelCategory } = coreModule;
+    const { ONNXProvider, ONNX, ModelArtifactType } = onnxModule;
+
+    if (!RunAnywhere.isSDKInitialized) {
+      onProgress?.({ message: 'Initializing RunAnywhere SDK...' });
+      await RunAnywhere.initialize({ environment: SDKEnvironment.Development });
+    }
+
+    const registered = await ONNXProvider.register();
     if (!registered) {
       throw new Error('RunAnywhere ONNX backend failed to register.');
     }
 
-    if (!this.resolvedModelPath) {
+    const modelEntry = RUNANYWHERE_STT_MODELS[this.config.modelId];
+    const registryId = modelEntry.registryId;
+
+    await ONNX.addModel({
+      id: registryId,
+      name: this.config.modelId,
+      url: modelEntry.url,
+      modality: ModelCategory.SpeechRecognition,
+      artifactType: ModelArtifactType.TarGzArchive,
+      memoryRequirement: modelEntry.memoryRequirement,
+    });
+
+    const alreadyDownloaded = await RunAnywhere.isModelDownloaded(registryId);
+    if (!alreadyDownloaded) {
+      onProgress?.({
+        message: `Downloading ${this.config.modelId}...`,
+        progress: 0,
+      });
+      await RunAnywhere.downloadModel(
+        registryId,
+        (progress: { progress: number }) => {
+          onProgress?.({
+            message: `Downloading ${this.config.modelId}...`,
+            progress: Math.round(progress.progress * 100),
+          });
+        }
+      );
+    }
+
+    const modelInfo = await RunAnywhere.getModelInfo(registryId);
+    if (!modelInfo?.localPath) {
       throw new Error(
-        'RunAnywhereSTTAdapter: call setResolvedPath() with the downloaded model path before initialize().'
+        `RunAnywhere STT model path could not be resolved: ${this.config.modelId}`
       );
     }
 
     const loaded = await RunAnywhere.loadSTTModel(
-      this.resolvedModelPath,
-      'whisper'
+      modelInfo.localPath,
+      modelEntry.modelType
     );
 
     if (!loaded) {

@@ -522,17 +522,13 @@ describe('public runtime state and event contract', () => {
     };
     const initializeSttAdapter = jest.fn(async () => undefined);
     const initializeTtsAdapter = jest.fn(async () => undefined);
-    const setResolvedPathStt = jest.fn();
-    const setResolvedPathTts = jest.fn();
     const RunAnywhereSTTAdapter = jest.fn(() => ({
       ...sttProvider,
       initialize: initializeSttAdapter,
-      setResolvedPath: setResolvedPathStt,
     }));
     const RunAnywhereTTSAdapter = jest.fn(() => ({
       ...ttsProvider,
       initialize: initializeTtsAdapter,
-      setResolvedPath: setResolvedPathTts,
     }));
 
     jest.doMock('../engines', () => ({
@@ -574,10 +570,10 @@ describe('public runtime state and event contract', () => {
     });
     expect(initializeSttAdapter).toHaveBeenCalledTimes(1);
     expect(initializeTtsAdapter).toHaveBeenCalledTimes(1);
-    // Story 7-2 will call setResolvedPath() with the downloaded model path
-    // before adapter.initialize(). Until then it is intentionally not called.
-    expect(setResolvedPathStt).not.toHaveBeenCalled();
-    expect(setResolvedPathTts).not.toHaveBeenCalled();
+    // Story 7-2: adapter.initialize() is called with the onBuiltInProgress
+    // callback forwarded from WakeWordInitializationOptions.
+    expect(initializeSttAdapter).toHaveBeenCalledWith(undefined);
+    expect(initializeTtsAdapter).toHaveBeenCalledWith(undefined);
     expect(initialize).toHaveBeenCalledWith({
       profile: 'balanced',
       enableDebugLogging: false,
@@ -716,7 +712,6 @@ describe('public runtime state and event contract', () => {
           cancel: jest.fn(async () => undefined),
           initialize: jest.fn(async () => undefined),
           dispose: jest.fn(async () => undefined),
-          setResolvedPath: jest.fn(),
         };
         sttInstances.push(instance);
         return instance;
@@ -731,7 +726,6 @@ describe('public runtime state and event contract', () => {
           stop: jest.fn(async () => undefined),
           initialize: jest.fn(async () => undefined),
           dispose: jest.fn(async () => undefined),
-          setResolvedPath: jest.fn(),
         };
         ttsInstances.push(instance);
         return instance;

@@ -609,14 +609,8 @@ export const voiceActivator: VoiceActivatorApi = {
           runtimeConfiguration.builtInSTT
         );
 
-        // TODO (Story 7-2): resolve model path from catalog, then call
-        // adapter.setResolvedPath(resolvedPath) here before adapter.initialize().
-        runtimeConfiguration.onBuiltInProgress?.({
-          message: 'Initializing built-in STT provider...',
-        });
-
         try {
-          await adapter.initialize();
+          await adapter.initialize(runtimeConfiguration.onBuiltInProgress);
         } catch (cause) {
           const configError = createBuiltInProviderInitFailure(
             cause instanceof Error
@@ -636,14 +630,8 @@ export const voiceActivator: VoiceActivatorApi = {
           runtimeConfiguration.builtInTTS
         );
 
-        // TODO (Story 7-2): resolve model path from catalog, then call
-        // adapter.setResolvedPath(resolvedPath) here before adapter.initialize().
-        runtimeConfiguration.onBuiltInProgress?.({
-          message: 'Initializing built-in TTS provider...',
-        });
-
         try {
-          await adapter.initialize();
+          await adapter.initialize(runtimeConfiguration.onBuiltInProgress);
         } catch (cause) {
           // Dispose the STT adapter if it was created in this same call and
           // TTS initialization now fails — prevents a loaded model from leaking.

@@ -11826,6 +11826,7 @@ __metadata:
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
+    react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
   peerDependenciesMeta:
     "@expo/config-plugins":
@@ -11835,6 +11836,8 @@ __metadata:
     "@runanywhere/onnx":
       optional: true
     react-native-audio-recorder-player:
+      optional: true
+    react-native-fs:
       optional: true
     react-native-nitro-modules:
       optional: true
@@ -11871,6 +11874,7 @@ __metadata:
     react-native: 0.83.2
     react-native-audio-recorder-player: ^3.6.0
     react-native-builder-bob: ^0.40.18
+    react-native-fs: ^2.20.0
     react-native-nitro-modules: ^0.31.3
     release-it: ^19.0.4
     turbo: ^2.5.6
@@ -11882,6 +11886,7 @@ __metadata:
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
+    react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
   peerDependenciesMeta:
     "@expo/config-plugins":
@@ -11891,6 +11896,8 @@ __metadata:
     "@runanywhere/onnx":
       optional: true
     react-native-audio-recorder-player:
+      optional: true
+    react-native-fs:
       optional: true
     react-native-nitro-modules:
       optional: true

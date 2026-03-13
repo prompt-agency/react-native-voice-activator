@@ -1,8 +1,10 @@
 import type {
+  BuiltInProviderProgress,
   RunAnywhereTTSConfig,
   TextToSpeechProvider,
   TTSOptions,
 } from '../../public/types';
+import { RUNANYWHERE_TTS_MODELS } from './catalog';
 
 type RunAnywhereModule = typeof import('@runanywhere/core');
 type RunAnywhereONNXModule = typeof import('@runanywhere/onnx');
@@ -16,51 +18,117 @@ type NativeTTSResult = {
   sampleRate?: number;
 };
 
+async function findOnnxInDirectory(
+  dirPath: string,
+  rnfs: {
+    readDir(path: string): Promise<
+      Array<{
+        isFile(): boolean;
+        isDirectory(): boolean;
+        name: string;
+        path: string;
+      }>
+    >;
+  }
+): Promise<string> {
+  const items = await rnfs.readDir(dirPath);
+  for (const item of items) {
+    if (item.isFile() && item.name.endsWith('.onnx')) {
+      return item.path;
+    }
+  }
+  for (const item of items) {
+    if (item.isDirectory()) {
+      try {
+        return await findOnnxInDirectory(item.path, rnfs);
+      } catch {
+        // try next directory
+      }
+    }
+  }
+  throw new Error(`No .onnx file found in directory: ${dirPath}`);
+}
+
 export class RunAnywhereTTSAdapter implements TextToSpeechProvider {
   readonly name = 'runanywhere-onnx';
   readonly isBuiltInRunAnywhereProvider = true;
 
   private runAnywhere: RunAnywhereModule['RunAnywhere'] | null = null;
   private nativeONNX: NativeRunAnywhereONNXModule | null = null;
-  private resolvedModelPath: string | null = null;
 
   constructor(private readonly config: RunAnywhereTTSConfig) {}
 
-  /**
-   * Set the resolved local filesystem path for the TTS model.
-   * Called by the built-in provider orchestration layer (Story 7-2) after
-   * model download and path resolution. Must be called before initialize().
-   */
-  setResolvedPath(path: string): void {
-    this.resolvedModelPath = path;
-  }
-
-  async initialize(): Promise<void> {
+  async initialize(
+    onProgress?: (update: BuiltInProviderProgress) => void
+  ): Promise<void> {
     if (this.runAnywhere && this.nativeONNX) {
       return;
     }
 
-    const [{ ONNXProvider, requireNativeONNXModule }, { RunAnywhere }] =
-      await Promise.all([
-        import('@runanywhere/onnx'),
-        import('@runanywhere/core'),
-      ]);
+    const [onnxModule, coreModule] = await Promise.all([
+      import('@runanywhere/onnx'),
+      import('@runanywhere/core'),
+    ]);
+
+    const { RunAnywhere, SDKEnvironment, ModelCategory } = coreModule;
+    const { ONNXProvider, ONNX, ModelArtifactType, requireNativeONNXModule } =
+      onnxModule;
+
+    if (!RunAnywhere.isSDKInitialized) {
+      onProgress?.({ message: 'Initializing RunAnywhere SDK...' });
+      await RunAnywhere.initialize({ environment: SDKEnvironment.Development });
+    }
 
     const registered = await ONNXProvider.register();
     if (!registered) {
       throw new Error('RunAnywhere ONNX backend failed to register.');
     }
 
-    if (!this.resolvedModelPath) {
-      throw new Error(
-        'RunAnywhereTTSAdapter: call setResolvedPath() with the downloaded model path before initialize().'
+    const modelEntry = RUNANYWHERE_TTS_MODELS[this.config.modelId];
+    const registryId = modelEntry.registryId;
+
+    await ONNX.addModel({
+      id: registryId,
+      name: this.config.modelId,
+      url: modelEntry.url,
+      modality: ModelCategory.SpeechSynthesis,
+      artifactType: ModelArtifactType.TarGzArchive,
+      memoryRequirement: modelEntry.memoryRequirement,
+    });
+
+    const alreadyDownloaded = await RunAnywhere.isModelDownloaded(registryId);
+    if (!alreadyDownloaded) {
+      onProgress?.({
+        message: `Downloading ${this.config.modelId}...`,
+        progress: 0,
+      });
+      await RunAnywhere.downloadModel(
+        registryId,
+        (progress: { progress: number }) => {
+          onProgress?.({
+            message: `Downloading ${this.config.modelId}...`,
+            progress: Math.round(progress.progress * 100),
+          });
+        }
       );
     }
 
+    const modelInfo = await RunAnywhere.getModelInfo(registryId);
+    if (!modelInfo?.localPath) {
+      throw new Error(
+        `RunAnywhere TTS model path could not be resolved: ${this.config.modelId}`
+      );
+    }
+
+    // Piper TTS archives extract to a directory; locate the .onnx file inside.
+    const rnfsModule = await import('react-native-fs');
+    const rnfs = rnfsModule.default;
+    const onnxPath = await findOnnxInDirectory(modelInfo.localPath, rnfs);
+
     const nativeONNX = requireNativeONNXModule();
     const loaded = await nativeONNX.loadTTSModel(
-      this.resolvedModelPath,
-      'piper'
+      onnxPath,
+      modelEntry.modelType
     );
 
     if (!loaded) {

@@ -7,7 +7,18 @@ const mockRecorderInstance = {
 const mockAudioRecorderPlayer = jest.fn(() => mockRecorderInstance);
 
 jest.mock('@runanywhere/core', () => ({
+  SDKEnvironment: { Development: 'development' },
+  ModelCategory: { SpeechRecognition: 'speech_recognition' },
   RunAnywhere: {
+    isSDKInitialized: false,
+    initialize: jest.fn(async () => undefined),
+    isModelDownloaded: jest.fn(async () => false),
+    downloadModel: jest.fn(
+      async (_id: string, _onProgress: unknown) => undefined
+    ),
+    getModelInfo: jest.fn(async () => ({
+      localPath: '/resolved/whisper',
+    })),
     loadSTTModel: jest.fn(async () => true),
     unloadSTTModel: jest.fn(async () => true),
     transcribeFile: jest.fn(async () => ({
@@ -24,6 +35,10 @@ jest.mock('@runanywhere/onnx', () => ({
   ONNXProvider: {
     register: jest.fn(async () => true),
   },
+  ONNX: {
+    addModel: jest.fn(async () => undefined),
+  },
+  ModelArtifactType: { TarGzArchive: 'tar_gz_archive' },
 }));
 
 jest.mock('react-native-audio-recorder-player', () => ({
@@ -50,7 +65,7 @@ jest.mock('react-native-audio-recorder-player', () => ({
 }));
 
 import { RunAnywhere } from '@runanywhere/core';
-import { ONNXProvider } from '@runanywhere/onnx';
+import { ONNXProvider, ONNX } from '@runanywhere/onnx';
 import {
   RunAnywhereSTTAdapter,
   RunAnywhereSTTCancelledError,
@@ -60,6 +75,8 @@ describe('RunAnywhereSTTAdapter', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    (RunAnywhere as unknown as Record<string, unknown>).isSDKInitialized =
+      false;
     mockRecorderInstance.startRecorder.mockResolvedValue('/tmp/recording.wav');
     mockRecorderInstance.stopRecorder.mockResolvedValue('/tmp/recording.wav');
     (RunAnywhere.transcribeFile as jest.Mock).mockResolvedValue({
@@ -69,21 +86,24 @@ describe('RunAnywhereSTTAdapter', () => {
       segments: [],
       alternatives: [],
     });
+    (RunAnywhere.isModelDownloaded as jest.Mock).mockResolvedValue(false);
+    (RunAnywhere.getModelInfo as jest.Mock).mockResolvedValue({
+      localPath: '/resolved/whisper',
+    });
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  it('loads the STT model once and maps transcription results', async () => {
+  it('initializes SDK, registers catalog model, downloads, and transcribes', async () => {
     const adapter = new RunAnywhereSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
-    await adapter.initialize();
+    await adapter.initialize(); // second call should be no-op
 
     const transcriptionPromise = adapter.transcribe();
     await jest.advanceTimersByTimeAsync(5000);
@@ -95,10 +115,25 @@ describe('RunAnywhereSTTAdapter', () => {
       durationMs: 1250,
     });
 
+    expect(RunAnywhere.initialize).toHaveBeenCalledTimes(1);
     expect(ONNXProvider.register).toHaveBeenCalledTimes(1);
+    expect(ONNX.addModel).toHaveBeenCalledTimes(1);
+    expect(ONNX.addModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'sherpa-onnx-whisper-tiny.en',
+        url: expect.stringContaining('sherpa-onnx-whisper-tiny.en'),
+      })
+    );
+    expect(RunAnywhere.isModelDownloaded).toHaveBeenCalledWith(
+      'sherpa-onnx-whisper-tiny.en'
+    );
+    expect(RunAnywhere.downloadModel).toHaveBeenCalledTimes(1);
+    expect(RunAnywhere.getModelInfo).toHaveBeenCalledWith(
+      'sherpa-onnx-whisper-tiny.en'
+    );
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(1);
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledWith(
-      '/models/whisper.onnx',
+      '/resolved/whisper',
       'whisper'
     );
     expect(mockRecorderInstance.startRecorder).toHaveBeenCalledTimes(1);
@@ -128,12 +163,61 @@ describe('RunAnywhereSTTAdapter', () => {
     );
   });
 
+  it('skips download when model is already local', async () => {
+    (RunAnywhere.isModelDownloaded as jest.Mock).mockResolvedValue(true);
+
+    const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    expect(RunAnywhere.downloadModel).not.toHaveBeenCalled();
+    expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips SDK init when RunAnywhere is already initialized', async () => {
+    (RunAnywhere as unknown as Record<string, unknown>).isSDKInitialized = true;
+
+    const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    expect(RunAnywhere.initialize).not.toHaveBeenCalled();
+    expect(ONNXProvider.register).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards download progress via onProgress callback', async () => {
+    let capturedCallback: ((p: { progress: number }) => void) | undefined;
+    (RunAnywhere.downloadModel as jest.Mock).mockImplementation(
+      async (_id: string, onProgress: (p: { progress: number }) => void) => {
+        capturedCallback = onProgress;
+      }
+    );
+
+    const onProgress = jest.fn();
+    const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize(onProgress);
+
+    capturedCallback?.({ progress: 0.5 });
+
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ progress: 50 })
+    );
+  });
+
+  it('throws if getModelInfo returns no localPath', async () => {
+    (RunAnywhere.getModelInfo as jest.Mock).mockResolvedValue({
+      localPath: null,
+    });
+
+    const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await expect(adapter.initialize()).rejects.toThrow(
+      'path could not be resolved'
+    );
+  });
+
   it('cancels recording before transcription runs', async () => {
     const adapter = new RunAnywhereSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 
@@ -167,7 +251,6 @@ describe('RunAnywhereSTTAdapter', () => {
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 
@@ -190,20 +273,9 @@ describe('RunAnywhereSTTAdapter', () => {
     const adapter = new RunAnywhereSTTAdapter({
       modelId: 'whisper-tiny-en',
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await expect(adapter.transcribe()).rejects.toThrow(
       'RunAnywhereSTTAdapter: call initialize() first'
-    );
-  });
-
-  it('throws if initialize is called without a resolved model path', async () => {
-    const adapter = new RunAnywhereSTTAdapter({
-      modelId: 'whisper-tiny-en',
-    });
-
-    await expect(adapter.initialize()).rejects.toThrow(
-      'RunAnywhereSTTAdapter: call setResolvedPath()'
     );
   });
 
@@ -212,22 +284,21 @@ describe('RunAnywhereSTTAdapter', () => {
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 1000,
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
     await adapter.dispose();
 
     expect(RunAnywhere.unloadSTTModel).toHaveBeenCalledTimes(1);
 
-    // resolvedModelPath is not cleared on dispose, so setResolvedPath() is not
-    // required again here — but it may be called to update the path if needed.
+    // resolvedModelPath is determined internally; no setResolvedPath needed
+    // before reinitializing — adapter resolves from catalog on each initialize().
     await adapter.initialize();
 
     expect(ONNXProvider.register).toHaveBeenCalledTimes(2);
     expect(RunAnywhere.loadSTTModel).toHaveBeenCalledTimes(2);
     expect(RunAnywhere.loadSTTModel).toHaveBeenNthCalledWith(
       2,
-      '/models/whisper.onnx',
+      '/resolved/whisper',
       'whisper'
     );
   });
@@ -237,7 +308,6 @@ describe('RunAnywhereSTTAdapter', () => {
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
     });
-    adapter.setResolvedPath('/models/whisper.onnx');
 
     await adapter.initialize();
 
