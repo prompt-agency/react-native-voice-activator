@@ -17,6 +17,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
   /** 1-based turn counter. Incremented after each successful TTS playback. */
   private _turnCount = 0;
   private _closed = false;
+  private _bargingIn = false;
   /** Instance-scoped listener registry — isolated from other session instances. */
   private readonly _instanceListeners = new Map<
     string,
@@ -78,10 +79,33 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       return;
     }
     this._closed = true;
+    this._bargingIn = false;
     this._state = 'closed';
     await this.sttProvider.cancel().catch(() => undefined);
     await this.ttsProvider.stop().catch(() => undefined);
     this._emitAll('sessionEnded', { reason: 'explicit' });
+  }
+
+  /**
+   * @internal Triggered by wake word detection while a session is active.
+   * Interrupts TTS playback (if speaking) or discards a pending AI response
+   * (if waiting), then restarts the turn from the listening state.
+   * No-op when the session is idle, listening, or closed.
+   */
+  async bargeIn(): Promise<void> {
+    if (this._closed) return;
+    if (
+      this._state === 'idle' ||
+      this._state === 'closed' ||
+      this._state === 'listening'
+    ) {
+      return;
+    }
+    this._bargingIn = true;
+    if (this._state === 'speaking') {
+      await this.ttsProvider.stop().catch(() => undefined);
+    }
+    // If 'waiting': AI handler is not cancellable — _bargingIn causes discard on resolve
   }
 
   /** Called internally by the voice-activator when a wake word fires with session config active. */
@@ -117,8 +141,18 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     try {
       aiResponse = await this.config.aiHandler(transcriptionText);
       if (this._closed) return;
+      if (this._bargingIn) {
+        this._bargingIn = false;
+        await this._runTurn();
+        return;
+      }
     } catch (cause) {
       if (this._closed) return;
+      if (this._bargingIn) {
+        this._bargingIn = false;
+        await this._runTurn();
+        return;
+      }
       this._state = 'idle';
       this._emitAll(
         'sessionError',
@@ -133,8 +167,18 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     try {
       await this.ttsProvider.speak(aiResponse);
       if (this._closed) return;
+      if (this._bargingIn) {
+        this._bargingIn = false;
+        await this._runTurn();
+        return;
+      }
     } catch (cause) {
       if (this._closed) return;
+      if (this._bargingIn) {
+        this._bargingIn = false;
+        await this._runTurn();
+        return;
+      }
       this._state = 'idle';
       this._emitAll('sessionError', this._buildError('tts_failed', cause));
       return;

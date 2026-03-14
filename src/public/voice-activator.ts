@@ -163,6 +163,13 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
         configuration?.sttProvider &&
         configuration?.ttsProvider
       ) {
+        // Barge-in: if a session is already running, interrupt it rather than
+        // destroying and recreating the session (preserves turn count and session continuity).
+        if (activeVoiceSession && activeVoiceSession.state !== 'closed') {
+          await activeVoiceSession.bargeIn();
+          return;
+        }
+        // No active session (or session already closed) — start a fresh one.
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,

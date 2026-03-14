@@ -436,3 +436,126 @@ describe('listen() on closed session', () => {
     expect(mockEmit).not.toHaveBeenCalled();
   });
 });
+
+// ─── bargeIn() ────────────────────────────────────────────────────────────────
+
+describe('bargeIn()', () => {
+  it('during speaking — stops TTS and starts a new turn', async () => {
+    let orch: VoiceSessionOrchestrator;
+    let speakCallCount = 0;
+    const tts = makeTts({
+      speak: jest.fn(async () => {
+        speakCallCount++;
+        if (speakCallCount === 1) {
+          // Simulate: wake word fires during TTS playback
+          await orch.bargeIn();
+          // speak() returns here, simulating the TTS stop() having resolved the promise
+        }
+      }),
+      stop: jest.fn(async () => undefined),
+    });
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual' }),
+      makeStt(),
+      tts
+    );
+    await orch.start();
+
+    expect(speakCallCount).toBe(2);
+    expect(tts.stop as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(orch.state).toBe('idle'); // manual mode ends at idle after second turn
+  });
+
+  it('during waiting — discards AI response and starts a new turn', async () => {
+    let orch: VoiceSessionOrchestrator;
+    let aiCallCount = 0;
+    const tts = makeTts();
+    const aiHandler = jest.fn(async (_text: string) => {
+      aiCallCount++;
+      if (aiCallCount === 1) {
+        // Simulate: wake word fires while AI is processing
+        await orch.bargeIn();
+      }
+      return 'ai response';
+    });
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ aiHandler, reListenMode: 'manual' }),
+      makeStt(),
+      tts
+    );
+    await orch.start();
+
+    expect(aiCallCount).toBe(2);
+    // TTS called only ONCE (second turn) — first AI response was discarded
+    expect(tts.speak as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(orch.state).toBe('idle');
+  });
+
+  it('during listening — is a no-op (session continues normally)', async () => {
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        // Simulate: wake word fires while STT is running
+        await orch.bargeIn();
+        return makeTranscription('hello');
+      }),
+    });
+    const tts = makeTts();
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual' }),
+      stt,
+      tts
+    );
+    await orch.start();
+
+    // Only one transcription (barge-in was ignored)
+    expect(stt.transcribe as jest.Mock).toHaveBeenCalledTimes(1);
+    // TTS was still called (turn completed normally)
+    expect(tts.speak as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(orch.state).toBe('idle');
+  });
+
+  it('on a closed session — is a no-op', async () => {
+    const o = makeOrchestrator();
+    await o.close();
+    jest.clearAllMocks();
+    await o.bargeIn();
+
+    expect(mockEmit).not.toHaveBeenCalled();
+  });
+});
+
+// ─── 10+ turn memory validation ───────────────────────────────────────────────
+
+describe('10+ turn memory validation (auto mode)', () => {
+  it('runs 10 turns cleanly without state corruption', async () => {
+    let callCount = 0;
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        callCount++;
+        if (callCount >= 10) {
+          await orch.close();
+        }
+        return makeTranscription('hello');
+      }),
+    });
+    const tts = makeTts();
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'auto' }),
+      stt,
+      tts
+    );
+    await orch.start();
+
+    expect(callCount).toBeGreaterThanOrEqual(10);
+    expect(orch.state).toBe('closed');
+
+    // Verify turn count is consistent — 10 transcriptions but the 10th closes
+    // the session during transcription so at most 9 full turns completed with TTS
+    const turnCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionTurnComplete'
+    );
+    expect(turnCalls.length).toBeGreaterThanOrEqual(8);
+  });
+});
