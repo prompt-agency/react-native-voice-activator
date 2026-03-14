@@ -525,6 +525,197 @@ describe('bargeIn()', () => {
   });
 });
 
+// ─── silenceTimeoutMs ─────────────────────────────────────────────────────────
+
+describe('silenceTimeoutMs', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('fires sessionEnded with reason: timeout when silence timeout expires during listening', async () => {
+    const TIMEOUT_MS = 3000;
+    let resolveStt!: () => void;
+    const stt = makeStt({
+      transcribe: jest.fn(
+        () =>
+          new Promise<TranscriptionResult>((resolve) => {
+            resolveStt = () => resolve(makeTranscription('cancelled'));
+          })
+      ),
+      cancel: jest.fn(async () => {
+        resolveStt?.();
+      }),
+    });
+    const o = new VoiceSessionOrchestrator(
+      makeConfig({ silenceTimeoutMs: TIMEOUT_MS }),
+      stt,
+      makeTts()
+    );
+
+    const startPromise = o.start();
+    jest.advanceTimersByTime(TIMEOUT_MS + 1);
+    await startPromise;
+
+    const endedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCall?.[1]).toEqual({ reason: 'timeout' });
+    expect(o.state).toBe('closed');
+    expect(stt.cancel as jest.Mock).toHaveBeenCalled();
+  });
+
+  it('clears timeout when transcription completes before timeout fires', async () => {
+    // Uses default fast-resolving STT — timeout should never fire
+    const o = makeOrchestrator({ silenceTimeoutMs: 5000 });
+    // start() resolves immediately (STT resolves synchronously in test)
+    await o.start();
+
+    // Advance well past the timeout — should be a no-op
+    jest.advanceTimersByTime(10000);
+
+    // Session should be idle (manual mode), not closed by timeout
+    expect(o.state).toBe('idle');
+    const endedCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCalls.length).toBe(0);
+  });
+
+  it('clears timeout when close() is called before it fires', async () => {
+    const TIMEOUT_MS = 5000;
+    let resolveStt!: () => void;
+    const stt = makeStt({
+      transcribe: jest.fn(
+        () =>
+          new Promise<TranscriptionResult>((resolve) => {
+            resolveStt = () => resolve(makeTranscription('cancelled'));
+          })
+      ),
+      cancel: jest.fn(async () => {
+        resolveStt?.();
+      }),
+    });
+    const o = new VoiceSessionOrchestrator(
+      makeConfig({ silenceTimeoutMs: TIMEOUT_MS }),
+      stt,
+      makeTts()
+    );
+
+    const startPromise = o.start();
+    await o.close(); // close before timeout fires
+    jest.advanceTimersByTime(TIMEOUT_MS + 1); // advance past timeout — should be no-op
+    await startPromise;
+
+    const endedCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    // Only ONE sessionEnded (from close()), not a second from the timer
+    expect(endedCalls.length).toBe(1);
+    expect(endedCalls[0]?.[1]).toEqual({ reason: 'explicit' });
+  });
+
+  it('clears timeout when bargeIn() is called during speaking state', async () => {
+    // Start a session, get to speaking state, then barge in before timeout fires
+    const TIMEOUT_MS = 5000;
+    let orch: VoiceSessionOrchestrator;
+    let speakCallCount = 0;
+    const tts = makeTts({
+      speak: jest.fn(async () => {
+        speakCallCount++;
+        if (speakCallCount === 1) {
+          await orch.bargeIn();
+        }
+      }),
+      stop: jest.fn(async () => undefined),
+    });
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual', silenceTimeoutMs: TIMEOUT_MS }),
+      makeStt(),
+      tts
+    );
+    await orch.start();
+
+    // Advance past timeout — barge-in should have cleared the timer for the second turn
+    jest.advanceTimersByTime(TIMEOUT_MS + 1);
+
+    expect(speakCallCount).toBe(2); // Two turns completed
+    expect(orch.state).toBe('idle'); // Still alive, not timed out
+    const endedCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCalls.length).toBe(0);
+  });
+});
+
+// ─── maxTurns ─────────────────────────────────────────────────────────────────
+
+describe('maxTurns', () => {
+  it('closes session after exactly 1 turn with maxTurns: 1', async () => {
+    const o = makeOrchestrator({ maxTurns: 1, reListenMode: 'manual' });
+    await o.start();
+
+    const endedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCall?.[1]).toEqual({ reason: 'explicit' });
+    expect(o.state).toBe('closed');
+
+    const turnCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionTurnComplete'
+    );
+    expect(turnCalls.length).toBe(1);
+  });
+
+  it('closes session after exactly 3 turns with maxTurns: 3 in auto mode', async () => {
+    const o = makeOrchestrator({ maxTurns: 3, reListenMode: 'auto' });
+    await o.start();
+
+    expect(o.state).toBe('closed');
+
+    const turnCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionTurnComplete'
+    );
+    expect(turnCalls.length).toBe(3);
+    expect(turnCalls[2]?.[1]).toEqual({ turn: 3 });
+
+    const endedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCall?.[1]).toEqual({ reason: 'explicit' });
+  });
+
+  it('does not close session prematurely when maxTurns is not set', async () => {
+    let callCount = 0;
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        callCount++;
+        if (callCount >= 5) {
+          await orch.close();
+        }
+        return makeTranscription('hello');
+      }),
+    });
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'auto' }),
+      stt,
+      makeTts()
+    );
+    await orch.start();
+
+    // Session ran 5 turns and was explicitly closed — no premature maxTurns close
+    const endedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCall?.[1]).toEqual({ reason: 'explicit' });
+    expect(callCount).toBeGreaterThanOrEqual(5);
+  });
+});
+
 // ─── 10+ turn memory validation ───────────────────────────────────────────────
 
 describe('10+ turn memory validation (auto mode)', () => {

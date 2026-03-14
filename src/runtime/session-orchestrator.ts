@@ -18,6 +18,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
   private _turnCount = 0;
   private _closed = false;
   private _bargingIn = false;
+  private _silenceTimer: ReturnType<typeof setTimeout> | null = null;
   /** Instance-scoped listener registry — isolated from other session instances. */
   private readonly _instanceListeners = new Map<
     string,
@@ -78,6 +79,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     if (this._closed) {
       return;
     }
+    this._clearSilenceTimeout();
     this._closed = true;
     this._bargingIn = false;
     this._state = 'closed';
@@ -119,13 +121,16 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
     this._state = 'listening';
     this._emitAll('sessionListening', {});
+    this._startSilenceTimeout();
 
     let transcriptionText: string;
     try {
       const result = await this.sttProvider.transcribe();
+      this._clearSilenceTimeout();
       if (this._closed) return;
       transcriptionText = result.text;
     } catch (cause) {
+      this._clearSilenceTimeout();
       if (this._closed) return;
       this._state = 'idle';
       this._emitAll('sessionError', this._buildError('stt_failed', cause));
@@ -189,10 +194,46 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
     if (this._closed) return;
 
+    // maxTurns: close the session when the configured turn limit is reached
+    if (
+      this.config.maxTurns !== undefined &&
+      this._turnCount >= this.config.maxTurns
+    ) {
+      this._clearSilenceTimeout();
+      this._closed = true;
+      this._bargingIn = false;
+      this._state = 'closed';
+      await this.sttProvider.cancel().catch(() => undefined);
+      await this.ttsProvider.stop().catch(() => undefined);
+      this._emitAll('sessionEnded', { reason: 'explicit' });
+      return;
+    }
+
     if (this.config.reListenMode === 'auto') {
       await this._runTurn();
     } else {
       this._state = 'idle';
+    }
+  }
+
+  private _startSilenceTimeout(): void {
+    if (!this.config.silenceTimeoutMs || this._silenceTimer !== null) return;
+    this._silenceTimer = setTimeout(() => {
+      this._silenceTimer = null;
+      if (this._closed || this._state !== 'listening') return;
+      this._closed = true;
+      this._bargingIn = false;
+      this._state = 'closed';
+      this.sttProvider.cancel().catch(() => undefined);
+      this.ttsProvider.stop().catch(() => undefined);
+      this._emitAll('sessionEnded', { reason: 'timeout' });
+    }, this.config.silenceTimeoutMs);
+  }
+
+  private _clearSilenceTimeout(): void {
+    if (this._silenceTimer !== null) {
+      clearTimeout(this._silenceTimer);
+      this._silenceTimer = null;
     }
   }
 

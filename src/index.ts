@@ -14,6 +14,7 @@ export {
   RunAnywhereTTSAdapter,
 } from './providers/runanywhere';
 export { useWakeWord } from './public/useWakeWord';
+export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
   BuiltInProviderProgress,
@@ -75,4 +76,6 @@ export type {
   VoiceSessionSubscription,
   VoiceSessionTranscribedEvent,
   VoiceSessionTurnCompleteEvent,
+  UseVoiceSessionSnapshot,
+  UseVoiceSessionResult,
 } from './public/types';

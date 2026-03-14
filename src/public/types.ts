@@ -214,6 +214,26 @@ export interface UseWakeWordResult extends UseWakeWordSnapshot {
   addWakeWordListener: VoiceActivatorApi['addListener'];
 }
 
+export interface UseVoiceSessionSnapshot {
+  /** Current state of the active session, or null when no session is active. */
+  sessionState: VoiceSessionState | null;
+  /** Most recent transcript text from the current or last session. null before first transcription. */
+  lastTranscript: string | null;
+  /** Most recent speech text (AI response) from the current or last session. null before first turn. */
+  lastSpeechText: string | null;
+  /** Most recent session error. null if no error has occurred. */
+  lastError: VoiceSessionErrorEvent | null;
+  /** Number of fully completed turns (1-based). 0 before any turn completes. */
+  turnCount: number;
+}
+
+export interface UseVoiceSessionResult extends UseVoiceSessionSnapshot {
+  /** In manual mode: starts the next turn if the session is idle. No-op in all other states. */
+  listen(): Promise<void>;
+  /** Closes the active session immediately. No-op if no session is active. */
+  close(): Promise<void>;
+}
+
 export interface WakeWordEventMap {
   stateChanged: WakeWordStateChangedEvent;
   wakeWordDetected: WakeWordDetectedEvent;
