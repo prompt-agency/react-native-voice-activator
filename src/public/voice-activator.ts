@@ -23,12 +23,15 @@ import { RunAnywhereTTSAdapter } from '../providers/runanywhere/RunAnywhereTTSAd
 import type {
   ProviderError,
   VoiceActivatorApi,
+  VoiceSession,
+  VoiceSessionConfig,
   WakeWordDetectedEvent,
   WakeWordError,
   WakeWordEventMap,
   WakeWordInitializationOptions,
   WakeWordStatus,
 } from './types';
+import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -52,6 +55,8 @@ type RunAnywhereDisposableProvider = {
 };
 
 let activeProviderFlow: ActiveProviderFlow | null = null;
+let activeSessionConfig: VoiceSessionConfig | null = null;
+let activeVoiceSession: VoiceSessionOrchestrator | null = null;
 
 function emitWakeWordDetected(payload: WakeWordDetectedEvent) {
   emitRuntimeEvent('wakeWordDetected', payload);
@@ -150,6 +155,24 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
 
       const configuration = activeRuntimeConfiguration;
       const generation = queuedGeneration;
+
+      // Session mode: when session config is active and both STT + TTS providers are
+      // available, delegate full conversation loop to VoiceSessionOrchestrator.
+      if (
+        activeSessionConfig &&
+        configuration?.sttProvider &&
+        configuration?.ttsProvider
+      ) {
+        await closeActiveVoiceSession();
+        const orchestrator = new VoiceSessionOrchestrator(
+          activeSessionConfig,
+          configuration.sttProvider,
+          configuration.ttsProvider
+        );
+        activeVoiceSession = orchestrator;
+        await orchestrator.start();
+        return;
+      }
 
       if (!configuration?.sttProvider) {
         return;
@@ -289,6 +312,13 @@ async function startEngineRuntime() {
   engineRuntimeRunning = true;
 }
 
+async function closeActiveVoiceSession() {
+  if (activeVoiceSession) {
+    await activeVoiceSession.close().catch(() => undefined);
+    activeVoiceSession = null;
+  }
+}
+
 async function syncEngineRuntimeWithNativeStatus(
   status: WakeWordStatus,
   previousStatus: WakeWordStatus
@@ -300,12 +330,14 @@ async function syncEngineRuntimeWithNativeStatus(
   ) {
     invalidateProviderOrchestration();
     await cleanupActiveProviderFlow();
+    await closeActiveVoiceSession();
     await disposeEngineRuntime();
   }
 
   if (status.state === 'interrupted') {
     invalidateProviderOrchestration();
     await cleanupActiveProviderFlow();
+    await closeActiveVoiceSession();
     await stopEngineRuntime();
     return;
   }
@@ -327,6 +359,7 @@ async function syncEngineRuntimeWithNativeStatus(
   ) {
     invalidateProviderOrchestration();
     await cleanupActiveProviderFlow();
+    await closeActiveVoiceSession();
     await stopEngineRuntime();
   }
 }
@@ -598,6 +631,7 @@ export const voiceActivator: VoiceActivatorApi = {
     try {
       invalidateProviderOrchestration();
       await cleanupActiveProviderFlow();
+      await closeActiveVoiceSession();
       await disposeEngineRuntime();
       await cleanupBuiltInProviders(activeRuntimeConfiguration);
       activeRuntimeConfiguration = null;
@@ -668,6 +702,7 @@ export const voiceActivator: VoiceActivatorApi = {
         },
       });
       activeRuntimeConfiguration = resolvedRuntimeConfiguration;
+      activeSessionConfig = options.session ?? null;
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -740,6 +775,9 @@ export const voiceActivator: VoiceActivatorApi = {
     try {
       invalidateProviderOrchestration();
       await cleanupActiveProviderFlow();
+      // activeSessionConfig is intentionally kept — session config persists across
+      // stopDetection()/startDetection() cycles until initialize() is called again.
+      await closeActiveVoiceSession();
       await stopEngineRuntime();
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
@@ -771,6 +809,8 @@ export const voiceActivator: VoiceActivatorApi = {
     try {
       invalidateProviderOrchestration();
       await cleanupActiveProviderFlow();
+      await closeActiveVoiceSession();
+      activeSessionConfig = null;
       await disposeEngineRuntime();
       await cleanupBuiltInProviders(activeRuntimeConfiguration);
       await activeRuntime.dispose();
@@ -800,5 +840,9 @@ export const stopDetection = voiceActivator.stopDetection;
 export const getStatus = voiceActivator.getStatus;
 export const dispose = voiceActivator.dispose;
 export const addWakeWordListener = addListener;
+
+export function getSession(): VoiceSession | null {
+  return activeVoiceSession;
+}
 
 export type VoiceActivatorEventMap = WakeWordEventMap;

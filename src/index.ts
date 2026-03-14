@@ -1,12 +1,14 @@
 export {
   addWakeWordListener,
   dispose,
+  getSession,
   getStatus,
   initialize,
   startDetection,
   stopDetection,
   voiceActivator,
 } from './public/voice-activator';
+export { addSessionListener } from './internal/session-events';
 export {
   RunAnywhereSTTAdapter,
   RunAnywhereTTSAdapter,

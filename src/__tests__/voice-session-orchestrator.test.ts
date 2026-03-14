@@ -1,0 +1,438 @@
+jest.mock('../internal/session-events', () => ({
+  addSessionListener: jest.fn(() => ({ remove: jest.fn() })),
+  emitSessionEvent: jest.fn(),
+}));
+
+import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
+import { emitSessionEvent } from '../internal/session-events';
+import type {
+  SpeechToTextProvider,
+  TextToSpeechProvider,
+  TranscriptionResult,
+  VoiceSessionConfig,
+} from '../public/types';
+
+const mockEmit = emitSessionEvent as jest.Mock;
+
+function makeTranscription(text: string): TranscriptionResult {
+  return { text, provider: 'mock-stt' };
+}
+
+function makeStt(
+  overrides?: Partial<SpeechToTextProvider>
+): SpeechToTextProvider {
+  return {
+    name: 'mock-stt',
+    transcribe: jest.fn(async () => makeTranscription('hello')),
+    cancel: jest.fn(async () => undefined),
+    ...overrides,
+  };
+}
+
+function makeTts(
+  overrides?: Partial<TextToSpeechProvider>
+): TextToSpeechProvider {
+  return {
+    name: 'mock-tts',
+    speak: jest.fn(async () => undefined),
+    stop: jest.fn(async () => undefined),
+    ...overrides,
+  };
+}
+
+function makeConfig(
+  overrides?: Partial<VoiceSessionConfig>
+): VoiceSessionConfig {
+  return {
+    aiHandler: jest.fn(async () => 'world'),
+    reListenMode: 'manual',
+    ...overrides,
+  };
+}
+
+function makeOrchestrator(
+  configOverrides?: Partial<VoiceSessionConfig>,
+  sttOverrides?: Partial<SpeechToTextProvider>,
+  ttsOverrides?: Partial<TextToSpeechProvider>
+) {
+  return new VoiceSessionOrchestrator(
+    makeConfig(configOverrides),
+    makeStt(sttOverrides),
+    makeTts(ttsOverrides)
+  );
+}
+
+function emittedEvents() {
+  return mockEmit.mock.calls.map(([name]: [string]) => name);
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+describe('initial state', () => {
+  it('starts in idle state', () => {
+    const o = makeOrchestrator();
+    expect(o.state).toBe('idle');
+  });
+});
+
+// ─── Manual mode — single turn ─────────────────────────────────────────────
+
+describe('manual mode — full single turn', () => {
+  it('emits events in the correct order and ends in idle', async () => {
+    const o = makeOrchestrator({ reListenMode: 'manual' });
+    await o.start();
+
+    expect(emittedEvents()).toEqual([
+      'sessionStarted',
+      'sessionListening',
+      'sessionTranscribed',
+      'sessionSpeaking',
+      'sessionTurnComplete',
+    ]);
+    expect(o.state).toBe('idle');
+  });
+
+  it('emits sessionTranscribed with the transcription text', async () => {
+    const stt = makeStt({
+      transcribe: jest.fn(async () => makeTranscription('test input')),
+    });
+    const o = new VoiceSessionOrchestrator(makeConfig(), stt, makeTts());
+    await o.start();
+
+    const transcribedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionTranscribed'
+    );
+    expect(transcribedCall?.[1]).toEqual({ text: 'test input' });
+  });
+
+  it('passes transcription text to AI handler', async () => {
+    const aiHandler = jest.fn(async () => 'response');
+    const stt = makeStt({
+      transcribe: jest.fn(async () => makeTranscription('user said')),
+    });
+    const o = new VoiceSessionOrchestrator(
+      makeConfig({ aiHandler }),
+      stt,
+      makeTts()
+    );
+    await o.start();
+
+    expect(aiHandler).toHaveBeenCalledWith('user said');
+  });
+
+  it('emits sessionSpeaking with AI response text', async () => {
+    const o = makeOrchestrator({
+      aiHandler: jest.fn(async () => 'the answer'),
+    });
+    await o.start();
+
+    const speakingCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionSpeaking'
+    );
+    expect(speakingCall?.[1]).toEqual({ text: 'the answer' });
+  });
+
+  it('emits sessionTurnComplete with turn=1 after first turn', async () => {
+    const o = makeOrchestrator({ reListenMode: 'manual' });
+    await o.start();
+
+    const turnCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionTurnComplete'
+    );
+    expect(turnCall?.[1]).toEqual({ turn: 1 });
+  });
+
+  it('does NOT auto-loop in manual mode', async () => {
+    const stt = makeStt();
+    const o = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual' }),
+      stt,
+      makeTts()
+    );
+    await o.start();
+    expect((stt.transcribe as jest.Mock).mock.calls.length).toBe(1);
+  });
+});
+
+// ─── Manual mode — session.listen() ───────────────────────────────────────
+
+describe('manual mode — session.listen()', () => {
+  it('starts a new turn from idle state', async () => {
+    const o = makeOrchestrator({ reListenMode: 'manual' });
+    await o.start(); // first turn — ends in idle
+    jest.clearAllMocks();
+    await o.listen(); // second turn
+
+    expect(emittedEvents()).toContain('sessionListening');
+    expect(emittedEvents()).toContain('sessionTranscribed');
+  });
+
+  it('increments turn count across multiple listen() calls', async () => {
+    const o = makeOrchestrator({ reListenMode: 'manual' });
+    await o.start();
+    await o.listen();
+
+    const turnCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionTurnComplete'
+    );
+    expect(turnCalls[0]?.[1]).toEqual({ turn: 1 });
+    expect(turnCalls[1]?.[1]).toEqual({ turn: 2 });
+  });
+
+  it('is a no-op when state is not idle', async () => {
+    // listen() while the session is in 'listening' state (mid-turn) should be a no-op.
+    // We verify this by calling listen() inside the transcribe mock — state will be
+    // 'listening' at that point so the inner listen() must be ignored.
+    let secondListenStarted = false;
+    let orch: VoiceSessionOrchestrator;
+    const slowStt = makeStt({
+      transcribe: jest.fn(async () => {
+        // During transcription, call listen() — should be no-op (state === 'listening')
+        await orch.listen();
+        secondListenStarted = true;
+        return makeTranscription('hello');
+      }),
+    });
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual' }),
+      slowStt,
+      makeTts()
+    );
+    await orch.start();
+    expect(secondListenStarted).toBe(true);
+    // Only one transcription call (from start), not two
+    expect((slowStt.transcribe as jest.Mock).mock.calls.length).toBe(1);
+  });
+});
+
+// ─── Auto mode ────────────────────────────────────────────────────────────────
+
+describe('auto mode', () => {
+  it('re-listens automatically after each turn', async () => {
+    let callCount = 0;
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        callCount++;
+        if (callCount >= 2) {
+          // Close the session after 2 transcriptions to stop the loop
+          await orch.close();
+        }
+        return makeTranscription('hello');
+      }),
+    });
+    const tts = makeTts();
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'auto' }),
+      stt,
+      tts
+    );
+    await orch.start();
+
+    // Should have transcribed twice before close stopped the loop
+    expect(
+      (stt.transcribe as jest.Mock).mock.calls.length
+    ).toBeGreaterThanOrEqual(2);
+    expect(orch.state).toBe('closed');
+  });
+});
+
+// ─── close() ──────────────────────────────────────────────────────────────────
+
+describe('close()', () => {
+  it('emits sessionEnded with reason: explicit', async () => {
+    const o = makeOrchestrator();
+    await o.close();
+
+    const endedCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCall?.[1]).toEqual({ reason: 'explicit' });
+  });
+
+  it('sets state to closed', async () => {
+    const o = makeOrchestrator();
+    await o.close();
+    expect(o.state).toBe('closed');
+  });
+
+  it('is idempotent — second call is no-op', async () => {
+    const o = makeOrchestrator();
+    await o.close();
+    await o.close();
+
+    const endedCalls = mockEmit.mock.calls.filter(
+      ([name]: [string]) => name === 'sessionEnded'
+    );
+    expect(endedCalls.length).toBe(1);
+  });
+
+  it('cancels STT when closed mid-transcription', async () => {
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        await orch.close();
+        return makeTranscription('hello');
+      }),
+    });
+    const tts = makeTts();
+    orch = new VoiceSessionOrchestrator(makeConfig(), stt, tts);
+    await orch.start();
+
+    expect((stt.cancel as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(
+      1
+    );
+  });
+
+  it('stops TTS when closed during speech playback', async () => {
+    let orch: VoiceSessionOrchestrator;
+    const tts = makeTts({
+      speak: jest.fn(async () => {
+        await orch.close();
+      }),
+    });
+    orch = new VoiceSessionOrchestrator(makeConfig(), makeStt(), tts);
+    await orch.start();
+
+    expect((tts.stop as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not emit further events after close during a turn', async () => {
+    let closed = false;
+    let orch: VoiceSessionOrchestrator;
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        if (!closed) {
+          closed = true;
+          await orch.close();
+        }
+        return makeTranscription('hello');
+      }),
+    });
+    orch = new VoiceSessionOrchestrator(makeConfig(), stt, makeTts());
+    await orch.start();
+
+    const eventsAfterClose = mockEmit.mock.calls
+      .map(([name]: [string]) => name)
+      .filter(
+        (name: string) =>
+          name !== 'sessionStarted' &&
+          name !== 'sessionListening' &&
+          name !== 'sessionEnded'
+      );
+    // No transcribed/speaking/turnComplete should have been emitted
+    expect(eventsAfterClose).toHaveLength(0);
+  });
+});
+
+// ─── Error handling ───────────────────────────────────────────────────────────
+
+describe('STT error', () => {
+  it('emits sessionError and returns to idle', async () => {
+    const stt = makeStt({
+      transcribe: jest.fn(async () => {
+        throw new Error('mic failed');
+      }),
+    });
+    const o = new VoiceSessionOrchestrator(makeConfig(), stt, makeTts());
+    await o.start();
+
+    const errorCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionError'
+    );
+    expect(errorCall?.[1]).toMatchObject({
+      code: 'stt_failed',
+      message: 'mic failed',
+      recoverable: true,
+    });
+    expect(o.state).toBe('idle');
+  });
+});
+
+describe('AI handler error', () => {
+  it('emits sessionError and returns to idle', async () => {
+    const o = makeOrchestrator({
+      aiHandler: jest.fn(async () => {
+        throw new Error('llm down');
+      }),
+    });
+    await o.start();
+
+    const errorCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionError'
+    );
+    expect(errorCall?.[1]).toMatchObject({
+      code: 'ai_handler_failed',
+      message: 'llm down',
+      recoverable: true,
+    });
+    expect(o.state).toBe('idle');
+  });
+});
+
+describe('TTS error', () => {
+  it('emits sessionError and returns to idle', async () => {
+    const tts = makeTts({
+      speak: jest.fn(async () => {
+        throw new Error('audio session broken');
+      }),
+    });
+    const o = new VoiceSessionOrchestrator(makeConfig(), makeStt(), tts);
+    await o.start();
+
+    const errorCall = mockEmit.mock.calls.find(
+      ([name]: [string]) => name === 'sessionError'
+    );
+    expect(errorCall?.[1]).toMatchObject({
+      code: 'tts_failed',
+      message: 'audio session broken',
+      recoverable: true,
+    });
+    expect(o.state).toBe('idle');
+  });
+});
+
+// ─── addListener ──────────────────────────────────────────────────────────────
+
+describe('addListener', () => {
+  it('returns a subscription with remove()', () => {
+    const o = makeOrchestrator();
+    const sub = o.addListener('sessionStarted', jest.fn());
+    expect(typeof sub.remove).toBe('function');
+  });
+
+  it('is instance-scoped — listeners added to one session do not fire for others', async () => {
+    const listener1 = jest.fn();
+    const listener2 = jest.fn();
+
+    const o1 = makeOrchestrator({ reListenMode: 'manual' });
+    const o2 = makeOrchestrator({ reListenMode: 'manual' });
+
+    o1.addListener('sessionStarted', listener1);
+    o2.addListener('sessionStarted', listener2);
+
+    await o1.start();
+
+    // listener1 should have fired (it's on o1 which started)
+    expect(listener1).toHaveBeenCalledTimes(1);
+    // listener2 should NOT have fired (it's on o2 which has not started)
+    expect(listener2).not.toHaveBeenCalled();
+  });
+});
+
+// ─── listen() on closed session ───────────────────────────────────────────────
+
+describe('listen() on closed session', () => {
+  it('is a no-op and emits nothing when session is closed', async () => {
+    const o = makeOrchestrator();
+    await o.close();
+    jest.clearAllMocks();
+    await o.listen();
+
+    expect(mockEmit).not.toHaveBeenCalled();
+  });
+});
