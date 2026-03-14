@@ -15,16 +15,28 @@ Pod::Spec.new do |s|
 
   s.source_files = "ios/**/*.{h,m,mm,cpp}"
   s.private_header_files = "ios/**/*.h"
-  s.vendored_frameworks = "ios/Vendor/SherpaOnnx/*.xcframework"
   s.resources = "ios/Assets/**/*"
 
   sherpa_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework/Headers\""
   onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Headers\""
 
+  # When RUNANYWHERE_ONNX_COMPAT=1 is set at `pod install` time, the bundled
+  # sherpa-onnxruntime.xcframework is excluded. sherpa-onnx.a then links against
+  # RunAnywhere's onnxruntime.xcframework (ORT 1.17.1, API v17 — same version),
+  # eliminating the duplicate-symbol conflict and the resulting error -401.
+  # Set this flag in your Podfile when using @runanywhere/onnx for builtInSTT/builtInTTS.
+  if ENV['RUNANYWHERE_ONNX_COMPAT'] == '1'
+    s.vendored_frameworks = "ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework"
+    ort_header_paths = "\"$(PODS_ROOT)/Headers/Private/Yoga\" $(inherited) #{sherpa_header_root}"
+  else
+    s.vendored_frameworks = "ios/Vendor/SherpaOnnx/*.xcframework"
+    ort_header_paths = "\"$(PODS_ROOT)/Headers/Private/Yoga\" $(inherited) #{sherpa_header_root} #{onnxruntime_header_root}"
+  end
+
   install_modules_dependencies(s)
 
   s.pod_target_xcconfig = {
-    "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/Headers/Private/Yoga\" $(inherited) #{sherpa_header_root} #{onnxruntime_header_root}",
+    "HEADER_SEARCH_PATHS" => ort_header_paths,
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",
     "OTHER_CPLUSPLUSFLAGS" => "$(inherited) -DRCT_NEW_ARCH_ENABLED=1 ",
     "OTHER_SWIFT_FLAGS" => "$(inherited) -DRCT_NEW_ARCH_ENABLED"
