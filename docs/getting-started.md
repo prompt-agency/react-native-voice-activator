@@ -49,6 +49,32 @@ Use the current provider pattern in this order:
 That wake -> transcribe -> optional speak flow is the supported extension model.
 The package owns step 1. Your app can own steps 2 and 3 through custom providers, or opt into the built-in RunAnywhere adapters as an exception to the default provider pattern.
 
+## Conversation Session (Recommended for Assistant Apps)
+
+For apps that need a multi-turn voice assistant experience, the conversation session
+manages the complete wake-word → listen → transcribe → AI → speak → re-listen loop:
+
+```typescript
+await initialize({
+  builtInSTT: { modelId: 'whisper-tiny-en' },
+  builtInTTS: { modelId: 'piper-en-lessac' },
+  session: {
+    aiHandler: async (transcript) => {
+      const response = await myBackend.chat(transcript);
+      return response.text;
+    },
+    reListenMode: 'auto',    // keep listening after each turn
+    silenceTimeoutMs: 10000, // end session after 10s of silence
+  },
+});
+```
+
+Once configured, a session starts automatically every time the wake word is detected.
+Your app only provides the AI handler — the package owns the loop.
+
+See [`./conversation-session.md`](./conversation-session.md) for the full API reference,
+barge-in behavior, manual mode, and lifecycle controls.
+
 ## Built-In Engine Defaults
 
 - the default built-in engine is native-managed Sherpa-ONNX

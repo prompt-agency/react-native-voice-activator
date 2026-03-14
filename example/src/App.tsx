@@ -20,6 +20,7 @@ import {
   RunAnywhereTTSAdapter,
   startDetection,
   stopDetection,
+  useVoiceSession,
   wakeWordStates,
   type BuiltInProviderProgress,
   type WakeWordDetectedEvent,
@@ -284,6 +285,12 @@ function ActionButton({
   );
 }
 
+async function mockAiHandler(transcript: string): Promise<string> {
+  // Simulate a short AI processing delay
+  await new Promise<void>((resolve) => setTimeout(resolve, 400));
+  return `You said: "${transcript}". This is a demo AI response.`;
+}
+
 export default function App() {
   const [status, setStatus] = useState<WakeWordStatus>(() => getStatus());
   const [lastDetection, setLastDetection] =
@@ -311,6 +318,12 @@ export default function App() {
   const [activeKeywordPresetId, setActiveKeywordPresetId] = useState<
     string | null
   >(null);
+  // Session demo state
+  const [sessionEnabled, setSessionEnabled] = useState(false);
+  const [sessionReListenMode, setSessionReListenMode] = useState<
+    'auto' | 'manual'
+  >('auto');
+
   const sttBridgeRef = useRef(createDemoReferenceSttBridge());
   const ttsBridgeRef = useRef(createDemoReferenceTtsBridge());
   const manualRunAnywhereAdaptersRef = useRef<ManualRunAnywhereAdapters>({
@@ -331,6 +344,15 @@ export default function App() {
   const runAnywhereAvailability = getRunAnywhereAvailability();
   const runAnywhereAvailable =
     runAnywhereAvailability.stt || runAnywhereAvailability.tts;
+
+  const {
+    sessionState,
+    lastTranscript: sessionLastTranscript,
+    lastSpeechText: sessionLastSpeechText,
+    turnCount,
+    listen: sessionListen,
+    close: sessionClose,
+  } = useVoiceSession();
 
   async function ensureRuntimePrerequisites(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -656,6 +678,13 @@ export default function App() {
               },
             }),
         autoSpeak: true,
+        ...(sessionEnabled && {
+          session: {
+            aiHandler: mockAiHandler,
+            reListenMode: sessionReListenMode,
+            silenceTimeoutMs: 10000,
+          },
+        }),
       });
     }).catch(() => undefined);
   }
@@ -910,6 +939,83 @@ export default function App() {
               tone="danger"
             />
           </View>
+        </View>
+
+        {/* ──── Conversation Session ──── */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Conversation Session</Text>
+          <Text style={styles.helperText}>
+            Requires STT + TTS providers configured (RunAnywhere mode). Enable
+            below, then press Initialize.
+          </Text>
+
+          {/* Enable toggle */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <ActionButton
+              label={sessionEnabled ? 'Session ON' : 'Session OFF'}
+              tone={sessionEnabled ? 'primary' : 'secondary'}
+              onPress={() => {
+                setSessionEnabled((v) => !v);
+              }}
+            />
+            <ActionButton
+              label={`Mode: ${sessionReListenMode}`}
+              tone="quiet"
+              onPress={() => {
+                setSessionReListenMode((m) =>
+                  m === 'auto' ? 'manual' : 'auto'
+                );
+              }}
+            />
+          </View>
+
+          {/* Session state display */}
+          <View style={styles.infoTile}>
+            <Text style={styles.helperText}>
+              State: {sessionState ?? 'inactive'}
+            </Text>
+            {turnCount > 0 && (
+              <Text style={styles.helperText}>Turn: {turnCount}</Text>
+            )}
+          </View>
+
+          {/* Last transcript */}
+          {sessionLastTranscript != null && (
+            <View style={styles.infoTile}>
+              <Text style={styles.eyebrow}>YOU SAID</Text>
+              <Text style={styles.helperText}>{sessionLastTranscript}</Text>
+            </View>
+          )}
+
+          {/* Last AI response */}
+          {sessionLastSpeechText != null && (
+            <View style={styles.infoTile}>
+              <Text style={styles.eyebrow}>AI SAID</Text>
+              <Text style={styles.helperText}>{sessionLastSpeechText}</Text>
+            </View>
+          )}
+
+          {/* Manual mode listen button */}
+          {sessionState === 'idle' && sessionReListenMode === 'manual' && (
+            <ActionButton
+              label="Listen Again"
+              tone="primary"
+              onPress={() => {
+                void sessionListen();
+              }}
+            />
+          )}
+
+          {/* Close button */}
+          {sessionState != null && sessionState !== 'closed' && (
+            <ActionButton
+              label="End Session"
+              tone="danger"
+              onPress={() => {
+                void sessionClose();
+              }}
+            />
+          )}
         </View>
 
         <View style={styles.card}>

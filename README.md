@@ -1,6 +1,6 @@
 # react-native-voice-activator
 
-React Native and Expo wake word runtime library.
+React Native and Expo voice conversation platform. Provides wake word detection and a managed multi-turn conversation session — say the wake word, speak to your AI, hear the response — with barge-in interruption, configurable lifecycle controls, and React hooks.
 
 Current implementation status:
 
@@ -26,6 +26,37 @@ The example app also includes optional downstream STT/TTS extension examples:
 - a downstream TTS response can be wired after detection or transcript handling
 - the package provides optional built-in STT/TTS via RunAnywhere ONNX when configured with `builtInSTT` / `builtInTTS`; user-owned providers via `sttProvider` / `ttsProvider` remain supported for custom implementations
 - concrete reference adapter examples now live under `docs/examples/` and stay outside package core
+
+## Conversation Session
+
+The headline capability is the managed conversation loop — configure once, and the package drives the full experience:
+
+```typescript
+import { initialize, startDetection, useVoiceSession } from 'react-native-voice-activator';
+
+// Configure the session
+await initialize({
+  builtInSTT: { modelId: 'whisper-tiny-en' },
+  builtInTTS: { modelId: 'piper-en-lessac' },
+  session: {
+    aiHandler: async (transcript) => myAI.chat(transcript),
+    reListenMode: 'auto',
+    silenceTimeoutMs: 8000,
+  },
+});
+await startDetection();
+
+// React hook for session state
+function Assistant() {
+  const { sessionState, lastTranscript, lastSpeechText, turnCount } = useVoiceSession();
+  // sessionState: 'idle' | 'listening' | 'transcribing' | 'waiting' | 'speaking' | null
+}
+```
+
+**The loop:** say wake word → session starts → STT listens → AI handler called → TTS speaks → re-listen (auto mode).
+**Barge-in:** say the wake word while the AI is speaking to interrupt and start a new turn immediately.
+
+See [`docs/conversation-session.md`](docs/conversation-session.md) for the full API reference.
 
 ## Wake-to-Transcribe-to-Speak Flow
 
@@ -72,11 +103,15 @@ npm install react-native-voice-activator
 ```ts
 import {
   addWakeWordListener,
+  addSessionListener,
   dispose,
+  getSession,
   getStatus,
   initialize,
   startDetection,
   stopDetection,
+  useVoiceSession,
+  useWakeWord,
 } from 'react-native-voice-activator';
 
 async function runQuickstart() {

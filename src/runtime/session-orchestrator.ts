@@ -110,7 +110,9 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     // If 'waiting': AI handler is not cancellable — _bargingIn causes discard on resolve
   }
 
-  /** Called internally by the voice-activator when a wake word fires with session config active. */
+  /**
+   * @internal Called by the voice-activator when a wake word fires with session config active.
+   */
   async start(): Promise<void> {
     this._emitAll('sessionStarted', {});
     await this._runTurn();
