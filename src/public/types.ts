@@ -122,6 +122,7 @@ export interface WakeWordInitializationOptions {
   builtInTTS?: RunAnywhereTTSConfig;
   autoSpeak?: boolean;
   onBuiltInProgress?: (update: BuiltInProviderProgress) => void;
+  session?: VoiceSessionConfig;
 }
 
 export interface WakeWordStatus {
@@ -249,4 +250,79 @@ export interface VoiceActivatorApi {
     eventName: TEventName,
     listener: WakeWordEventListener<TEventName>
   ): WakeWordSubscription;
+}
+
+// ─── Voice Session Types ─────────────────────────────────────────────────────
+
+export const voiceSessionStates = [
+  'idle',
+  'listening',
+  'transcribing',
+  'waiting',
+  'speaking',
+  'closed',
+] as const;
+
+export type VoiceSessionState = (typeof voiceSessionStates)[number];
+
+export type AIHandler = (transcript: string) => Promise<string>;
+
+export interface VoiceSessionConfig {
+  aiHandler: AIHandler;
+  reListenMode: 'auto' | 'manual';
+  silenceTimeoutMs?: number;
+  maxTurns?: number;
+}
+
+export interface VoiceSessionStartedEvent {}
+
+export interface VoiceSessionListeningEvent {}
+
+export interface VoiceSessionTranscribedEvent {
+  text: string;
+}
+
+export interface VoiceSessionSpeakingEvent {
+  text: string;
+}
+
+export interface VoiceSessionTurnCompleteEvent {
+  /** 1-based turn number (first turn = 1). */
+  turn: number;
+}
+
+export interface VoiceSessionEndedEvent {
+  reason: 'timeout' | 'explicit';
+}
+
+export interface VoiceSessionErrorEvent extends WakeWordError {}
+
+export interface VoiceSessionEventMap {
+  sessionStarted: VoiceSessionStartedEvent;
+  sessionListening: VoiceSessionListeningEvent;
+  sessionTranscribed: VoiceSessionTranscribedEvent;
+  sessionSpeaking: VoiceSessionSpeakingEvent;
+  sessionTurnComplete: VoiceSessionTurnCompleteEvent;
+  sessionEnded: VoiceSessionEndedEvent;
+  sessionError: VoiceSessionErrorEvent;
+}
+
+export type VoiceSessionEventName = keyof VoiceSessionEventMap;
+
+export type VoiceSessionEventListener<
+  TEventName extends VoiceSessionEventName,
+> = (payload: VoiceSessionEventMap[TEventName]) => void;
+
+export interface VoiceSessionSubscription {
+  remove(): void;
+}
+
+export interface VoiceSession {
+  readonly state: VoiceSessionState;
+  listen(): Promise<void>;
+  close(): Promise<void>;
+  addListener<TEventName extends VoiceSessionEventName>(
+    eventName: TEventName,
+    listener: VoiceSessionEventListener<TEventName>
+  ): VoiceSessionSubscription;
 }

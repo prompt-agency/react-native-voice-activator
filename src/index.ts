@@ -12,7 +12,7 @@ export {
   RunAnywhereTTSAdapter,
 } from './providers/runanywhere';
 export { useWakeWord } from './public/useWakeWord';
-export { wakeWordStates } from './public/types';
+export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
   BuiltInProviderProgress,
   ProviderError,
@@ -58,4 +58,19 @@ export type {
   WakeWordStateChangedEvent,
   WakeWordStatus,
   WakeWordSubscription,
+  AIHandler,
+  VoiceSession,
+  VoiceSessionConfig,
+  VoiceSessionEndedEvent,
+  VoiceSessionErrorEvent,
+  VoiceSessionEventListener,
+  VoiceSessionEventMap,
+  VoiceSessionEventName,
+  VoiceSessionListeningEvent,
+  VoiceSessionSpeakingEvent,
+  VoiceSessionStartedEvent,
+  VoiceSessionState,
+  VoiceSessionSubscription,
+  VoiceSessionTranscribedEvent,
+  VoiceSessionTurnCompleteEvent,
 } from './public/types';
