@@ -56,50 +56,6 @@ function createInitialSnapshot(): UseWakeWordSnapshot {
   };
 }
 
-function cloneSnapshot(snapshot: UseWakeWordSnapshot): UseWakeWordSnapshot {
-  return {
-    ...snapshot,
-    status: {
-      ...snapshot.status,
-      lastError: snapshot.status.lastError
-        ? { ...snapshot.status.lastError }
-        : snapshot.status.lastError,
-    },
-    latestWakeWordEvent: snapshot.latestWakeWordEvent
-      ? { ...snapshot.latestWakeWordEvent }
-      : null,
-    latestRuntimeError: snapshot.latestRuntimeError
-      ? { ...snapshot.latestRuntimeError }
-      : null,
-    latestInterruption: snapshot.latestInterruption
-      ? { ...snapshot.latestInterruption }
-      : null,
-    latestAudioRouteChange: snapshot.latestAudioRouteChange
-      ? { ...snapshot.latestAudioRouteChange }
-      : null,
-    transcription: {
-      ...snapshot.transcription,
-      started: snapshot.transcription.started
-        ? { ...snapshot.transcription.started }
-        : null,
-      result: snapshot.transcription.result
-        ? { ...snapshot.transcription.result }
-        : null,
-      error: snapshot.transcription.error
-        ? { ...snapshot.transcription.error }
-        : null,
-    },
-    speech: {
-      ...snapshot.speech,
-      started: snapshot.speech.started ? { ...snapshot.speech.started } : null,
-      completed: snapshot.speech.completed
-        ? { ...snapshot.speech.completed }
-        : null,
-      error: snapshot.speech.error ? { ...snapshot.speech.error } : null,
-    },
-  };
-}
-
 let snapshot = createInitialSnapshot();
 const storeListeners = new Set<() => void>();
 let runtimeSubscriptions: WakeWordSubscription[] = [];
@@ -314,7 +270,7 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot() {
-  return cloneSnapshot(snapshot);
+  return snapshot;
 }
 
 export function useWakeWord(): UseWakeWordResult {

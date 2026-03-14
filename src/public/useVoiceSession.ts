@@ -104,7 +104,7 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot(): UseVoiceSessionSnapshot {
-  return { ...snapshot };
+  return snapshot;
 }
 
 export function useVoiceSession(): UseVoiceSessionResult {
