@@ -139,6 +139,22 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
   const queuedGeneration = providerOrchestrationGeneration;
   emitWakeWordDetected(payload);
 
+  // Fast path: barge-in an actively-running session immediately, outside the queue.
+  // In auto mode, orchestrator.start() holds the queue indefinitely (recursive _runTurn
+  // loop that only exits on close/error), so barge-in MUST be handled here to fire
+  // within the 300ms TTS-stop window and not be serialised behind the running session.
+  // Only non-idle, non-closed states are interrupted — idle falls through to the queue
+  // so a wake word after a manual-mode turn naturally starts a fresh session.
+  if (
+    activeSessionConfig &&
+    activeVoiceSession &&
+    activeVoiceSession.state !== 'closed' &&
+    activeVoiceSession.state !== 'idle'
+  ) {
+    activeVoiceSession.bargeIn().catch(() => undefined);
+    return;
+  }
+
   providerOrchestrationQueue = providerOrchestrationQueue
     .catch(() => {
       // Keep the queue alive after a prior failure.
@@ -163,13 +179,8 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
         configuration?.sttProvider &&
         configuration?.ttsProvider
       ) {
-        // Barge-in: if a session is already running, interrupt it rather than
-        // destroying and recreating the session (preserves turn count and session continuity).
-        if (activeVoiceSession && activeVoiceSession.state !== 'closed') {
-          await activeVoiceSession.bargeIn();
-          return;
-        }
-        // No active session (or session already closed) — start a fresh one.
+        // Start a fresh session (any previously active session was already handled by
+        // the fast-path barge-in above, or was closed/idle before this queued call ran).
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,

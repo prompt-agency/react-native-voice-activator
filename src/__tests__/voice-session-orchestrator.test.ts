@@ -552,10 +552,10 @@ describe('10+ turn memory validation (auto mode)', () => {
     expect(orch.state).toBe('closed');
 
     // Verify turn count is consistent — 10 transcriptions but the 10th closes
-    // the session during transcription so at most 9 full turns completed with TTS
+    // the session during transcription (before AI/TTS), so exactly 9 full turns complete.
     const turnCalls = mockEmit.mock.calls.filter(
       ([name]: [string]) => name === 'sessionTurnComplete'
     );
-    expect(turnCalls.length).toBeGreaterThanOrEqual(8);
+    expect(turnCalls.length).toBeGreaterThanOrEqual(9);
   });
 });
