@@ -29,131 +29,119 @@ if (examplePackageJson.name !== 'react-native-voice-activator-example') {
   errors.push('Example package name is not react-native-voice-activator-example.');
 }
 
+// ─── Example source files ─────────────────────────────────────────────────────
+
 if (!existsSync(exampleAppPath)) {
   errors.push('Example app entrypoint does not exist at example/src/App.tsx.');
 } else {
-  const exampleAppSource = readFileSync(exampleAppPath, 'utf8');
-  const normalizedExampleAppSource = exampleAppSource.replace(/\s+/g, ' ');
-  const requiredApiUsage = [
+  const appSource = readFileSync(exampleAppPath, 'utf8');
+
+  // App.tsx must wire the three screens
+  const requiredInApp = [
+    'WakeWordScreen',
+    'SessionScreen',
+    'ManualScreen',
+  ];
+
+  for (const token of requiredInApp) {
+    if (!appSource.includes(token)) {
+      errors.push(`App.tsx does not reference ${token}.`);
+    }
+  }
+}
+
+// ─── WakeWordScreen ───────────────────────────────────────────────────────────
+
+const wakeWordScreenPath = join(root, 'example/src/screens/WakeWordScreen.tsx');
+
+if (!existsSync(wakeWordScreenPath)) {
+  errors.push('WakeWordScreen.tsx does not exist at example/src/screens/WakeWordScreen.tsx.');
+} else {
+  const src = readFileSync(wakeWordScreenPath, 'utf8');
+
+  const required = [
     'addWakeWordListener',
     'getStatus',
     'initialize',
     'startDetection',
     'stopDetection',
     'dispose',
+    'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
-    'syncDiagnosticsFromStatus',
-    'getStatus().lastError',
-    'Optional STT/TTS extension examples',
-    'Assistant flow guide',
-    'Preview STT adapter',
-    'Preview TTS adapter',
-    'wakeWordDetected',
-    'application-level reference provider',
-    'createReferenceProviders',
-    'referenceProviderCatalog',
-    'createDemoReferenceSttBridge',
-    'createDemoReferenceTtsBridge',
-    'transcriptionStarted',
-    'transcriptionResult',
-    'speechStarted',
-    'speechCompleted',
+    'builtInSTT',
+    'builtInTTS',
+    'autoSpeak: true',
+    'engineConfig',
+    'keywordAssetKey',
     'Bundled keyword presets',
     'Keyword detection status',
-    'selectedKeywordPresetId',
-    'activeKeywordPresetId',
-    'keywordAssetKey',
     'All bundled phrases',
     'HELLO WORLD',
-  ];
-
-  for (const token of requiredApiUsage) {
-    if (!exampleAppSource.includes(token)) {
-      errors.push(`Example app does not reference ${token}.`);
-    }
-  }
-
-  if (exampleAppSource.includes('setLastError(null);')) {
-    errors.push(
-      'Example app clears lastError optimistically instead of mirroring getStatus().lastError.'
-    );
-  }
-
-  if (!exampleAppSource.includes('initialize({')) {
-    errors.push(
-      'Example app does not configure reference providers through initialize({...}).'
-    );
-  }
-
-  if (!exampleAppSource.includes('sttProvider: referenceProviders.sttProvider')) {
-    errors.push(
-      'Example app does not pass the STT reference provider through the public initialize options.'
-    );
-  }
-
-  if (!exampleAppSource.includes('ttsProvider: referenceProviders.ttsProvider')) {
-    errors.push(
-      'Example app does not pass the TTS reference provider through the public initialize options.'
-    );
-  }
-
-  if (!exampleAppSource.includes('autoSpeak: true')) {
-    errors.push(
-      'Example app does not demonstrate the runtime-owned autoSpeak provider orchestration path.'
-    );
-  }
-
-  if (!exampleAppSource.includes('engineConfig: {')) {
-    errors.push(
-      'Example app does not configure engineConfig through initialize({...}).'
-    );
-  }
-
-  if (!exampleAppSource.includes('keywordAssetKey: selectedKeywordPreset.keywordAssetKey')) {
-    errors.push(
-      'Example app does not pass the selected bundled keyword preset through engineConfig.assetKeys.keywordAssetKey.'
-    );
-  }
-
-  if (!exampleAppSource.includes('simulated host implementation to preview the contract')) {
-    errors.push(
-      'Example app does not explain that the adapter preview is an application-owned simulated host implementation.'
-    );
-  }
-
-  const requiredExampleLimitationText = [
-    'The package-owned native runtime detects a wake phrase.',
-    'Active preset:',
-    'Selected preset:',
-    'Asset key:',
-    'Detected phrase:',
     'Keyword selection changed. Run Initialize again before Start detection',
-    'The optional application-owned STT provider can turn that wake',
-    'This screen shows the package wake runtime plus separate simulated',
-    'The wake step is real package behavior.',
     'iOS background continuation still requires the audio',
-    'background mode and does not survive force-quit.',
     'Android background continuation requires a visible app context',
     'Recent runtime events',
-    'Normalized error categories',
-    'permission',
-    'lifecycle',
-    'configuration',
-    'engine',
-    'platform',
-    'internal',
-    'after a successful STT result when `autoSpeak: true` is enabled.',
   ];
 
-  for (const text of requiredExampleLimitationText) {
-    if (!normalizedExampleAppSource.includes(text)) {
-      errors.push(
-        `Example app does not document the current runtime limitation text: ${text}`
-      );
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`WakeWordScreen.tsx does not reference: ${token}`);
     }
   }
 }
+
+// ─── SessionScreen ────────────────────────────────────────────────────────────
+
+const sessionScreenPath = join(root, 'example/src/screens/SessionScreen.tsx');
+
+if (!existsSync(sessionScreenPath)) {
+  errors.push('SessionScreen.tsx does not exist at example/src/screens/SessionScreen.tsx.');
+} else {
+  const src = readFileSync(sessionScreenPath, 'utf8');
+
+  const required = [
+    'useVoiceSession',
+    'aiHandler',
+    'reListenMode',
+    'builtInSTT',
+    'builtInTTS',
+    'initialize',
+    'startDetection',
+    'dispose',
+  ];
+
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`SessionScreen.tsx does not reference: ${token}`);
+    }
+  }
+}
+
+// ─── ManualScreen ─────────────────────────────────────────────────────────────
+
+const manualScreenPath = join(root, 'example/src/screens/ManualScreen.tsx');
+
+if (!existsSync(manualScreenPath)) {
+  errors.push('ManualScreen.tsx does not exist at example/src/screens/ManualScreen.tsx.');
+} else {
+  const src = readFileSync(manualScreenPath, 'utf8');
+
+  const required = [
+    'RunAnywhereSTTAdapter',
+    'RunAnywhereTTSAdapter',
+    'transcribe',
+    'speak',
+  ];
+
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`ManualScreen.tsx does not reference: ${token}`);
+    }
+  }
+}
+
+// ─── index.js ─────────────────────────────────────────────────────────────────
 
 if (!existsSync(exampleAppConfigPath)) {
   errors.push('Example app config does not exist at example/app.json.');
@@ -175,6 +163,8 @@ if (!existsSync(exampleIndexPath)) {
   }
 }
 
+// ─── Babel config ─────────────────────────────────────────────────────────────
+
 if (!existsSync(exampleBabelConfigPath)) {
   errors.push('Example Babel config does not exist at example/babel.config.js.');
 } else {
@@ -191,6 +181,8 @@ if (!existsSync(exampleBabelConfigPath)) {
   }
 }
 
+// ─── app.json plugin registration ────────────────────────────────────────────
+
 const registeredPlugins = exampleAppConfig.expo?.plugins;
 const usesLocalPluginPath = Array.isArray(registeredPlugins)
   ? registeredPlugins.some((plugin) => {
@@ -205,6 +197,8 @@ const usesLocalPluginPath = Array.isArray(registeredPlugins)
 if (!usesLocalPluginPath) {
   errors.push('Example app config does not register ../app.plugin.js.');
 }
+
+// ─── README ───────────────────────────────────────────────────────────────────
 
 if (!existsSync(exampleReadmePath)) {
   errors.push('Example README does not exist at example/README.md.');
@@ -232,6 +226,8 @@ if (!existsSync(exampleReadmePath)) {
     }
   }
 }
+
+// ─── Result ───────────────────────────────────────────────────────────────────
 
 if (errors.length > 0) {
   console.error(errors.join('\n'));

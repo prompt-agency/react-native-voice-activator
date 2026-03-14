@@ -409,65 +409,70 @@ describe('documentation and example contract', () => {
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {
+    // The example app is split across App.tsx and three screen files.
+    // Combine them all for contract assertions.
     const exampleApp = readFileSync(join(root, 'example/src/App.tsx'), 'utf8');
-    const normalizedExampleApp = exampleApp.replace(/\s+/g, ' ');
+    const wakeWordScreen = readFileSync(
+      join(root, 'example/src/screens/WakeWordScreen.tsx'),
+      'utf8'
+    );
+    const sessionScreen = readFileSync(
+      join(root, 'example/src/screens/SessionScreen.tsx'),
+      'utf8'
+    );
+    const manualScreen = readFileSync(
+      join(root, 'example/src/screens/ManualScreen.tsx'),
+      'utf8'
+    );
+    const allSource = [exampleApp, wakeWordScreen, sessionScreen, manualScreen].join('\n');
+    const normalizedAllSource = allSource.replace(/\s+/g, ' ');
 
-    expect(exampleApp).toContain('addWakeWordListener');
-    expect(exampleApp).toContain('getStatus');
-    expect(exampleApp).toContain('initialize');
-    expect(exampleApp).toContain('startDetection');
-    expect(exampleApp).toContain('stopDetection');
-    expect(exampleApp).toContain('dispose');
-    expect(exampleApp).toContain('interruption');
-    expect(exampleApp).toContain('audioRouteChanged');
-    expect(exampleApp).toContain('syncDiagnosticsFromStatus');
-    expect(exampleApp).toContain('getStatus().lastError');
-    expect(exampleApp).not.toContain('setLastError(null);');
-    expect(exampleApp).toContain('createReferenceProviders');
-    expect(exampleApp).toContain('referenceProviderCatalog');
-    expect(exampleApp).toContain('createDemoReferenceSttBridge');
-    expect(exampleApp).toContain('createDemoReferenceTtsBridge');
-    expect(exampleApp).toContain('transcriptionStarted');
-    expect(exampleApp).toContain('transcriptionResult');
-    expect(exampleApp).toContain('speechStarted');
-    expect(exampleApp).toContain('speechCompleted');
-    expect(exampleApp).toContain('sttProvider: referenceProviders.sttProvider');
-    expect(exampleApp).toContain('ttsProvider: referenceProviders.ttsProvider');
-    expect(exampleApp).toContain('autoSpeak: true');
-    expect(exampleApp).toContain('Recent runtime events');
-    expect(exampleApp).toContain('Normalized error categories');
-    expect(exampleApp).toContain('Current runtime diagnostics');
-    expect(exampleApp).toContain('Keyword detection status');
-    expect(exampleApp).toContain('Bundled keyword presets');
-    expect(exampleApp).toContain('Optional STT/TTS extension examples');
-    expect(exampleApp).toContain('Assistant flow guide');
-    expect(exampleApp).toContain('selectedKeywordPresetId');
-    expect(exampleApp).toContain('activeKeywordPresetId');
-    expect(exampleApp).toContain(
-      'keywordAssetKey: selectedKeywordPreset.keywordAssetKey'
+    // App.tsx wires the three screens
+    expect(exampleApp).toContain('WakeWordScreen');
+    expect(exampleApp).toContain('SessionScreen');
+    expect(exampleApp).toContain('ManualScreen');
+
+    // Wake word runtime — covered by WakeWordScreen
+    expect(allSource).toContain('addWakeWordListener');
+    expect(allSource).toContain('getStatus');
+    expect(allSource).toContain('initialize');
+    expect(allSource).toContain('startDetection');
+    expect(allSource).toContain('stopDetection');
+    expect(allSource).toContain('dispose');
+    expect(allSource).toContain('interruption');
+    expect(allSource).toContain('audioRouteChanged');
+    expect(allSource).toContain('wakeWordDetected');
+    expect(allSource).not.toContain('setLastError(null);');
+    expect(allSource).toContain('autoSpeak: true');
+    expect(allSource).toContain('builtInSTT');
+    expect(allSource).toContain('builtInTTS');
+    expect(allSource).toContain('engineConfig');
+    expect(allSource).toContain('keywordAssetKey');
+    expect(allSource).toContain('All bundled phrases');
+    expect(allSource).toContain('HELLO WORLD');
+    expect(allSource).toContain('Bundled keyword presets');
+    expect(allSource).toContain('Keyword detection status');
+    expect(allSource).toContain('Keyword selection changed. Run Initialize again before Start detection');
+    expect(allSource).toContain('Recent runtime events');
+
+    // Background behavior notes
+    expect(normalizedAllSource).toContain(
+      'iOS background continuation still requires the audio'
     );
-    expect(exampleApp).toContain('All bundled phrases');
-    expect(exampleApp).toContain('HELLO WORLD');
-    expect(exampleApp).toContain(
-      'This screen shows the package wake runtime plus separate simulated'
-    );
-    expect(exampleApp).toContain('Preview STT adapter');
-    expect(exampleApp).toContain('Preview TTS adapter');
-    expect(exampleApp).toContain('wakeWordDetected');
-    expect(exampleApp).toContain('Use RunAnywhere built-in');
-    expect(exampleApp).toContain('Provider mode:');
-    expect(exampleApp).toContain(
-      'simulated host implementation to preview the contract'
-    );
-    expect(exampleApp).toContain(
-      'after a successful STT result when `autoSpeak: true` is enabled.'
-    );
-    expect(normalizedExampleApp).toContain(
-      'iOS background continuation still requires the audio background mode and does not survive force-quit.'
-    );
-    expect(normalizedExampleApp).toContain(
+    expect(normalizedAllSource).toContain(
       'Android background continuation requires a visible app context'
     );
+
+    // Conversation session — covered by SessionScreen
+    expect(allSource).toContain('useVoiceSession');
+    expect(allSource).toContain('aiHandler');
+    expect(allSource).toContain('reListenMode');
+
+    // Direct STT/TTS — covered by ManualScreen
+    expect(allSource).toContain('RunAnywhereSTTAdapter');
+    expect(allSource).toContain('RunAnywhereTTSAdapter');
+    expect(allSource).toContain('transcribe');
+    expect(allSource).toContain('speak');
   });
 
   it('ships reference provider adapters outside package core', () => {
