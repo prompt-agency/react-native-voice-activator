@@ -30,7 +30,11 @@ The package owns the entire loop. Your app provides the AI handler function and 
 ## Quick Start
 
 ```typescript
-import { initialize, useVoiceSession } from 'react-native-voice-activator';
+import {
+  initialize,
+  startDetection,
+  useVoiceSession,
+} from 'react-native-voice-activator';
 
 // 1. Configure with a session
 await initialize({
@@ -48,9 +52,12 @@ await initialize({
   },
 });
 
-// 2. Say your wake word — the session starts automatically
+// 2. Start wake word detection
+await startDetection();
 
-// 3. React to session state in your component
+// 3. Say your wake word — the session starts automatically
+
+// 4. React to session state in your component
 function VoiceAssistant() {
   const { sessionState, lastTranscript, lastSpeechText, turnCount } = useVoiceSession();
 
@@ -141,7 +148,7 @@ idle → listening → transcribing → waiting → speaking → (idle or closed
 | `idle` | Session started or turn completed in manual mode — waiting for `listen()`. |
 | `listening` | STT is active and waiting for user speech. |
 | `transcribing` | User speech captured, processing text. |
-| `waiting` | AI handler called, waiting for response. |
+| `waiting` | AI handler called, waiting for response. **Note:** no event is emitted for this transition — only observable via `getSession()?.state`, not via the hook or `addSessionListener`. |
 | `speaking` | TTS speaking the AI response. |
 | `closed` | Session ended. All resources released. |
 | `null` | No active session (hook only: `sessionState` is null when no session exists). |

@@ -103,16 +103,13 @@ npm install react-native-voice-activator
 ```ts
 import {
   addWakeWordListener,
-  addSessionListener,
   dispose,
-  getSession,
   getStatus,
   initialize,
   startDetection,
   stopDetection,
-  useVoiceSession,
-  useWakeWord,
 } from 'react-native-voice-activator';
+// Session APIs: addSessionListener, getSession, useVoiceSession — see ## Conversation Session above
 
 async function runQuickstart() {
   const stateSubscription = addWakeWordListener('stateChanged', (event) => {

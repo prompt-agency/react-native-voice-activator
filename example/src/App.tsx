@@ -945,8 +945,8 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Conversation Session</Text>
           <Text style={styles.helperText}>
-            Requires STT + TTS providers configured (RunAnywhere mode). Enable
-            below, then press Initialize.
+            Requires STT + TTS providers configured. Enable below, then press
+            Initialize. Use RunAnywhere mode for real model-driven responses.
           </Text>
 
           {/* Enable toggle */}
@@ -1007,7 +1007,7 @@ export default function App() {
           )}
 
           {/* Close button */}
-          {sessionState != null && sessionState !== 'closed' && (
+          {sessionState != null && (
             <ActionButton
               label="End Session"
               tone="danger"

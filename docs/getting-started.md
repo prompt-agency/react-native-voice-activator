@@ -67,9 +67,10 @@ await initialize({
     silenceTimeoutMs: 10000, // end session after 10s of silence
   },
 });
+await startDetection();
 ```
 
-Once configured, a session starts automatically every time the wake word is detected.
+Once detection is running, a session starts automatically every time the wake word is detected.
 Your app only provides the AI handler — the package owns the loop.
 
 See [`./conversation-session.md`](./conversation-session.md) for the full API reference,
