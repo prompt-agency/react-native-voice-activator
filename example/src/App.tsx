@@ -59,7 +59,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.cardBorder,
     paddingHorizontal: 8,
-    paddingTop: 4,
+    paddingTop: 90,
     paddingBottom: 4,
     gap: 4,
   },
