@@ -142,7 +142,7 @@ The model is downloaded from `https://huggingface.co/ggerganov/whisper.cpp` and 
 The model must come from the `ggerganov/whisper.cpp` HuggingFace repository. Self-converted or third-party GGML models silently produce empty output. `WhisperRNSTTAdapter` uses the correct URL automatically — verify you haven't overridden the model source.
 
 **`transcribe()` returns empty string on iOS**
-Ensure the audio session is configured for measurement mode (handled automatically by `getAudioSet()`). Confirm `NSMicrophoneUsageDescription` is present in Info.plist and the permission was granted.
+Confirm `NSMicrophoneUsageDescription` is present in Info.plist and the microphone permission was granted. The adapter configures the audio session automatically (16kHz mono WAV, measurement mode).
 
 **Android build failure: `@fugood/react-native-audio-pcm-stream` not found**
 Install the Android-only peer dep: `yarn add @fugood/react-native-audio-pcm-stream`. Confirm New Architecture legacy interop is enabled.

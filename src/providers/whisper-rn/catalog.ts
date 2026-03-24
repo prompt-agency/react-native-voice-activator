@@ -1,6 +1,8 @@
 // src/providers/whisper-rn/catalog.ts
 
-export type WhisperRNSTTModelId = 'whisper-tiny-en';
+import type { WhisperRNSTTModelId } from '../../public/types';
+
+export type { WhisperRNSTTModelId };
 
 interface WhisperRNModelEntry {
   filename: string;

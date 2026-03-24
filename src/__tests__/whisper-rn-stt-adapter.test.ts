@@ -212,6 +212,27 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     );
   });
 
+  it('throws if transcribe() is called while another is already in progress on iOS', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const firstTranscription = adapter.transcribe();
+    await Promise.resolve();
+
+    await expect(adapter.transcribe()).rejects.toThrow(
+      'WhisperRNSTTAdapter: transcription already in progress'
+    );
+
+    await adapter.cancel();
+    await expect(firstTranscription).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+  });
+
   it('dispose() calls ctx.release() and nulls all refs', async () => {
     const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
     await adapter.initialize();
@@ -267,6 +288,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       sampleRate: 16_000,
       channels: 1,
       bitsPerSample: 16,
+      audioSource: 6, // AudioSource.VOICE_RECOGNITION
       bufferSize: 4096,
     });
     expect(mockAudioRecorderPlayer).not.toHaveBeenCalled();
@@ -372,5 +394,47 @@ describe('WhisperRNSTTAdapter — Android path', () => {
 
     await expect(adapter.dispose()).resolves.toBeUndefined();
     expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose() with active transcription on Android cancels then releases', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const transcriptionPromise = adapter.transcribe();
+    await Promise.resolve();
+    const disposePromise = adapter.dispose();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+    await expect(disposePromise).resolves.toBeUndefined();
+
+    expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
+    expect(mockPcmStream.stop).toHaveBeenCalled();
+  });
+
+  it('throws if transcribe() is called while another is already in progress on Android', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const firstTranscription = adapter.transcribe();
+    await Promise.resolve();
+
+    await expect(adapter.transcribe()).rejects.toThrow(
+      'WhisperRNSTTAdapter: transcription already in progress'
+    );
+
+    await adapter.cancel();
+    await expect(firstTranscription).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
   });
 });

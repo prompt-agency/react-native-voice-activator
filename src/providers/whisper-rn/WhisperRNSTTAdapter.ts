@@ -194,6 +194,7 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
         sampleRate: 16_000,
         channels: 1,
         bitsPerSample: 16,
+        audioSource: 6, // AudioSource.VOICE_RECOGNITION — better quality in noisy environments
         bufferSize: 4096,
       });
     }
@@ -246,6 +247,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     const recorder = new this.AudioRecorderPlayer!();
     const maxRecordingMs = this.config.maxRecordingMs ?? 10_000;
     let resolveWait = () => undefined as void;
+    // Hoisted so finally can clean up whichever path was actually recorded
+    let recordedPath: string | undefined;
 
     const activeTranscription: ActiveTranscription = {
       cancelled: false,
@@ -253,15 +256,17 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     };
     this.activeTranscription = activeTranscription;
 
-    const wavPath = await recorder.startRecorder(
-      undefined,
-      this.getAudioSet(),
-      false
-    );
+    await recorder.startRecorder(undefined, this.getAudioSet(), false);
 
     if (activeTranscription.cancelled) {
-      await recorder.stopRecorder();
+      recordedPath = await recorder.stopRecorder();
+      recorder.removeRecordBackListener();
       this.activeTranscription = null;
+      try {
+        if (recordedPath) await this.rnfs!.unlink(recordedPath);
+      } catch {
+        // ignore cleanup errors
+      }
       throw new WhisperRNSTTCancelledError();
     }
 
@@ -276,7 +281,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     try {
       await waitForRecording;
 
-      const recordedPath = await recorder.stopRecorder();
+      // Use the path returned by stopRecorder() for both transcription and cleanup
+      recordedPath = await recorder.stopRecorder();
 
       if (activeTranscription.cancelled) {
         throw new WhisperRNSTTCancelledError();
@@ -299,9 +305,9 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       this.activeStop = null;
       this.activeTranscription = null;
       recorder.removeRecordBackListener();
-      if (wavPath) {
+      if (recordedPath) {
         try {
-          await this.rnfs!.unlink(wavPath);
+          await this.rnfs!.unlink(recordedPath);
         } catch {
           // ignore cleanup errors
         }
@@ -346,7 +352,10 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     try {
       await waitForRecording;
 
-      this.audioPcmStream!.stop();
+      // Guard against double-stop: cancel() already calls stop() before resolving the wait
+      if (!activeTranscription.cancelled) {
+        this.audioPcmStream!.stop();
+      }
       subscription.remove();
       subscription = null;
 

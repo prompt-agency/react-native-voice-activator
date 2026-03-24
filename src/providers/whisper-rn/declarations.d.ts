@@ -10,6 +10,7 @@ declare module '@fugood/react-native-audio-pcm-stream' {
     sampleRate: number;
     channels: number;
     bitsPerSample: number;
+    audioSource?: number; // Android only: AudioSource enum value (6 = VOICE_RECOGNITION)
     bufferSize?: number;
   }
 
