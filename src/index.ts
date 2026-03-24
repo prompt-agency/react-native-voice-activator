@@ -13,11 +13,17 @@ export {
   RunAnywhereSTTAdapter,
   RunAnywhereTTSAdapter,
 } from './providers/runanywhere';
+export {
+  WhisperRNSTTAdapter,
+  WhisperRNSTTCancelledError,
+} from './providers/whisper-rn';
 export { useWakeWord } from './public/useWakeWord';
 export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
   BuiltInProviderProgress,
+  WhisperRNSTTConfig,
+  WhisperRNSTTModelId,
   ProviderError,
   RunAnywhereSTTConfig,
   RunAnywhereSTTModelId,

@@ -11,6 +11,7 @@ import {
 import {
   RunAnywhereSTTAdapter,
   RunAnywhereTTSAdapter,
+  WhisperRNSTTAdapter,
   type BuiltInProviderProgress,
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard, StatusPill } from '../shared';
@@ -18,10 +19,15 @@ import { Btn, C, SectionCard, StatusPill } from '../shared';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function ManualScreen() {
-  // STT
+  // STT — RunAnywhere
   const [sttStatus, setSttStatus] = useState<'idle' | 'recording' | 'done' | 'error'>('idle');
   const [transcript, setTranscript] = useState('');
   const sttRef = useRef<RunAnywhereSTTAdapter | null>(null);
+
+  // STT — WhisperRN
+  const [whisperStatus, setWhisperStatus] = useState<'idle' | 'recording' | 'done' | 'error'>('idle');
+  const [whisperTranscript, setWhisperTranscript] = useState('');
+  const whisperRef = useRef<WhisperRNSTTAdapter | null>(null);
 
   // TTS
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'speaking' | 'done' | 'error'>('idle');
@@ -50,8 +56,9 @@ export function ManualScreen() {
     setTranscript('');
     setSttStatus('recording');
     try {
-      const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' }, onProgress);
+      const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
       sttRef.current = adapter;
+      await adapter.initialize(onProgress);
       const result = await adapter.transcribe();
       setTranscript(result.text);
       setSttStatus('done');
@@ -70,13 +77,41 @@ export function ManualScreen() {
     setProgressText('');
   }
 
+  async function handleWhisperRecord() {
+    if (!(await ensurePermission())) return;
+    setProgressText('');
+    setWhisperTranscript('');
+    setWhisperStatus('recording');
+    try {
+      const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+      whisperRef.current = adapter;
+      await adapter.initialize(onProgress);
+      const result = await adapter.transcribe();
+      setWhisperTranscript(result.text);
+      setWhisperStatus('done');
+    } catch {
+      setWhisperTranscript('');
+      setWhisperStatus('error');
+    } finally {
+      setProgressText('');
+      whisperRef.current = null;
+    }
+  }
+
+  async function handleCancelWhisper() {
+    try { await whisperRef.current?.cancel(); } catch { /* noop */ }
+    setWhisperStatus('idle');
+    setProgressText('');
+  }
+
   async function handleSpeak() {
     if (!ttsInput.trim()) return;
     setProgressText('');
     setTtsStatus('speaking');
     try {
-      const adapter = new RunAnywhereTTSAdapter({ modelId: 'piper-en-lessac' }, onProgress);
+      const adapter = new RunAnywhereTTSAdapter({ modelId: 'piper-en-lessac' });
       ttsRef.current = adapter;
+      await adapter.initialize(onProgress);
       await adapter.speak(ttsInput.trim());
       setTtsStatus('done');
     } catch {
@@ -121,7 +156,6 @@ export function ManualScreen() {
             label="Record & Transcribe"
             onPress={handleRecord}
             tone="primary"
-            disabled={sttStatus === 'recording'}
           />
         )}
         {transcript ? (
@@ -133,6 +167,32 @@ export function ManualScreen() {
         <Text style={s.hint}>
           Tap the button, speak, then remain silent — the adapter will detect
           end-of-speech automatically via VAD and return the transcript.
+        </Text>
+      </SectionCard>
+
+      {/* STT — WhisperRN */}
+      <SectionCard title="Speech-to-Text (whisper.rn — iOS + Android)">
+        <View style={s.pillRow}>
+          <StatusPill label={whisperStatus} active={whisperStatus === 'recording'} />
+        </View>
+        {whisperStatus === 'recording' ? (
+          <Btn label="Cancel recording" onPress={handleCancelWhisper} tone="quiet" />
+        ) : (
+          <Btn
+            label="Record & Transcribe (whisper.rn)"
+            onPress={handleWhisperRecord}
+            tone="primary"
+          />
+        )}
+        {whisperTranscript ? (
+          <View style={s.resultBox}>
+            <Text style={s.resultLabel}>TRANSCRIPT</Text>
+            <Text style={s.resultText}>{whisperTranscript}</Text>
+          </View>
+        ) : null}
+        <Text style={s.hint}>
+          Uses whisper.rn (whisper.cpp binding) — works on iOS and Android.
+          Model downloaded on first use. No RunAnywhere SDK required.
         </Text>
       </SectionCard>
 
@@ -156,7 +216,7 @@ export function ManualScreen() {
             label="Speak"
             onPress={handleSpeak}
             tone="primary"
-            disabled={!ttsInput.trim() || ttsStatus === 'speaking'}
+            disabled={!ttsInput.trim()}
           />
         )}
         <Text style={s.hint}>

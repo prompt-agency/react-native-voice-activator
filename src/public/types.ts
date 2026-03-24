@@ -99,6 +99,13 @@ export interface RunAnywhereTTSConfig {
   pitch?: number;
 }
 
+export type WhisperRNSTTModelId = 'whisper-tiny-en';
+
+export interface WhisperRNSTTConfig {
+  modelId: WhisperRNSTTModelId;
+  maxRecordingMs?: number;
+}
+
 export interface SpeechToTextProvider {
   readonly name: string;
   transcribe(): Promise<TranscriptionResult>;
