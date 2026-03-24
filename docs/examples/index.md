@@ -11,6 +11,7 @@ Architecture rule: reference adapters live in `docs/examples/` and app-level cod
 
 ## Current Reference Adapters
 
+- [`whisper-stt-provider.md`](./whisper-stt-provider.md)
 - [`expo-speech-tts-provider.md`](./expo-speech-tts-provider.md)
 - [`expo-speech-recognition-stt-provider.md`](./expo-speech-recognition-stt-provider.md)
 - [`runanywhere-stt-tts-provider.md`](./runanywhere-stt-tts-provider.md)

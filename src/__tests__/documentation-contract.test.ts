@@ -424,7 +424,12 @@ describe('documentation and example contract', () => {
       join(root, 'example/src/screens/ManualScreen.tsx'),
       'utf8'
     );
-    const allSource = [exampleApp, wakeWordScreen, sessionScreen, manualScreen].join('\n');
+    const allSource = [
+      exampleApp,
+      wakeWordScreen,
+      sessionScreen,
+      manualScreen,
+    ].join('\n');
     const normalizedAllSource = allSource.replace(/\s+/g, ' ');
 
     // App.tsx wires the three screens
@@ -452,7 +457,9 @@ describe('documentation and example contract', () => {
     expect(allSource).toContain('HELLO WORLD');
     expect(allSource).toContain('Bundled keyword presets');
     expect(allSource).toContain('Keyword detection status');
-    expect(allSource).toContain('Keyword selection changed. Run Initialize again before Start detection');
+    expect(allSource).toContain(
+      'Keyword selection changed. Run Initialize again before Start detection'
+    );
     expect(allSource).toContain('Recent runtime events');
 
     // Background behavior notes

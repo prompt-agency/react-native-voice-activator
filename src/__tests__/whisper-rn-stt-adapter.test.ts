@@ -155,9 +155,16 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
   });
 
   it('forwards download progress via onProgress callback', async () => {
-    let capturedCallback: ((res: { bytesWritten: number; contentLength: number }) => void) | undefined;
+    let capturedCallback:
+      | ((res: { bytesWritten: number; contentLength: number }) => void)
+      | undefined;
     mockRNFS.downloadFile.mockImplementation(
-      (opts: { progress?: (res: { bytesWritten: number; contentLength: number }) => void }) => {
+      (opts: {
+        progress?: (res: {
+          bytesWritten: number;
+          contentLength: number;
+        }) => void;
+      }) => {
         capturedCallback = opts.progress;
         return { promise: Promise.resolve() };
       }
@@ -349,5 +356,21 @@ describe('WhisperRNSTTAdapter — Android path', () => {
 
     expect(mockPcmStream.stop).toHaveBeenCalled();
     expect(mockWhisperContext.transcribe).not.toHaveBeenCalled();
+  });
+
+  it('dispose() calls ctx.release() on Android', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+    await adapter.dispose();
+
+    expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose() without active transcription on Android does not throw', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    await expect(adapter.dispose()).resolves.toBeUndefined();
+    expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
   });
 });

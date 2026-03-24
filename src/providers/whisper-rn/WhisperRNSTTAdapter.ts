@@ -10,7 +10,8 @@ import { WHISPER_RN_MODELS } from './catalog';
 
 import type { WhisperContext } from '../../vendor-types/whisper-rn';
 
-type AudioRecorderPlayerModule = typeof import('react-native-audio-recorder-player');
+type AudioRecorderPlayerModule =
+  typeof import('react-native-audio-recorder-player');
 type RNFSModule = typeof import('react-native-fs');
 type LiveAudioStreamModule =
   typeof import('@fugood/react-native-audio-pcm-stream');
@@ -180,7 +181,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     }
 
     if (Platform.OS === 'ios') {
-      const audioRecorderModule = await import('react-native-audio-recorder-player');
+      const audioRecorderModule =
+        await import('react-native-audio-recorder-player');
       this.AudioRecorderPlayer = audioRecorderModule.default;
       this.audioRecorderModule = audioRecorderModule;
     }
@@ -281,10 +283,9 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       }
 
       // CRITICAL: ctx.transcribe() is NOT async — returns { stop, promise } synchronously
-      const { stop, promise } = this.ctx!.transcribe(
-        `file://${recordedPath}`,
-        { language: WHISPER_RN_MODELS[this.config.modelId].language }
-      );
+      const { stop, promise } = this.ctx!.transcribe(`file://${recordedPath}`, {
+        language: WHISPER_RN_MODELS[this.config.modelId].language,
+      });
       this.activeStop = stop;
 
       const { result } = await promise;
@@ -326,14 +327,11 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
 
     await rnfs.mkdir(tmpDir);
 
-    subscription = this.audioPcmStream!.addListener(
-      'data',
-      (data: string) => {
-        if (!activeTranscription.cancelled) {
-          pcmChunks.push(data);
-        }
+    subscription = this.audioPcmStream!.addListener('data', (data: string) => {
+      if (!activeTranscription.cancelled) {
+        pcmChunks.push(data);
       }
-    );
+    });
 
     this.audioPcmStream!.start();
 
