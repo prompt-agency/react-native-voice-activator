@@ -244,6 +244,7 @@ The built-in default engine is the package-owned native-managed Sherpa-ONNX path
 - Bare React Native setup: `docs/bare-react-native-setup.md`
 - Expo setup: `docs/expo-setup.md`
 - Custom wake word (train Sherpa-ONNX KWS offline): `docs/model-training/wake-word-training.md`
+- Custom TTS voice (train Piper ONNX offline): `docs/model-training/tts-voice-cloning.md`
 
 Both guides identify:
 

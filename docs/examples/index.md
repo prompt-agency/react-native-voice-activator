@@ -13,6 +13,10 @@ Architecture rule: reference adapters live in `docs/examples/` and app-level cod
 
 To train a **Sherpa-ONNX KWS** bundle and keyword file for `engineConfig.assetKeys`, see [`../model-training/wake-word-training.md`](../model-training/wake-word-training.md). Training is offline; the package loads ONNX + `keywords.txt` only.
 
+## Model training (custom TTS voice)
+
+To train or fine-tune a **Piper** voice and export **`.onnx`** for `CustomTTSConfig.modelPath`, see [`../model-training/tts-voice-cloning.md`](../model-training/tts-voice-cloning.md). Training is offline; the app supplies a local model file and a matching `phonemize` implementation.
+
 ## Current Reference Adapters
 
 - [`whisper-stt-provider.md`](./whisper-stt-provider.md)
