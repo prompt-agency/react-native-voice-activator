@@ -243,6 +243,43 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       : this._transcribeIOS();
   }
 
+  async transcribeFromWavPath(filePath: string): Promise<TranscriptionResult> {
+    if (!this.ctx) {
+      throw new Error('WhisperRNSTTAdapter: call initialize() first');
+    }
+
+    if (this.activeTranscription) {
+      throw new Error('WhisperRNSTTAdapter: transcription already in progress');
+    }
+
+    const activeTranscription: ActiveTranscription = {
+      cancelled: false,
+      resolveWait: () => undefined,
+    };
+    this.activeTranscription = activeTranscription;
+
+    const bare = filePath.replace(/^file:\/\//, '');
+    const uri = Platform.OS === 'ios' ? `file://${bare}` : bare;
+
+    try {
+      const { stop, promise } = this.ctx.transcribe(uri, {
+        language: WHISPER_RN_MODELS[this.config.modelId].language,
+      });
+      this.activeStop = stop;
+
+      const { result } = await promise;
+
+      if (activeTranscription.cancelled) {
+        throw new WhisperRNSTTCancelledError();
+      }
+
+      return { text: result.trim(), provider: this.name };
+    } finally {
+      this.activeStop = null;
+      this.activeTranscription = null;
+    }
+  }
+
   private async _transcribeIOS(): Promise<TranscriptionResult> {
     const recorder = new this.AudioRecorderPlayer!();
     const maxRecordingMs = this.config.maxRecordingMs ?? 10_000;

@@ -189,6 +189,23 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     );
   });
 
+  it('transcribeFromWavPath passes file:// URI to ctx.transcribe on iOS', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    mockWhisperContext.transcribe.mockReturnValue({
+      stop: jest.fn().mockResolvedValue(undefined),
+      promise: Promise.resolve({ result: 'from file' }),
+    });
+
+    const result = await adapter.transcribeFromWavPath('/tmp/vad.wav');
+    expect(result).toEqual({ text: 'from file', provider: 'whisper-rn' });
+    expect(mockWhisperContext.transcribe).toHaveBeenCalledWith(
+      'file:///tmp/vad.wav',
+      { language: 'en' }
+    );
+  });
+
   it('cancel() stops recording and throws WhisperRNSTTCancelledError on iOS', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
@@ -292,6 +309,25 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       bufferSize: 4096,
     });
     expect(mockAudioRecorderPlayer).not.toHaveBeenCalled();
+  });
+
+  it('transcribeFromWavPath passes bare path to ctx.transcribe on Android', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    mockWhisperContext.transcribe.mockReturnValue({
+      stop: jest.fn().mockResolvedValue(undefined),
+      promise: Promise.resolve({ result: 'android file' }),
+    });
+
+    const result = await adapter.transcribeFromWavPath(
+      '/mock/caches/voice-activator/vad.wav'
+    );
+    expect(result).toEqual({ text: 'android file', provider: 'whisper-rn' });
+    expect(mockWhisperContext.transcribe).toHaveBeenCalledWith(
+      '/mock/caches/voice-activator/vad.wav',
+      { language: 'en' }
+    );
   });
 
   it('transcribes on Android: starts PCM stream, assembles WAV, passes bare path to ctx.transcribe()', async () => {

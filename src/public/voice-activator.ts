@@ -15,6 +15,7 @@ import {
   addRuntimeListener,
   emitRuntimeEvent,
 } from '../internal/runtime-events';
+import { addSessionListener } from '../internal/session-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
@@ -51,6 +52,12 @@ type ActiveProviderFlow = {
 let activeProviderFlow: ActiveProviderFlow | null = null;
 let activeSessionConfig: VoiceSessionConfig | null = null;
 let activeVoiceSession: VoiceSessionOrchestrator | null = null;
+
+addSessionListener('sessionEnded', () => {
+  if (activeVoiceSession?.state === 'closed') {
+    activeVoiceSession = null;
+  }
+});
 
 function emitWakeWordDetected(payload: WakeWordDetectedEvent) {
   emitRuntimeEvent('wakeWordDetected', payload);

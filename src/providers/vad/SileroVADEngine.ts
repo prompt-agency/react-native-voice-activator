@@ -23,7 +23,8 @@ type VoiceActivatorVADNative = {
   stopVADCapture: () => Promise<void>;
 };
 
-const NATIVE_VAD_PCM_FRAME_EVENT = 'VoiceActivatorOnVADPCMFrame';
+/** Native event name for 16 kHz float32 PCM frames (shared with session orchestrator buffering). */
+export const VAD_NATIVE_PCM_FRAME_EVENT = 'VoiceActivatorOnVADPCMFrame';
 const LSTM_STATE_SIZE = 128;
 const SAMPLE_RATE = 16000;
 
@@ -109,7 +110,7 @@ export class SileroVADEngine {
     const native = requireVADNativeModule();
     const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
     this._nativeSub = emitter.addListener(
-      NATIVE_VAD_PCM_FRAME_EVENT,
+      VAD_NATIVE_PCM_FRAME_EVENT,
 
       ((event: VADPCMFrameEvent) => {
         if (this._running) {

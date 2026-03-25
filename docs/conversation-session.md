@@ -80,6 +80,7 @@ interface VoiceSessionConfig {
   reListenMode: 'auto' | 'manual';
   silenceTimeoutMs?: number;
   maxTurns?: number;
+  vad?: VADConfig;
 }
 ```
 
@@ -87,8 +88,9 @@ interface VoiceSessionConfig {
 |---|---|---|---|
 | `aiHandler` | `(transcript: string) => Promise<string>` | Yes | Receives the user's transcribed speech; return the text you want spoken back. |
 | `reListenMode` | `'auto' \| 'manual'` | Yes | `'auto'` re-arms listening automatically after each turn. `'manual'` waits for your app to call `session.listen()`. |
-| `silenceTimeoutMs` | `number` | No | Milliseconds of silence in the listening state before the session ends with `sessionEnded { reason: 'timeout' }`. |
+| `silenceTimeoutMs` | `number` | No | Session-level timeout while in `listening`: if the user never finishes an utterance, the session ends with `sessionEnded { reason: 'timeout' }`. Separate from `vad.silenceTimeoutMs` (VAD debounce before `speechEnd`). |
 | `maxTurns` | `number` | No | Maximum number of turns before the session ends with `sessionEnded { reason: 'explicit' }`. |
+| `vad` | `VADConfig` | No | When set, the session uses bundled Silero VAD for the `listening` phase: audio is captured once via the VAD native stream, and `speechEnd` (plus `speechPadMs`) triggers transcription from a temp WAV. Requires an STT provider that implements `transcribeFromWavPath` (e.g. `WhisperRNSTTAdapter`). When omitted, `transcribe()` runs immediately as before (mic recording inside the STT provider). |
 
 ### Passing the Session Config
 

@@ -1,6 +1,18 @@
+import { NativeEventEmitter, NativeModules } from 'react-native';
+
+import {
+  addSessionListener,
+  emitSessionEvent,
+} from '../internal/session-events';
+import { float32PcmBase64ChunksToWavBase64 } from '../internal/vad-float32-pcm-to-wav';
+import {
+  SileroVADEngine,
+  VAD_NATIVE_PCM_FRAME_EVENT,
+} from '../providers/vad/SileroVADEngine';
 import type {
   SpeechToTextProvider,
   TextToSpeechProvider,
+  TranscriptionResult,
   VoiceSession,
   VoiceSessionConfig,
   VoiceSessionEventListener,
@@ -10,7 +22,12 @@ import type {
   VoiceSessionSubscription,
   WakeWordError,
 } from '../public/types';
-import { emitSessionEvent } from '../internal/session-events';
+class VoiceSessionListenAbortedError extends Error {
+  constructor() {
+    super('listen_aborted');
+    this.name = 'VoiceSessionListenAbortedError';
+  }
+}
 
 export class VoiceSessionOrchestrator implements VoiceSession {
   private _state: VoiceSessionState = 'idle';
@@ -19,6 +36,8 @@ export class VoiceSessionOrchestrator implements VoiceSession {
   private _closed = false;
   private _bargingIn = false;
   private _silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _listenAbort: AbortController | null = null;
+  private _vadEngine: SileroVADEngine | null = null;
   /** Instance-scoped listener registry — isolated from other session instances. */
   private readonly _instanceListeners = new Map<
     string,
@@ -33,6 +52,20 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
   get state(): VoiceSessionState {
     return this._state;
+  }
+
+  private _getVad(): SileroVADEngine {
+    if (this.config.vad === undefined) {
+      throw new Error('VoiceSessionOrchestrator: VAD path requires config.vad');
+    }
+    if (!this._vadEngine) {
+      this._vadEngine = new SileroVADEngine(this.config.vad);
+    }
+    return this._vadEngine;
+  }
+
+  private _abortActiveListen(): void {
+    this._listenAbort?.abort();
   }
 
   addListener<TEventName extends VoiceSessionEventName>(
@@ -80,9 +113,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       return;
     }
     this._clearSilenceTimeout();
+    this._abortActiveListen();
+    this._listenAbort = null;
     this._closed = true;
     this._bargingIn = false;
     this._state = 'closed';
+    await this._vadEngine?.stop().catch(() => undefined);
     await this.sttProvider.cancel().catch(() => undefined);
     await this.ttsProvider.stop().catch(() => undefined);
     this._emitAll('sessionEnded', { reason: 'explicit' });
@@ -118,6 +154,129 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     await this._runTurn();
   }
 
+  private async _transcribeWithVad(): Promise<TranscriptionResult> {
+    const transcribeFile = this.sttProvider.transcribeFromWavPath;
+    if (typeof transcribeFile !== 'function') {
+      throw new Error(
+        'VoiceSessionOrchestrator: config.vad requires an STT provider that implements transcribeFromWavPath (e.g. WhisperRNSTTAdapter).'
+      );
+    }
+
+    const vad = this._getVad();
+    const ac = new AbortController();
+    this._listenAbort = ac;
+
+    const subs: {
+      pcm: { remove(): void } | null;
+      speechStart: VoiceSessionSubscription | null;
+      speechEnd: VoiceSessionSubscription | null;
+    } = { pcm: null, speechStart: null, speechEnd: null };
+
+    const pcmChunks: string[] = [];
+    let speechStartChunkIndex = 0;
+
+    try {
+      await vad.loadModel();
+      if (this._closed || ac.signal.aborted) {
+        throw new VoiceSessionListenAbortedError();
+      }
+
+      const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
+      subs.pcm = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((e: {
+        pcm: string;
+      }) => {
+        if (
+          !this._closed &&
+          this._state === 'listening' &&
+          !ac.signal.aborted
+        ) {
+          pcmChunks.push(e.pcm);
+        }
+      }) as (...args: readonly object[]) => unknown);
+
+      subs.speechStart = addSessionListener('speechStart', () => {
+        this._clearSilenceTimeout();
+        speechStartChunkIndex = Math.max(0, pcmChunks.length - 1);
+      });
+
+      const utterancePromise = new Promise<{
+        durationMs: number;
+        speechPadMs: number;
+      }>((resolve, reject) => {
+        let settled = false;
+        subs.speechEnd = addSessionListener('speechEnd', (payload) => {
+          if (settled) return;
+          settled = true;
+          resolve(payload);
+        });
+        ac.signal.addEventListener(
+          'abort',
+          () => {
+            if (settled) return;
+            settled = true;
+            reject(new VoiceSessionListenAbortedError());
+          },
+          { once: true }
+        );
+      });
+
+      await vad.start();
+
+      if (this._closed || ac.signal.aborted) {
+        throw new VoiceSessionListenAbortedError();
+      }
+
+      const endPayload = await utterancePromise;
+
+      await new Promise<void>((resolve, reject) => {
+        let done = false;
+        const id = setTimeout(() => {
+          if (done) return;
+          done = true;
+          if (ac.signal.aborted) reject(new VoiceSessionListenAbortedError());
+          else resolve();
+        }, endPayload.speechPadMs);
+        const onAbort = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(id);
+          reject(new VoiceSessionListenAbortedError());
+        };
+        ac.signal.addEventListener('abort', onAbort, { once: true });
+      });
+
+      await vad.stop();
+
+      const slice = pcmChunks.slice(speechStartChunkIndex);
+      const wavBase64 = float32PcmBase64ChunksToWavBase64(slice);
+      const RNFS = await import('react-native-fs');
+      const dir = `${RNFS.default.CachesDirectoryPath}/voice-activator`;
+      await RNFS.default.mkdir(dir);
+      const wavPath = `${dir}/vad-utterance-${Date.now()}.wav`;
+      await RNFS.default.writeFile(wavPath, wavBase64, 'base64');
+
+      if (this._closed || ac.signal.aborted) {
+        throw new VoiceSessionListenAbortedError();
+      }
+
+      try {
+        return await transcribeFile.call(this.sttProvider, wavPath);
+      } finally {
+        try {
+          await RNFS.default.unlink(wavPath);
+        } catch {
+          /* ignore */
+        }
+      }
+    } finally {
+      subs.pcm?.remove();
+      subs.speechStart?.remove();
+      subs.speechEnd?.remove();
+      this._listenAbort = null;
+      await vad.stop().catch(() => undefined);
+    }
+  }
+
   private async _runTurn(): Promise<void> {
     if (this._closed) return;
 
@@ -127,13 +286,19 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
     let transcriptionText: string;
     try {
-      const result = await this.sttProvider.transcribe();
+      const result =
+        this.config.vad !== undefined
+          ? await this._transcribeWithVad()
+          : await this.sttProvider.transcribe();
       this._clearSilenceTimeout();
       if (this._closed) return;
       transcriptionText = result.text;
     } catch (cause) {
       this._clearSilenceTimeout();
       if (this._closed) return;
+      if (cause instanceof VoiceSessionListenAbortedError) {
+        return;
+      }
       this._state = 'idle';
       this._emitAll('sessionError', this._buildError('stt_failed', cause));
       return;
@@ -205,6 +370,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       this._closed = true;
       this._bargingIn = false;
       this._state = 'closed';
+      await this._vadEngine?.stop().catch(() => undefined);
       await this.sttProvider.cancel().catch(() => undefined);
       await this.ttsProvider.stop().catch(() => undefined);
       this._emitAll('sessionEnded', { reason: 'explicit' });
@@ -223,9 +389,13 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     this._silenceTimer = setTimeout(() => {
       this._silenceTimer = null;
       if (this._closed || this._state !== 'listening') return;
+      this._abortActiveListen();
       this._closed = true;
       this._bargingIn = false;
       this._state = 'closed';
+      if (this._vadEngine) {
+        this._vadEngine.stop().catch(() => undefined);
+      }
       this.sttProvider.cancel().catch(() => undefined);
       this.ttsProvider.stop().catch(() => undefined);
       this._emitAll('sessionEnded', { reason: 'timeout' });

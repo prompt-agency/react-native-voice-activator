@@ -108,6 +108,11 @@ export interface SpeechToTextProvider {
   readonly name: string;
   transcribe(): Promise<TranscriptionResult>;
   cancel(): Promise<void>;
+  /**
+   * Transcribe a 16 kHz mono PCM WAV already on disk. Used by the voice session when
+   * `VoiceSessionConfig.vad` is set (VAD-buffered utterance). Optional — required only for that path.
+   */
+  transcribeFromWavPath?(filePath: string): Promise<TranscriptionResult>;
 }
 
 export interface TextToSpeechProvider {
