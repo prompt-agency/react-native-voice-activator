@@ -9,6 +9,10 @@ export interface Spec extends TurboModule {
   dispose(): Promise<void>;
   addListener(eventName: string): void;
   removeListeners(count: number): void;
+  playPCMChunk(pcmBase64: string, sampleRate: number): Promise<void>;
+  playWav(filePath: string): Promise<void>;
+  stopPlayback(): Promise<void>;
+  setVolumeDucking(active: boolean): Promise<void>;
 }
 
 export default TurboModuleRegistry.get<Spec>('VoiceActivator');

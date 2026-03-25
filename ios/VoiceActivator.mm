@@ -1,5 +1,6 @@
 #import "VoiceActivator.h"
 
+#import "Runtime/AudioPlayback.h"
 #import "Runtime/WakeWordSessionCoordinator.h"
 
 namespace {
@@ -12,6 +13,7 @@ NSString *const kRuntimeAudioRouteChangedEventName = @"VoiceActivatorOnAudioRout
 
 @implementation VoiceActivator {
   WakeWordSessionCoordinator *_sessionCoordinator;
+  AudioPlayback *_audioPlayback;
 }
 
 RCT_EXPORT_MODULE()
@@ -26,6 +28,7 @@ RCT_EXPORT_MODULE()
   self = [super init];
   if (self) {
     _sessionCoordinator = [WakeWordSessionCoordinator new];
+    _audioPlayback = [AudioPlayback new];
 
     __weak __typeof(self) weakSelf = self;
     _sessionCoordinator.wakeWordDetectedHandler = ^(NSDictionary *payload) {
@@ -120,6 +123,55 @@ RCT_EXPORT_METHOD(dispose
     return;
   }
 
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(playPCMChunk
+                  : (NSString *)pcmBase64 sampleRate
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  NSError *error = nil;
+  if (![_audioPlayback startStreamingWithSampleRate:sampleRate error:&error]) {
+    [self reject:reject withCode:@"playback_start_failed" error:error];
+    return;
+  }
+  [_audioPlayback writeChunkFromBase64:pcmBase64];
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(playWav
+                  : (NSString *)filePath resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [_audioPlayback playWavFile:filePath
+                   completion:^(NSError *_Nullable error) {
+                     if (error) {
+                       [self reject:reject withCode:@"wav_playback_failed" error:error];
+                     } else {
+                       resolve(nil);
+                     }
+                   }];
+}
+
+RCT_EXPORT_METHOD(stopPlayback
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [_audioPlayback stopStreaming];
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(setVolumeDucking
+                  : (BOOL)active resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  // Ducking is managed automatically in AudioPlayback startStreaming/stopStreaming.
+  // This method is a no-op on iOS since DuckOthers is set on the session category
+  // when streaming activates. Exposed for API parity with Android.
   resolve(nil);
 }
 

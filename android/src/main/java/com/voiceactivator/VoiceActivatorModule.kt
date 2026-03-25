@@ -8,6 +8,7 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import com.voiceactivator.Runtime.AudioPlayback
 import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
 import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
@@ -15,6 +16,7 @@ import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
 @ReactModule(name = VoiceActivatorModule.NAME)
 class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
+  private val audioPlayback = AudioPlayback(reactContext.applicationContext)
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
     applicationContext = reactContext.applicationContext,
     serviceLauncher = ServiceLauncher(reactContext.applicationContext),
@@ -83,6 +85,40 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     } catch (error: Throwable) {
       promise.reject("runtime_dispose_failed", error.message, error)
     }
+  }
+
+  override fun playPCMChunk(pcmBase64: String, sampleRate: Double, promise: Promise) {
+    try {
+      audioPlayback.startStreaming(sampleRate.toInt())
+      audioPlayback.writeChunk(pcmBase64)
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("playback_chunk_failed", error.message, error)
+    }
+  }
+
+  override fun playWav(filePath: String, promise: Promise) {
+    audioPlayback.playWav(
+      filePath,
+      onComplete = { promise.resolve(null) },
+      onError = { msg -> promise.reject("wav_playback_failed", msg) }
+    )
+  }
+
+  override fun stopPlayback(promise: Promise) {
+    try {
+      audioPlayback.stopStreaming()
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("stop_playback_failed", error.message, error)
+    }
+  }
+
+  override fun setVolumeDucking(active: Boolean, promise: Promise) {
+    // Ducking is managed automatically in AudioPlayback.startStreaming/stopStreaming
+    // via requestAudioFocus(AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK).
+    // This method is exposed for API parity with iOS.
+    promise.resolve(null)
   }
 
   override fun addListener(eventName: String?) = Unit
