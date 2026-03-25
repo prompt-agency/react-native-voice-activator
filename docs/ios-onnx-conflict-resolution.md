@@ -67,3 +67,25 @@ At runtime, RunAnywhere's ONNX backend registration succeeds (no error -401 in l
 - **If RunAnywhere upgrades its ORT version**, check that the new version remains API-compatible with sherpa-onnx (`ORT_API_VERSION` must match). Run the duplicate-symbol check again after `pod install`.
 - **If you do not use RunAnywhere** (`builtInSTT: false`, `builtInTTS: false`), do not set `RUNANYWHERE_ONNX_COMPAT=1` — the flag is only needed when both are linked.
 - The flag is evaluated at `pod install` time by the podspec Ruby evaluator; it does not affect JavaScript, TypeScript, or Android builds.
+
+## Transition: onnxruntime-react-native (Epic 11)
+
+Story 11-1 adds `onnxruntime-react-native` as an optional peer dependency for the `TTSInferenceEngine` (ONNX-based neural TTS). When RunAnywhere is removed (Story 11-5), the conflict resolution approach must be re-evaluated:
+
+**What to check before pod install (Story 11-5):**
+
+```bash
+# Inspect onnxruntime-react-native's bundled ORT version
+cat node_modules/onnxruntime-react-native/onnxruntime-react-native.podspec | grep -i ort
+# Check the ORT API version (look for ORT_API_VERSION or the xcframework bundle)
+```
+
+**Likely outcome:** `onnxruntime-react-native` >= 1.20.0 uses ORT API version 20, while Sherpa-ONNX bundles ORT 1.17.1 (API version 17). Despite both exporting `_OrtGetApiBase`, the duplicate symbol conflict at the **linker** level is version-independent (both define the same symbol name).
+
+**Resolution strategy for Story 11-5:**
+
+Replace `RUNANYWHERE_ONNX_COMPAT=1` with an equivalent `ORTS_COMPAT=1` env var in the podspec that excludes `sherpa-onnxruntime.xcframework`, letting sherpa-onnx resolve against `onnxruntime-react-native`'s dynamic framework.
+
+**Runtime compatibility caveat:** This only works correctly if the ORT API version used by `onnxruntime-react-native` is ABI-compatible with the version Sherpa was compiled against. If API versions differ (e.g., ORT 1.17 vs 1.20), sherpa-onnx may crash at runtime when calling ORT APIs that changed between versions. If this happens, the only safe option is to keep Sherpa's bundled ORT (`sherpa-onnxruntime.xcframework`) and ensure `onnxruntime-react-native` uses a **different symbol namespace** (which Microsoft's builds do not do by default).
+
+**Action for Story 11-5:** Verify with a physical `pod install` and run the duplicate-symbol check. If versions are compatible at the ABI level, apply the `ORTS_COMPAT=1` podspec patch. If not, open a dedicated conflict-resolution subtask.

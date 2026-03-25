@@ -5,7 +5,8 @@
       "@runanywhere/core": ["./src/vendor-types/runanywhere-core"],
       "@runanywhere/onnx": ["./src/vendor-types/runanywhere-onnx"],
       "react-native-voice-activator": ["./src/index"],
-      "whisper.rn": ["./src/vendor-types/whisper-rn"]
+      "whisper.rn": ["./src/vendor-types/whisper-rn"],
+      "onnxruntime-react-native": ["./src/vendor-types/onnxruntime-react-native"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
