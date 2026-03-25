@@ -17,6 +17,7 @@
   "files": [
     "src",
     "lib",
+    "scripts/fetch-silero-vad-model.mjs",
     "android",
     "ios",
     "cpp",
@@ -47,7 +48,7 @@
     "lint": "eslint app.plugin.js plugin/index.js \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"plugin/build/**\" --ignore-pattern \"lib/**\" --no-warn-ignored && yarn verify:contracts",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "build:plugin": "tsc -p tsconfig.plugin.json",
-    "prepare": "bob build && yarn build:plugin",
+    "prepare": "node scripts/fetch-silero-vad-model.mjs && bob build && yarn build:plugin",
     "release": "release-it --only-version"
   },
   "keywords": [

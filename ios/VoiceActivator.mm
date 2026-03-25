@@ -2,6 +2,7 @@
 
 #import "Runtime/AudioPlayback.h"
 #import "Runtime/AudioSessionManager.h"
+#import "Runtime/VADCapture.h"
 #import "Runtime/WakeWordSessionCoordinator.h"
 
 namespace {
@@ -10,12 +11,14 @@ NSString *const kRuntimeStateChangedEventName = @"VoiceActivatorOnRuntimeStateCh
 NSString *const kRuntimeErrorEventName = @"VoiceActivatorOnRuntimeError";
 NSString *const kRuntimeInterruptionEventName = @"VoiceActivatorOnRuntimeInterruption";
 NSString *const kRuntimeAudioRouteChangedEventName = @"VoiceActivatorOnAudioRouteChanged";
+NSString *const kVADPCMFrameEventName = @"VoiceActivatorOnVADPCMFrame";
 }
 
 @implementation VoiceActivator {
   WakeWordSessionCoordinator *_sessionCoordinator;
   AudioPlayback *_audioPlayback;
   AudioSessionManager *_audioSessionManager;
+  VADCapture *_vadCapture;
 }
 
 RCT_EXPORT_MODULE()
@@ -32,6 +35,7 @@ RCT_EXPORT_MODULE()
     _sessionCoordinator = [WakeWordSessionCoordinator new];
     _audioPlayback = [AudioPlayback new];
     _audioSessionManager = [AudioSessionManager new];
+    _vadCapture = [VADCapture new];
 
     __weak __typeof(self) weakSelf = self;
     _sessionCoordinator.wakeWordDetectedHandler = ^(NSDictionary *payload) {
@@ -60,7 +64,8 @@ RCT_EXPORT_MODULE()
     kRuntimeStateChangedEventName,
     kRuntimeErrorEventName,
     kRuntimeInterruptionEventName,
-    kRuntimeAudioRouteChangedEventName
+    kRuntimeAudioRouteChangedEventName,
+    kVADPCMFrameEventName
   ];
 }
 
@@ -270,6 +275,37 @@ RCT_EXPORT_METHOD(setAudioRoute
     }
   }
 
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(startVADCapture
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  __weak __typeof(self) weakSelf = self;
+  _vadCapture.pcmFrameHandler = ^(NSString *base64PCM) {
+    __strong __typeof(weakSelf) strongSelf = weakSelf;
+    if (strongSelf) {
+      [strongSelf sendEventWithName:kVADPCMFrameEventName
+                               body:@{@"pcm" : base64PCM}];
+    }
+  };
+
+  NSError *error = nil;
+  if (![_vadCapture startWithSampleRate:sampleRate error:&error]) {
+    [self reject:reject withCode:@"vad_capture_start_failed" error:error];
+    return;
+  }
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(stopVADCapture
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [_vadCapture stop];
+  _vadCapture.pcmFrameHandler = nil;
   resolve(nil);
 }
 

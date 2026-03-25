@@ -15,6 +15,7 @@ export {
   WhisperRNSTTCancelledError,
 } from './providers/whisper-rn';
 export { CustomTTSAdapter } from './providers/tts';
+export { SileroVADEngine } from './providers/vad';
 export { useWakeWord } from './public/useWakeWord';
 export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
@@ -79,4 +80,8 @@ export type {
   VoiceSessionTurnCompleteEvent,
   UseVoiceSessionSnapshot,
   UseVoiceSessionResult,
+  VoiceSessionSpeechStartEvent,
+  VoiceSessionSpeechEndEvent,
+  VoiceSessionVADSpeechStartEvent,
+  VoiceSessionVADSpeechEndEvent,
 } from './public/types';

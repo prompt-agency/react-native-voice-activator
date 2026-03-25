@@ -19,6 +19,8 @@ const listeners: SessionListenerRegistry = {
   sessionTurnComplete: new Set(),
   sessionEnded: new Set(),
   sessionError: new Set(),
+  speechStart: new Set(),
+  speechEnd: new Set(),
 };
 
 export function addSessionListener<TEventName extends VoiceSessionEventName>(

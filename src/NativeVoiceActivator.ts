@@ -14,6 +14,8 @@ export interface Spec extends TurboModule {
   stopPlayback(): Promise<void>;
   setVolumeDucking(active: boolean): Promise<void>;
   setAudioRoute(route: string): Promise<void>;
+  startVADCapture(sampleRate: number): Promise<void>;
+  stopVADCapture(): Promise<void>;
 }
 
 export default TurboModuleRegistry.get<Spec>('VoiceActivator');

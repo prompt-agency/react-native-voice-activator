@@ -177,6 +177,8 @@ sub.remove();
 | `sessionTurnComplete` | `{ turn: number }` | Full turn done. `turn` is 1-based. |
 | `sessionEnded` | `{ reason: 'timeout' \| 'explicit' }` | Session closed. `explicit` for `close()` or `maxTurns`. `timeout` for `silenceTimeoutMs`. |
 | `sessionError` | `WakeWordError` | STT, TTS, or AI handler error. Session returns to idle. |
+| `speechStart` | `{}` | Bundled Silero VAD detected speech onset (when `SileroVADEngine` is running). |
+| `speechEnd` | `{ durationMs: number }` | Bundled Silero VAD detected speech offset; `durationMs` is the detected speech span. |
 
 ## `useVoiceSession()` Hook
 

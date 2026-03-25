@@ -322,6 +322,21 @@ export interface VoiceSessionEndedEvent {
 
 export interface VoiceSessionErrorEvent extends WakeWordError {}
 
+/** Fired when bundled Silero VAD detects speech onset during an active session. */
+export interface VoiceSessionSpeechStartEvent {}
+
+/** Fired when bundled Silero VAD detects speech offset during an active session. */
+export interface VoiceSessionSpeechEndEvent {
+  /** Duration of detected speech in milliseconds */
+  durationMs: number;
+}
+
+/** @deprecated Use {@link VoiceSessionSpeechStartEvent} */
+export type VoiceSessionVADSpeechStartEvent = VoiceSessionSpeechStartEvent;
+
+/** @deprecated Use {@link VoiceSessionSpeechEndEvent} */
+export type VoiceSessionVADSpeechEndEvent = VoiceSessionSpeechEndEvent;
+
 export interface VoiceSessionEventMap {
   sessionStarted: VoiceSessionStartedEvent;
   sessionListening: VoiceSessionListeningEvent;
@@ -330,6 +345,8 @@ export interface VoiceSessionEventMap {
   sessionTurnComplete: VoiceSessionTurnCompleteEvent;
   sessionEnded: VoiceSessionEndedEvent;
   sessionError: VoiceSessionErrorEvent;
+  speechStart: VoiceSessionSpeechStartEvent;
+  speechEnd: VoiceSessionSpeechEndEvent;
 }
 
 export type VoiceSessionEventName = keyof VoiceSessionEventMap;

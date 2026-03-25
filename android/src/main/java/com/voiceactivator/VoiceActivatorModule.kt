@@ -8,15 +8,18 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import com.facebook.react.bridge.Arguments
 import com.voiceactivator.Runtime.AudioPlayback
 import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
+import com.voiceactivator.Runtime.VADCapture
 import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
 
 @ReactModule(name = VoiceActivatorModule.NAME)
 class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
   private val audioPlayback = AudioPlayback(reactContext.applicationContext)
+  private val vadCapture = VADCapture()
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
     applicationContext = reactContext.applicationContext,
     serviceLauncher = ServiceLauncher(reactContext.applicationContext),
@@ -127,6 +130,29 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  override fun startVADCapture(sampleRate: Double, promise: Promise) {
+    try {
+      vadCapture.pcmFrameHandler = { base64PCM ->
+        val params = Arguments.createMap()
+        params.putString("pcm", base64PCM)
+        emitEvent(NATIVE_VAD_PCM_FRAME_EVENT, params)
+      }
+      vadCapture.start(sampleRate.toInt())
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("vad_capture_start_failed", error.message, error)
+    }
+  }
+
+  override fun stopVADCapture(promise: Promise) {
+    try {
+      vadCapture.stop()
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("vad_capture_stop_failed", error.message, error)
+    }
+  }
+
   override fun addListener(eventName: String?) = Unit
 
   override fun removeListeners(count: Double) = Unit
@@ -148,5 +174,6 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       "VoiceActivatorOnRuntimeInterruption"
     private const val NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT =
       "VoiceActivatorOnAudioRouteChanged"
+    private const val NATIVE_VAD_PCM_FRAME_EVENT = "VoiceActivatorOnVADPCMFrame"
   }
 }
