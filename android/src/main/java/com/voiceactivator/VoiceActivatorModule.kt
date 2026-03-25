@@ -132,6 +132,9 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
 
   override fun startVADCapture(sampleRate: Double, promise: Promise) {
     try {
+      // Pause Sherpa's AudioRecord so VAD owns the mic explicitly instead of
+      // relying on undefined multi-recorder behavior across devices/API levels.
+      runtimeCoordinator.pauseDetectionForSecondaryCapture()
       vadCapture.pcmFrameHandler = { base64PCM ->
         val params = Arguments.createMap()
         params.putString("pcm", base64PCM)
@@ -140,6 +143,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       vadCapture.start(sampleRate.toInt())
       promise.resolve(null)
     } catch (error: Throwable) {
+      runCatching { runtimeCoordinator.resumeDetectionAfterSecondaryCapture() }
       promise.reject("vad_capture_start_failed", error.message, error)
     }
   }
@@ -147,6 +151,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   override fun stopVADCapture(promise: Promise) {
     try {
       vadCapture.stop()
+      runtimeCoordinator.resumeDetectionAfterSecondaryCapture()
       promise.resolve(null)
     } catch (error: Throwable) {
       promise.reject("vad_capture_stop_failed", error.message, error)

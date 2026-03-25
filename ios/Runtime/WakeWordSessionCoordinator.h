@@ -28,6 +28,11 @@ typedef void (^VoiceActivatorAudioRouteChangedHandler)(NSDictionary *payload);
 - (BOOL)stopDetection:(NSError * _Nullable * _Nullable)error;
 - (BOOL)dispose:(NSError * _Nullable * _Nullable)error;
 
+/** Pauses Sherpa microphone tap so another AVAudioEngine (VAD) can capture. Safe if detection is off. */
+- (void)pauseWakeWordAudioForSecondaryCapture;
+/** Restores Sherpa tap after VAD capture stops. No-op if Sherpa was not suspended for secondary capture. */
+- (BOOL)resumeWakeWordAudioAfterSecondaryCapture:(NSError * _Nullable * _Nullable)error;
+
 @end
 
 NS_ASSUME_NONNULL_END

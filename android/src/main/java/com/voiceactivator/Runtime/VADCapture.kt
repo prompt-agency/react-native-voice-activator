@@ -15,6 +15,10 @@ import java.nio.ByteOrder
  *
  * One frame = 512 float32 samples (32 ms at 16 kHz).
  * Only active between [start] and [stop] calls.
+ *
+ * Wake-word detection pauses its own [AudioRecord] before VAD starts, then resumes
+ * after VAD stops. That avoids device-specific recorder contention instead of relying
+ * on multiple MIC captures to coexist.
  */
 class VADCapture {
 
@@ -90,7 +94,8 @@ class VADCapture {
     val floatBuffer = FloatArray(frameSize)
     while (isRunning) {
       val read = record.read(floatBuffer, 0, frameSize, AudioRecord.READ_BLOCKING)
-      if (read <= 0 || !isRunning) break
+      // ERROR_INVALID_OPERATION / ERROR_BAD_VALUE are negative; treat as hard stop.
+      if (!isRunning || read <= 0) break
 
       val byteBuffer = ByteBuffer.allocate(read * Float.SIZE_BYTES)
         .order(ByteOrder.LITTLE_ENDIAN)

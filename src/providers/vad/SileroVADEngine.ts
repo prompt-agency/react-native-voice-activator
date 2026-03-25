@@ -1,6 +1,7 @@
 import { NativeEventEmitter, NativeModules } from 'react-native';
 
 import type { InferenceSession } from 'onnxruntime-react-native';
+import type { VADConfig } from '../../public/types';
 import { emitSessionEvent } from '../../internal/session-events';
 import { getSileroVADModelPath } from './asset-path';
 
@@ -50,15 +51,22 @@ export class SileroVADEngine {
   private _speechActive = false;
   private _speechStartTime = 0;
   private _nativeSub: { remove(): void } | null = null;
+  private _silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Speech probability threshold for rising-edge detection. Default: 0.5 */
   private readonly threshold: number;
   /** Silence probability threshold for falling-edge detection. Default: 0.35 */
   private readonly silenceThreshold: number;
+  /** Sustained silence (ms) before speechEnd. Default: 1500 */
+  readonly silenceTimeoutMs: number;
+  /** Padding (ms) included on speechEnd for STT. Default: 300 */
+  readonly speechPadMs: number;
 
-  constructor(options?: { threshold?: number; silenceThreshold?: number }) {
+  constructor(options?: VADConfig) {
     this.threshold = options?.threshold ?? 0.5;
     this.silenceThreshold = options?.silenceThreshold ?? 0.35;
+    this.silenceTimeoutMs = options?.silenceTimeoutMs ?? 1500;
+    this.speechPadMs = options?.speechPadMs ?? 300;
   }
 
   get isRunning(): boolean {
@@ -93,6 +101,7 @@ export class SileroVADEngine {
   async start(): Promise<void> {
     if (this._running || this.session === null) return;
 
+    this._clearSilenceTimer();
     this._resetHiddenState();
     this._speechActive = false;
     this._running = true;
@@ -119,6 +128,7 @@ export class SileroVADEngine {
   async stop(): Promise<void> {
     if (!this._running) return;
 
+    this._clearSilenceTimer();
     this._running = false;
     this._nativeSub?.remove();
     this._nativeSub = null;
@@ -190,11 +200,23 @@ export class SileroVADEngine {
       if (!this._speechActive && probability >= this.threshold) {
         this._speechActive = true;
         this._speechStartTime = Date.now();
+        this._clearSilenceTimer();
         emitSessionEvent('speechStart', {});
       } else if (this._speechActive && probability < this.silenceThreshold) {
-        this._speechActive = false;
-        const durationMs = Date.now() - this._speechStartTime;
-        emitSessionEvent('speechEnd', { durationMs });
+        if (this._silenceTimer === null) {
+          this._silenceTimer = setTimeout(() => {
+            this._silenceTimer = null;
+            if (!this._running || !this._speechActive) return;
+            this._speechActive = false;
+            const durationMs = Date.now() - this._speechStartTime;
+            emitSessionEvent('speechEnd', {
+              durationMs,
+              speechPadMs: this.speechPadMs,
+            });
+          }, this.silenceTimeoutMs);
+        }
+      } else if (this._speechActive && probability >= this.threshold) {
+        this._clearSilenceTimer();
       }
     } catch (e) {
       this._reportFrameError(e);
@@ -211,6 +233,13 @@ export class SileroVADEngine {
     )?.release?.();
     this.session = null;
     this.ort = null;
+  }
+
+  private _clearSilenceTimer(): void {
+    if (this._silenceTimer !== null) {
+      clearTimeout(this._silenceTimer);
+      this._silenceTimer = null;
+    }
   }
 
   private _resetHiddenState(): void {

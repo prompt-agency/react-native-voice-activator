@@ -283,6 +283,9 @@ RCT_EXPORT_METHOD(startVADCapture
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
+  // Sherpa and VAD each use their own AVAudioEngine; pause wake-word capture so only one graph records from the mic at a time.
+  [_sessionCoordinator pauseWakeWordAudioForSecondaryCapture];
+
   __weak __typeof(self) weakSelf = self;
   _vadCapture.pcmFrameHandler = ^(NSString *base64PCM) {
     __strong __typeof(weakSelf) strongSelf = weakSelf;
@@ -294,6 +297,7 @@ RCT_EXPORT_METHOD(startVADCapture
 
   NSError *error = nil;
   if (![_vadCapture startWithSampleRate:sampleRate error:&error]) {
+    (void)[_sessionCoordinator resumeWakeWordAudioAfterSecondaryCapture:nil];
     [self reject:reject withCode:@"vad_capture_start_failed" error:error];
     return;
   }
@@ -306,6 +310,12 @@ RCT_EXPORT_METHOD(stopVADCapture
 {
   [_vadCapture stop];
   _vadCapture.pcmFrameHandler = nil;
+
+  NSError *resumeError = nil;
+  if (![_sessionCoordinator resumeWakeWordAudioAfterSecondaryCapture:&resumeError]) {
+    NSLog(@"[VoiceActivator] Failed to resume wake word audio after VAD stop: %@",
+          resumeError.localizedDescription ?: @"unknown error");
+  }
   resolve(nil);
 }
 

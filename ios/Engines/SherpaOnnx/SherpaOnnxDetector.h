@@ -17,6 +17,10 @@ typedef void (^SherpaOnnxErrorHandler)(NSError *error);
                           error:(NSError * _Nullable * _Nullable)error;
 - (BOOL)start:(NSError * _Nullable * _Nullable)error;
 - (BOOL)stop:(NSError * _Nullable * _Nullable)error;
+/** Stops Sherpa's AVAudioEngine tap while keeping the spotter alive (e.g. for VAD capture). */
+- (void)pauseAudioInputForSecondaryCapture;
+/** Restores Sherpa's tap/engine after pauseAudioInputForSecondaryCapture. No-op if not suspended. */
+- (BOOL)resumeAudioInputAfterSecondaryCapture:(NSError * _Nullable * _Nullable)error;
 - (void)dispose;
 - (void)flushPendingWork;
 

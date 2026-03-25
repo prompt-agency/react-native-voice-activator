@@ -38,6 +38,7 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
   const SherpaOnnxKeywordSpotter *_spotter;
   const SherpaOnnxOnlineStream *_stream;
   BOOL _isRunning;
+  BOOL _audioSuspendedForSecondaryCapture;
 }
 
 - (instancetype)init
@@ -142,12 +143,54 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
 {
   (void)error;
   if (!_isRunning) {
+    _audioSuspendedForSecondaryCapture = NO;
     return YES;
   }
 
   [_audioEngine.inputNode removeTapOnBus:0];
   [_audioEngine stop];
   _isRunning = NO;
+  _audioSuspendedForSecondaryCapture = NO;
+  return YES;
+}
+
+- (void)pauseAudioInputForSecondaryCapture
+{
+  if (!_isRunning || _audioSuspendedForSecondaryCapture) {
+    return;
+  }
+  [_audioEngine.inputNode removeTapOnBus:0];
+  [_audioEngine stop];
+  _isRunning = NO;
+  _audioSuspendedForSecondaryCapture = YES;
+}
+
+- (BOOL)resumeAudioInputAfterSecondaryCapture:(NSError * _Nullable * _Nullable)error
+{
+  if (!_audioSuspendedForSecondaryCapture) {
+    return YES;
+  }
+
+  AVAudioInputNode *inputNode = _audioEngine.inputNode;
+  AVAudioFormat *inputFormat = [inputNode inputFormatForBus:0];
+  __weak __typeof(self) weakSelf = self;
+  [inputNode removeTapOnBus:0];
+  [inputNode installTapOnBus:0
+                  bufferSize:1024
+                      format:inputFormat
+                       block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+                         (void)when;
+                         [weakSelf processBuffer:buffer];
+                       }];
+
+  [_audioEngine prepare];
+  if (![_audioEngine startAndReturnError:error]) {
+    [inputNode removeTapOnBus:0];
+    return NO;
+  }
+
+  _isRunning = YES;
+  _audioSuspendedForSecondaryCapture = NO;
   return YES;
 }
 

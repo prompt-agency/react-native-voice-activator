@@ -546,4 +546,39 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 }
 
+- (void)pauseWakeWordAudioForSecondaryCapture
+{
+  NSDictionary *status = [self currentStatus];
+  if ([status[@"state"] isEqual:@"running"] && [status[@"isListening"] boolValue]) {
+    [self setStatus:@{
+      @"state" : @"running",
+      @"isAvailable" : @YES,
+      @"isListening" : @NO,
+      @"canStart" : @NO,
+      @"reason" : @"Wake word capture is paused while VAD owns the microphone.",
+      @"lastError" : [NSNull null]
+    }];
+  }
+  [_detector pauseAudioInputForSecondaryCapture];
+}
+
+- (BOOL)resumeWakeWordAudioAfterSecondaryCapture:(NSError * _Nullable __autoreleasing * _Nullable)error
+{
+  if (![_detector resumeAudioInputAfterSecondaryCapture:error]) {
+    return NO;
+  }
+
+  NSDictionary *status = [self currentStatus];
+  if ([status[@"state"] isEqual:@"running"] && ![status[@"isListening"] boolValue]) {
+    [self setStatus:@{
+      @"state" : @"running",
+      @"isAvailable" : @YES,
+      @"isListening" : @YES,
+      @"canStart" : @NO,
+      @"lastError" : [NSNull null]
+    }];
+  }
+  return YES;
+}
+
 @end

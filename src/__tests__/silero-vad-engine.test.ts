@@ -1,4 +1,4 @@
-/** Story 12-1: SileroVADEngine unit tests. TDZ-safe mocks via jest.mock factory. */
+/** SileroVADEngine unit tests. TDZ-safe mocks via jest.mock factory. */
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,7 @@ function makePCMBase64(): string {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+import type { VoiceSessionConfig } from '../public/types';
 import { SileroVADEngine } from '../providers/vad/SileroVADEngine';
 
 beforeEach(() => {
@@ -169,22 +170,36 @@ describe('SileroVADEngine', () => {
       expect(startEvents).toHaveLength(1);
     });
 
-    it('emits speechEnd on low-probability frame after speech was active', async () => {
-      mockRun
-        .mockResolvedValueOnce(buildVADOutput(0.8)) // speech starts
-        .mockResolvedValueOnce(buildVADOutput(0.1)); // silence → speechEnd
-      const engine = new SileroVADEngine();
-      await engine.loadModel();
-      await engine.start();
+    it('does not emit speechEnd until sustained silence elapses (debounce)', async () => {
+      jest.useFakeTimers();
+      try {
+        mockRun
+          .mockResolvedValueOnce(buildVADOutput(0.8))
+          .mockResolvedValueOnce(buildVADOutput(0.1));
+        const engine = new SileroVADEngine();
+        await engine.loadModel();
+        await engine.start();
 
-      await engine._processFrame(makePCMBase64());
-      await engine._processFrame(makePCMBase64());
+        await engine._processFrame(makePCMBase64());
+        await engine._processFrame(makePCMBase64());
 
-      const endEvent = emittedEvents.find((e) => e.name === 'speechEnd');
-      expect(endEvent).toBeDefined();
-      expect(
-        (endEvent?.payload as { durationMs: number }).durationMs
-      ).toBeGreaterThanOrEqual(0);
+        expect(
+          emittedEvents.filter((e) => e.name === 'speechEnd')
+        ).toHaveLength(0);
+
+        await jest.advanceTimersByTimeAsync(1500);
+
+        const endEvent = emittedEvents.find((e) => e.name === 'speechEnd');
+        expect(endEvent).toBeDefined();
+        const payload = endEvent?.payload as {
+          durationMs: number;
+          speechPadMs: number;
+        };
+        expect(payload.durationMs).toBeGreaterThanOrEqual(0);
+        expect(payload.speechPadMs).toBe(300);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('does NOT emit speechEnd if speech was never active', async () => {
@@ -223,17 +238,39 @@ describe('SileroVADEngine', () => {
   });
 
   describe('stop()', () => {
-    it('resets _speechActive so no speechEnd is emitted after stop', async () => {
+    it('cancels pending silence timer so speechEnd is not emitted after stop', async () => {
+      jest.useFakeTimers();
+      try {
+        mockRun
+          .mockResolvedValueOnce(buildVADOutput(0.8))
+          .mockResolvedValueOnce(buildVADOutput(0.1));
+        const engine = new SileroVADEngine();
+        await engine.loadModel();
+        await engine.start();
+        await engine._processFrame(makePCMBase64());
+        await engine._processFrame(makePCMBase64());
+
+        await engine.stop();
+        await jest.runAllTimersAsync();
+
+        expect(
+          emittedEvents.filter((e) => e.name === 'speechEnd')
+        ).toHaveLength(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('drops frames after stop (no inference)', async () => {
       mockRun.mockResolvedValueOnce(buildVADOutput(0.8));
       const engine = new SileroVADEngine();
       await engine.loadModel();
       await engine.start();
-      await engine._processFrame(makePCMBase64()); // speechStart emitted
+      await engine._processFrame(makePCMBase64());
 
       await engine.stop();
-      emittedEvents.length = 0; // clear
+      emittedEvents.length = 0;
 
-      // If a frame arrives after stop (queued by native), it should be dropped
       await engine._processFrame(makePCMBase64());
       expect(emittedEvents).toHaveLength(0);
     });
@@ -305,6 +342,130 @@ describe('SileroVADEngine', () => {
       expect(
         emittedEvents.filter((e) => e.name === 'speechStart')
       ).toHaveLength(0);
+    });
+  });
+
+  describe('silence debounce', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('absorbs a short pause: speech → silence → speech before timeout → no speechEnd', async () => {
+      mockRun
+        .mockResolvedValueOnce(buildVADOutput(0.8))
+        .mockResolvedValueOnce(buildVADOutput(0.1))
+        .mockResolvedValueOnce(buildVADOutput(0.8));
+      const engine = new SileroVADEngine();
+      await engine.loadModel();
+      await engine.start();
+
+      await engine._processFrame(makePCMBase64());
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(500);
+      await engine._processFrame(makePCMBase64());
+
+      await jest.runAllTimersAsync();
+      expect(emittedEvents.filter((e) => e.name === 'speechEnd')).toHaveLength(
+        0
+      );
+    });
+
+    it('absorbs a mid-sentence pause under 500ms (AC: no speechEnd)', async () => {
+      mockRun
+        .mockResolvedValueOnce(buildVADOutput(0.8))
+        .mockResolvedValueOnce(buildVADOutput(0.1))
+        .mockResolvedValueOnce(buildVADOutput(0.8));
+      const engine = new SileroVADEngine();
+      await engine.loadModel();
+      await engine.start();
+
+      await engine._processFrame(makePCMBase64());
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(400);
+      await engine._processFrame(makePCMBase64());
+
+      await jest.runAllTimersAsync();
+      expect(emittedEvents.filter((e) => e.name === 'speechEnd')).toHaveLength(
+        0
+      );
+    });
+
+    it('uses custom silenceTimeoutMs', async () => {
+      mockRun
+        .mockResolvedValueOnce(buildVADOutput(0.8))
+        .mockResolvedValueOnce(buildVADOutput(0.1));
+      const engine = new SileroVADEngine({ silenceTimeoutMs: 500 });
+      await engine.loadModel();
+      await engine.start();
+
+      await engine._processFrame(makePCMBase64());
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(600);
+
+      expect(emittedEvents.some((e) => e.name === 'speechEnd')).toBe(true);
+    });
+
+    it('includes configured speechPadMs on speechEnd', async () => {
+      mockRun
+        .mockResolvedValueOnce(buildVADOutput(0.8))
+        .mockResolvedValueOnce(buildVADOutput(0.1));
+      const engine = new SileroVADEngine({ speechPadMs: 42 });
+      await engine.loadModel();
+      await engine.start();
+
+      await engine._processFrame(makePCMBase64());
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(1500);
+
+      const end = emittedEvents.find((e) => e.name === 'speechEnd');
+      expect((end?.payload as { speechPadMs: number }).speechPadMs).toBe(42);
+    });
+
+    it('clears silence timer when speech resumes above threshold', async () => {
+      mockRun
+        .mockResolvedValueOnce(buildVADOutput(0.8))
+        .mockResolvedValueOnce(buildVADOutput(0.1))
+        .mockResolvedValueOnce(buildVADOutput(0.8));
+      const engine = new SileroVADEngine();
+      await engine.loadModel();
+      await engine.start();
+
+      await engine._processFrame(makePCMBase64());
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(800);
+      await engine._processFrame(makePCMBase64());
+      await jest.advanceTimersByTimeAsync(1500);
+
+      expect(emittedEvents.filter((e) => e.name === 'speechEnd')).toHaveLength(
+        0
+      );
+    });
+
+    it('defaults silenceTimeoutMs to 1500', () => {
+      const engine = new SileroVADEngine();
+      expect(engine.silenceTimeoutMs).toBe(1500);
+      expect(engine.speechPadMs).toBe(300);
+    });
+  });
+
+  describe('VoiceSessionConfig.vad', () => {
+    it('honours options passed from session vad config', () => {
+      const session: VoiceSessionConfig = {
+        aiHandler: async () => '',
+        reListenMode: 'manual',
+        vad: {
+          silenceTimeoutMs: 900,
+          speechPadMs: 111,
+          threshold: 0.6,
+          silenceThreshold: 0.2,
+        },
+      };
+      const engine = new SileroVADEngine(session.vad);
+      expect(engine.silenceTimeoutMs).toBe(900);
+      expect(engine.speechPadMs).toBe(111);
     });
   });
 });

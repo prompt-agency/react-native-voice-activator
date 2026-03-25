@@ -46,6 +46,7 @@ internal class WakeWordRuntimeCoordinator(
     keywordAssetKey = null,
   )
   private var detectorSensitivity = 0.5
+  private var audioSuspendedForSecondaryCapture = false
 
   fun currentStatus(): WritableMap = runtimeStateStore.currentStatus()
 
@@ -254,6 +255,7 @@ internal class WakeWordRuntimeCoordinator(
         "lastError" to null,
       )
     )
+    audioSuspendedForSecondaryCapture = false
   }
 
   fun dispose() {
@@ -275,7 +277,76 @@ internal class WakeWordRuntimeCoordinator(
         "lastError" to null,
       )
     )
+    audioSuspendedForSecondaryCapture = false
     releaseDetector()
+  }
+
+  fun pauseDetectionForSecondaryCapture() {
+    val status = currentStatus()
+    if (
+      audioSuspendedForSecondaryCapture ||
+      status.getString("state") != "running" ||
+      !status.getBoolean("isListening")
+    ) {
+      return
+    }
+
+    if (!audioCaptureThread.stopCapture()) {
+      throw platformFailure(
+        code = "secondary_capture_pause_failed",
+        message = "Android wake word audio capture could not be paused for VAD.",
+        canStart = false,
+      )
+    }
+
+    audioSuspendedForSecondaryCapture = true
+    setStatus(
+      mapOf(
+        "state" to "running",
+        "isAvailable" to true,
+        "isListening" to false,
+        "canStart" to false,
+        "reason" to "Wake word capture is paused while VAD owns the microphone.",
+        "lastError" to null,
+      )
+    )
+  }
+
+  fun resumeDetectionAfterSecondaryCapture() {
+    if (!audioSuspendedForSecondaryCapture) {
+      return
+    }
+
+    if (!audioCaptureThread.startCapture { samples, sampleRate ->
+        try {
+          detector?.processSamples(samples, sampleRate)
+        } catch (error: Throwable) {
+          setErrorState(
+            category = "engine",
+            code = "sherpa_decode_failed",
+            message = error.message ?: "Sherpa-ONNX keyword detection failed.",
+            canStart = true,
+          )
+        }
+      }) {
+      throw platformFailure(
+        code = "secondary_capture_resume_failed",
+        message = "Android wake word audio capture could not be resumed after VAD.",
+        canStart = true,
+      )
+    }
+
+    audioSuspendedForSecondaryCapture = false
+    setStatus(
+      mapOf(
+        "state" to "running",
+        "isAvailable" to true,
+        "isListening" to true,
+        "canStart" to false,
+        "reason" to ANDROID_FOREGROUND_SERVICE_REASON,
+        "lastError" to null,
+      )
+    )
   }
 
   fun surfaceUnsupportedState(

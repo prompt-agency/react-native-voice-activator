@@ -64,6 +64,7 @@ export type {
   WakeWordStatus,
   WakeWordSubscription,
   AIHandler,
+  VADConfig,
   VoiceSession,
   VoiceSessionConfig,
   VoiceSessionEndedEvent,

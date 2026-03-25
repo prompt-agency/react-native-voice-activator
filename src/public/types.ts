@@ -292,11 +292,25 @@ export type VoiceSessionState = (typeof voiceSessionStates)[number];
 
 export type AIHandler = (transcript: string) => Promise<string>;
 
+/** Voice-activity detection tuning for bundled Silero VAD. */
+export interface VADConfig {
+  /** Silence duration (ms) after speech before speechEnd fires. Default: 1500 */
+  silenceTimeoutMs?: number;
+  /** Speech-edge padding (ms) on speechEnd for STT. Default: 300 */
+  speechPadMs?: number;
+  /** Speech onset probability threshold (0–1). Default: 0.5 */
+  threshold?: number;
+  /** Silence probability threshold (0–1). Default: 0.35 */
+  silenceThreshold?: number;
+}
+
 export interface VoiceSessionConfig {
   aiHandler: AIHandler;
   reListenMode: 'auto' | 'manual';
+  /** Session-level: closes session if user never speaks — not VAD debounce. */
   silenceTimeoutMs?: number;
   maxTurns?: number;
+  vad?: VADConfig;
 }
 
 export interface VoiceSessionStartedEvent {}
@@ -329,6 +343,8 @@ export interface VoiceSessionSpeechStartEvent {}
 export interface VoiceSessionSpeechEndEvent {
   /** Duration of detected speech in milliseconds */
   durationMs: number;
+  /** Speech-edge padding (ms) for STT after speechEnd. */
+  speechPadMs: number;
 }
 
 /** @deprecated Use {@link VoiceSessionSpeechStartEvent} */
