@@ -18,12 +18,12 @@ describe('float32PcmBase64ChunksToWavBase64', () => {
     s[3] = 0.5;
     const b64 = float32PcmBase64ChunksToWavBase64([float32SamplesToBase64(s)]);
     const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    expect(
-      String.fromCharCode(raw[0]!, raw[1]!, raw[2]!, raw[3]!)
-    ).toBe('RIFF');
-    expect(
-      String.fromCharCode(raw[8]!, raw[9]!, raw[10]!, raw[11]!)
-    ).toBe('WAVE');
+    expect(String.fromCharCode(raw[0]!, raw[1]!, raw[2]!, raw[3]!)).toBe(
+      'RIFF'
+    );
+    expect(String.fromCharCode(raw[8]!, raw[9]!, raw[10]!, raw[11]!)).toBe(
+      'WAVE'
+    );
     const dataSize = new DataView(raw.buffer).getUint32(40, true);
     expect(dataSize).toBe(8);
   });

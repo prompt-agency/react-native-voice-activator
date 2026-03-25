@@ -6,6 +6,8 @@ const requiredDocs = [
   'docs/getting-started.md',
   'docs/bare-react-native-setup.md',
   'docs/expo-setup.md',
+  // Presence check only; does not crawl markdown links inside the file.
+  'docs/model-training/wake-word-training.md',
   'docs/examples/index.md',
   'docs/examples/expo-speech-tts-provider.md',
   'docs/examples/expo-speech-recognition-stt-provider.md',

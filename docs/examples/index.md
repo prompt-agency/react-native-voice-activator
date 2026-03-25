@@ -9,6 +9,10 @@ package core while still using the public provider interfaces:
 
 Architecture rule: reference adapters live in `docs/examples/` and app-level code only. User-owned custom adapters belong in application code, not in the library package. They do not belong in `src/`, `src/internal/`, or the mandatory package runtime.
 
+## Model training (custom wake word)
+
+To train a **Sherpa-ONNX KWS** bundle and keyword file for `engineConfig.assetKeys`, see [`../model-training/wake-word-training.md`](../model-training/wake-word-training.md). Training is offline; the package loads ONNX + `keywords.txt` only.
+
 ## Current Reference Adapters
 
 - [`whisper-stt-provider.md`](./whisper-stt-provider.md)
