@@ -106,6 +106,20 @@ export interface WhisperRNSTTConfig {
   maxRecordingMs?: number;
 }
 
+export interface CustomTTSConfig {
+  /** Absolute local file path to the Piper TTS `.onnx` model */
+  modelPath: string;
+  /** PCM sample rate produced by this model. Default: 22050 Hz (Piper standard). */
+  sampleRate?: 16000 | 22050;
+  /** Speaker ID for multi-speaker models. Omit for single-speaker models. */
+  speakerId?: number;
+  /**
+   * Converts input text to Piper TTS espeak-ng phoneme IDs.
+   * Required — phoneme tables are model-specific.
+   */
+  phonemize: (text: string) => BigInt64Array | Promise<BigInt64Array>;
+}
+
 export interface SpeechToTextProvider {
   readonly name: string;
   transcribe(): Promise<TranscriptionResult>;

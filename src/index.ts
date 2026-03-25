@@ -18,12 +18,14 @@ export {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
 } from './providers/whisper-rn';
+export { CustomTTSAdapter } from './providers/tts';
 export { useWakeWord } from './public/useWakeWord';
 export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
   AudioRoute,
   BuiltInProviderProgress,
+  CustomTTSConfig,
   WhisperRNSTTConfig,
   WhisperRNSTTModelId,
   ProviderError,
