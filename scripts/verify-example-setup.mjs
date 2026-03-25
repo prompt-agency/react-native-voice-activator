@@ -69,8 +69,8 @@ if (!existsSync(wakeWordScreenPath)) {
     'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
-    'builtInSTT',
-    'builtInTTS',
+    'WhisperRNSTTAdapter',
+    'sttProvider',
     'autoSpeak: true',
     'engineConfig',
     'keywordAssetKey',
@@ -104,8 +104,8 @@ if (!existsSync(sessionScreenPath)) {
     'useVoiceSession',
     'aiHandler',
     'reListenMode',
-    'builtInSTT',
-    'builtInTTS',
+    'WhisperRNSTTAdapter',
+    'sttProvider',
     'initialize',
     'startDetection',
     'dispose',
@@ -128,10 +128,8 @@ if (!existsSync(manualScreenPath)) {
   const src = readFileSync(manualScreenPath, 'utf8');
 
   const required = [
-    'RunAnywhereSTTAdapter',
-    'RunAnywhereTTSAdapter',
+    'WhisperRNSTTAdapter',
     'transcribe',
-    'speak',
   ];
 
   for (const token of required) {

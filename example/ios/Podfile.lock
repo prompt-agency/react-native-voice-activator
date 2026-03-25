@@ -2099,67 +2099,34 @@ PODS:
     - React-Core
   - RNFS (2.20.0):
     - React-Core
-  - RNZipArchive (4.1.5):
-    - React
-    - RNZipArchive/Core (= 4.1.5)
-    - SSZipArchive (= 2.2.2)
-  - RNZipArchive/Core (4.1.5):
-    - React
-    - SSZipArchive (= 2.2.2)
-  - RunAnywhereCore (0.18.1):
-    - hermes-engine
-    - NitroModules
-    - RCTRequired
-    - RCTTypeSafety
-    - React-callinvoker
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
-  - RunAnywhereONNX (0.18.1):
-    - hermes-engine
-    - NitroModules
-    - RCTRequired
-    - RCTTypeSafety
-    - React-callinvoker
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - RunAnywhereCore
-    - Yoga
-  - SSZipArchive (2.2.2)
   - VoiceActivator (0.1.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - whisper-rn (0.5.5):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React
+    - React-callinvoker
     - React-Core
     - React-Core-prebuilt
     - React-debug
@@ -2276,15 +2243,9 @@ DEPENDENCIES:
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - RNAudioRecorderPlayer (from `../node_modules/react-native-audio-recorder-player`)
   - RNFS (from `../node_modules/react-native-fs`)
-  - RNZipArchive (from `../node_modules/react-native-zip-archive`)
-  - "RunAnywhereCore (from `../node_modules/@runanywhere/core`)"
-  - "RunAnywhereONNX (from `../node_modules/@runanywhere/onnx`)"
   - VoiceActivator (from `../..`)
+  - whisper-rn (from `../node_modules/whisper.rn`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
-
-SPEC REPOS:
-  trunk:
-    - SSZipArchive
 
 EXTERNAL SOURCES:
   EXConstants:
@@ -2476,14 +2437,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-audio-recorder-player"
   RNFS:
     :path: "../node_modules/react-native-fs"
-  RNZipArchive:
-    :path: "../node_modules/react-native-zip-archive"
-  RunAnywhereCore:
-    :path: "../node_modules/@runanywhere/core"
-  RunAnywhereONNX:
-    :path: "../node_modules/@runanywhere/onnx"
   VoiceActivator:
     :path: "../.."
+  whisper-rn:
+    :path: "../node_modules/whisper.rn"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -2582,13 +2539,10 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 3d9f35847c99dbd6aec0bf44b379097a77f4e2b6
   RNAudioRecorderPlayer: b5ed41ccfe72a211a870bfe09ab36c046eb27d2a
   RNFS: 89de7d7f4c0f6bafa05343c578f61118c8282ed8
-  RNZipArchive: 310fe357d755aac11990bc0748487ba155237fb4
-  RunAnywhereCore: b6586d3e9f67c36efcc1780f33833343876a2ce1
-  RunAnywhereONNX: ecca36920e3f51cfab9a5778cab9a63a730e4074
-  SSZipArchive: fa16b8cc4cdeceb698e5e5d9f67e9558532fbf23
-  VoiceActivator: f6a84c488bf13a8e2e23360852b0fcad060466bb
+  VoiceActivator: 4c4c693aae807da7f577c292e2667b5cfbfe6e64
+  whisper-rn: a317762a230f4d97d4d8de91a1140dbcfb5c239a
   Yoga: dd994d8c85dca5cc9b10f5df8c01f9ef1d0da191
 
-PODFILE CHECKSUM: c6700f285e0f302c63cd1cdee5858696a5831b2e
+PODFILE CHECKSUM: 744734761c5d2bd2fdba154386b1639cab4d5547
 
 COCOAPODS: 1.16.2

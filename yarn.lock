@@ -3831,42 +3831,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@runanywhere/core@npm:^0.18.1":
-  version: 0.18.1
-  resolution: "@runanywhere/core@npm:0.18.1"
-  peerDependencies:
-    react: ">=18.0.0"
-    react-native: ">=0.74.0"
-    react-native-blob-util: ">=0.19.0"
-    react-native-device-info: ">=11.0.0"
-    react-native-fs: ">=2.20.0"
-    react-native-nitro-modules: ">=0.31.3"
-    react-native-zip-archive: ">=6.1.0"
-  peerDependenciesMeta:
-    react-native-blob-util:
-      optional: true
-    react-native-device-info:
-      optional: true
-    react-native-fs:
-      optional: true
-    react-native-zip-archive:
-      optional: true
-  checksum: efd359de21eafd2769db08e93466257414ed075a509e58a28f303cd2530d9be7ae61034a6e5275c3be09190edbf2be3352bda55815d24cb0b0e22c272681f697
-  languageName: node
-  linkType: hard
-
-"@runanywhere/onnx@npm:^0.18.1":
-  version: 0.18.1
-  resolution: "@runanywhere/onnx@npm:0.18.1"
-  peerDependencies:
-    "@runanywhere/core": ">=0.16.0"
-    react: ">=18.0.0"
-    react-native: ">=0.74.0"
-    react-native-nitro-modules: ">=0.31.3"
-  checksum: c3eb6e0d66f2a5243766b4de4ea144c5c8e2b3dc5df2ef3265ace079429f901c73252c623daee80c4d001116e55fd19a9db044759c9b3204c47cece6fc6ca98b
-  languageName: node
-  linkType: hard
-
 "@sideway/address@npm:^4.1.5":
   version: 4.1.5
   resolution: "@sideway/address@npm:4.1.5"
@@ -11798,8 +11762,6 @@ __metadata:
     "@react-native/metro-config": 0.83.2
     "@react-native/new-app-screen": 0.83.2
     "@react-native/typescript-config": 0.83.2
-    "@runanywhere/core": ^0.18.1
-    "@runanywhere/onnx": ^0.18.1
     "@types/react": ^19.2.0
     expo: ^55.0.0
     expo-dev-client: ~55.0.11
@@ -11813,7 +11775,7 @@ __metadata:
     react-native-nitro-modules: ^0.31.3
     react-native-safe-area-context: ^5.5.2
     react-native-voice-activator: "portal:.."
-    react-native-zip-archive: ^4.1.5
+    whisper.rn: ^0.5.0
   languageName: unknown
   linkType: soft
 
@@ -11822,25 +11784,28 @@ __metadata:
   resolution: "react-native-voice-activator@portal:..::locator=react-native-voice-activator-example%40workspace%3Aexample"
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
-    "@runanywhere/core": ">=0.18.0"
-    "@runanywhere/onnx": ">=0.18.0"
+    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
+    onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
     react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
+    whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
     "@expo/config-plugins":
       optional: true
-    "@runanywhere/core":
+    "@fugood/react-native-audio-pcm-stream":
       optional: true
-    "@runanywhere/onnx":
+    onnxruntime-react-native:
       optional: true
     react-native-audio-recorder-player:
       optional: true
     react-native-fs:
       optional: true
     react-native-nitro-modules:
+      optional: true
+    whisper.rn:
       optional: true
   languageName: node
   linkType: soft
@@ -11859,8 +11824,6 @@ __metadata:
     "@react-native/babel-preset": 0.83.2
     "@react-native/eslint-config": ^0.81.1
     "@release-it/conventional-changelog": ^10.0.1
-    "@runanywhere/core": ^0.18.1
-    "@runanywhere/onnx": ^0.18.1
     "@types/jest": ^29.5.14
     "@types/node": ^24.3.0
     "@types/react": ^19.2.0
@@ -11882,19 +11845,20 @@ __metadata:
     typescript: ^5.9.2
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
-    "@runanywhere/core": ">=0.18.0"
-    "@runanywhere/onnx": ">=0.18.0"
+    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
+    onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
     react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
+    whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
     "@expo/config-plugins":
       optional: true
-    "@runanywhere/core":
+    "@fugood/react-native-audio-pcm-stream":
       optional: true
-    "@runanywhere/onnx":
+    onnxruntime-react-native:
       optional: true
     react-native-audio-recorder-player:
       optional: true
@@ -11902,18 +11866,10 @@ __metadata:
       optional: true
     react-native-nitro-modules:
       optional: true
+    whisper.rn:
+      optional: true
   languageName: unknown
   linkType: soft
-
-"react-native-zip-archive@npm:^4.1.5":
-  version: 4.1.5
-  resolution: "react-native-zip-archive@npm:4.1.5"
-  peerDependencies:
-    react: <=16.8.3
-    react-native: ">=0.51.0 <0.60.0"
-  checksum: 70b4d9dbcb7048abe1aeef2b52d78660694997b7877739f7bb07a4dbe4ad108ca33d56ee922086c5dd8a9a5c473ea07423d9ec350a13b0fea9316dc13a871cd8
-  languageName: node
-  linkType: hard
 
 "react-native@npm:0.83.2":
   version: 0.83.2
@@ -12332,7 +12288,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"safe-buffer@npm:5.2.1, safe-buffer@npm:~5.2.0":
+"safe-buffer@npm:5.2.1, safe-buffer@npm:^5.2.1, safe-buffer@npm:~5.2.0":
   version: 5.2.1
   resolution: "safe-buffer@npm:5.2.1"
   checksum: b99c4b41fdd67a6aaf280fcd05e9ffb0813654894223afb78a31f14a19ad220bba8aba1cb14eddce1fcfb037155fe6de4e861784eb434f7d11ed58d1e70dd491
@@ -13788,6 +13744,18 @@ __metadata:
   bin:
     node-which: bin/which.js
   checksum: dbea77c7d3058bf6c78bf9659d2dce4d2b57d39a15b826b2af6ac2e5a219b99dc8a831b79fdbc453c0598adb4f3f84cf9c2491fd52beb9f5d2dececcad117f68
+  languageName: node
+  linkType: hard
+
+"whisper.rn@npm:^0.5.0":
+  version: 0.5.5
+  resolution: "whisper.rn@npm:0.5.5"
+  dependencies:
+    safe-buffer: ^5.2.1
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 044f1fe0892632ee9ea9604adfc9839e8466769788e25b2c75e753dc1651629606de9fdb92a1319c8fc4f98f84f9d32ac3009b62e8daae3a95eacea828a5a5c6
   languageName: node
   linkType: hard
 

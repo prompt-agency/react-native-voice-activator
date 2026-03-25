@@ -49,22 +49,20 @@ cd ios && bundle exec pod install
 The monorepo example app uses the same command inside `example/ios/`, but
 consumer apps should run `pod install` inside their own `ios/` directory.
 
-If you opt into built-in RunAnywhere STT/TTS, install the additional optional dependencies in your app:
+Optional STT/TTS is **application-owned**: inject `sttProvider` / `ttsProvider`
+into `initialize()`. Typical optional peers from the library `package.json`:
 
-```sh
-npm install @runanywhere/core @runanywhere/onnx react-native-nitro-modules react-native-audio-recorder-player
-```
+- `whisper.rn` — used by the exported `WhisperRNSTTAdapter`
+- `react-native-fs` — model download/cache paths for Whisper and similar flows
+- `react-native-audio-recorder-player` — recording bridge used by `WhisperRNSTTAdapter` (deprecated upstream; treated as implementation detail)
+- `react-native-nitro-modules` — required by this package’s native module surface
+- `onnxruntime-react-native` — required when using `CustomTTSAdapter` (Piper ONNX)
 
-RunAnywhere also declares optional peers such as `react-native-fs`,
-`react-native-blob-util`, `react-native-device-info`, and
-`react-native-zip-archive`. Those are mainly for broader SDK flows such as
-model download/storage and device metadata, not the narrow local-model STT/TTS
-integration described in this package.
+Install only what your chosen adapters need; see `docs/examples/` and the README.
 
 `react-native-audio-recorder-player` is also deprecated upstream. It remains the
-current recorder dependency for the built-in STT adapter, but you should treat
-it as package-managed compatibility glue rather than an app-level API contract;
-future versions of this package may replace it.
+current recorder dependency for `WhisperRNSTTAdapter`; treat it as
+package-managed compatibility glue rather than an app-level API contract.
 
 ## What Is Automatic vs Manual
 
@@ -81,7 +79,7 @@ Manual in your app:
 - validate iOS background behavior on your actual app target
 - validate Android foreground-service behavior on your device/OEM matrix
 - keep your native toolchain compatible with the supported React Native line
-- supply local model files if you use `builtInSTT` / `builtInTTS`
+- supply local model files and native deps when you use optional adapters (e.g. Whisper, Custom TTS)
 
 ## iOS Requirements
 

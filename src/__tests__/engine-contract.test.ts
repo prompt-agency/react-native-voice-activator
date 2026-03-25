@@ -11,11 +11,7 @@ import {
   resolveEngineSelection,
 } from '../engines';
 import type {
-  BuiltInProviderProgress,
-  RunAnywhereSTTConfig,
-  RunAnywhereSTTModelId,
-  RunAnywhereTTSConfig,
-  RunAnywhereTTSModelId,
+  CustomTTSConfig,
   SpeechToTextProvider,
   TextToSpeechProvider,
   TranscriptionResult,
@@ -254,56 +250,23 @@ describe('engine-agnostic runtime contract', () => {
     });
   });
 
-  it('exports modelId-based RunAnywhereSTTConfig and RunAnywhereTTSConfig without modelPath', () => {
-    const sttModelId: RunAnywhereSTTModelId = 'whisper-tiny-en';
-    const ttsModelId: RunAnywhereTTSModelId = 'piper-en-lessac';
-
-    const sttConfig: RunAnywhereSTTConfig = {
-      modelId: sttModelId,
-      maxRecordingMs: 10_000,
+  it('exports CustomTTSConfig with modelPath and required phonemize callback', () => {
+    const phonemize = jest.fn((_text: string) => new BigInt64Array([1n, 2n]));
+    const config: CustomTTSConfig = {
+      modelPath: '/models/voice.onnx',
+      phonemize,
     };
-    const ttsConfig: RunAnywhereTTSConfig = {
-      modelId: ttsModelId,
-      voice: 'voice-1',
-      rate: 1.0,
-      pitch: 1.0,
+    const withOptions: CustomTTSConfig = {
+      modelPath: '/models/voice.onnx',
+      sampleRate: 22050,
+      speakerId: 0,
+      phonemize,
     };
 
-    expect(sttConfig.modelId).toBe('whisper-tiny-en');
-    expect(ttsConfig.modelId).toBe('piper-en-lessac');
-    // @ts-expect-error modelPath must not exist on the new config shapes
-    expect(sttConfig.modelPath).toBeUndefined();
-    // @ts-expect-error modelPath must not exist on the new config shapes
-    expect(ttsConfig.modelPath).toBeUndefined();
-  });
-
-  it('exports BuiltInProviderProgress with message and optional progress fields', () => {
-    const minimal: BuiltInProviderProgress = {
-      message: 'Downloading model...',
-    };
-    const withProgress: BuiltInProviderProgress = {
-      message: 'Downloading model...',
-      progress: 42,
-    };
-
-    expect(minimal.message).toBe('Downloading model...');
-    expect(minimal.progress).toBeUndefined();
-    expect(withProgress.progress).toBe(42);
-  });
-
-  it('accepts onBuiltInProgress callback in WakeWordInitializationOptions', () => {
-    const progressUpdates: BuiltInProviderProgress[] = [];
-    const options: WakeWordInitializationOptions = {
-      builtInSTT: { modelId: 'whisper-tiny-en' },
-      builtInTTS: { modelId: 'piper-en-lessac' },
-      onBuiltInProgress: (update) => {
-        progressUpdates.push(update);
-      },
-    };
-
-    options.onBuiltInProgress?.({ message: 'test', progress: 50 });
-    expect(progressUpdates).toHaveLength(1);
-    expect(progressUpdates[0]).toEqual({ message: 'test', progress: 50 });
+    expect(config.modelPath).toBe('/models/voice.onnx');
+    expect(typeof config.phonemize).toBe('function');
+    expect(withOptions.sampleRate).toBe(22050);
+    expect(withOptions.speakerId).toBe(0);
   });
 
   it('strips provider objects from the native runtime configuration shape', () => {

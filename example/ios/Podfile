@@ -21,10 +21,6 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 prepare_react_native_project!
 
 target 'VoiceActivatorExample' do
-  # Exclude sherpa-onnxruntime.xcframework so sherpa-onnx.a links against
-  # RunAnywhere's ONNX Runtime instead, preventing duplicate symbol conflicts.
-  ENV['RUNANYWHERE_ONNX_COMPAT'] = '1'
-
   use_expo_modules!
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'

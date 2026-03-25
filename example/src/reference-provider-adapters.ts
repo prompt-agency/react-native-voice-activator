@@ -53,21 +53,14 @@ export const referenceProviderCatalog: ReferenceProviderEntry[] = [
       'Expo-oriented TTS adapter pattern that stays application-owned and plugs into initialize({ ttsProvider, autoSpeak: true }).',
   },
   {
-    id: 'runanywhere-onnx',
-    label: 'RunAnywhereBuiltInProvider',
-    packageName: '@runanywhere/onnx',
-    docsPath: 'docs/examples/runanywhere-stt-tts-provider.md',
+    id: 'custom-tts-onnx',
+    label: 'CustomTTSAdapter',
+    packageName: 'onnxruntime-react-native',
+    docsPath: 'docs/examples/custom-tts-provider.md',
     summary:
-      'Built-in on-device STT and TTS backed by RunAnywhere ONNX. Configure builtInSTT / builtInTTS during initialize() — the package owns SDK initialization and model downloads.',
+      'On-device neural TTS via Piper ONNX model. Supply a phonemize callback and model path, then pass ttsProvider: new CustomTTSAdapter({...}) to initialize().',
   },
 ];
-
-export function getRunAnywhereAvailability(): {
-  stt: boolean;
-  tts: boolean;
-} {
-  return { stt: true, tts: true };
-}
 
 class ExpoSpeechRecognitionReferenceSttProvider implements SpeechToTextProvider {
   readonly name = 'expo-speech-recognition';

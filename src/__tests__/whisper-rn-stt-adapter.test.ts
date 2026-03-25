@@ -29,7 +29,7 @@ jest.mock('react-native-fs', () => ({
   ...mockRNFS,
 }));
 
-// iOS recorder mock — mirrors runanywhere-stt-adapter.test.ts
+// iOS recorder mock — same shape as production react-native-audio-recorder-player usage
 const mockRecorderInstance = {
   startRecorder: jest.fn(async () => '/tmp/recording.wav'),
   stopRecorder: jest.fn(async () => '/tmp/recording.wav'),

@@ -16,7 +16,7 @@ yarn typecheck         # TypeScript type check
 yarn lint              # ESLint + contract verification scripts
 
 # Contract Verification (subset of lint)
-yarn verify:contracts  # Verify Expo, RunAnywhere, docs contracts
+yarn verify:contracts  # Verify Expo, example setup, docs contracts
 
 # Release Readiness
 yarn verify:release-readiness  # lint + test + prepare + pack dry-run
@@ -46,10 +46,9 @@ Engines (src/engines/)
   └── native-managed-engine-runtime.ts  # Default: Sherpa-ONNX via native module
   └── porcupine/               # Optional alternative engine
 
-Providers (src/providers/runanywhere/)
-  └── RunAnywhereSTTAdapter.ts  # Whisper-tiny STT (opt-in peer dep)
-  └── RunAnywhereTTSAdapter.ts  # Piper TTS (opt-in peer dep)
-  └── catalog.ts               # Model registry (HuggingFace URLs)
+Providers (src/providers/)
+  └── whisper-rn/               # WhisperRNSTTAdapter (opt-in peer: whisper.rn)
+  └── tts/                      # CustomTTSAdapter, audio playback helpers
 
 Internal (src/internal/)
   └── native-module.ts         # FFI bridge to native runtime
@@ -77,7 +76,7 @@ Expo Plugin (src/expo/)
 
 **Contract tests**: `src/__tests__/documentation-contract.test.ts` and `reliability-validation-contract.test.ts` verify external-facing documentation links and reliability claims programmatically. These run as part of `yarn lint`.
 
-**Vendor type shims**: `src/vendor-types/` contains hand-written type definitions for `@runanywhere/core` and `@runanywhere/onnx` packages so the library compiles without requiring users to install those optional peer deps.
+**Vendor type shims**: `src/vendor-types/` contains hand-written type definitions for optional peers (e.g. `whisper.rn`, `onnxruntime-react-native`) so the library typechecks when those packages are not installed.
 
 ### Provider Interface Contracts
 
@@ -95,7 +94,7 @@ interface TextToSpeechProvider {
 }
 ```
 
-Providers are injected via `WakeWordInitializationOptions.sttProvider` / `ttsProvider`. The `RunAnywhereSTTAdapter` and `RunAnywhereTTSAdapter` are the built-in implementations; `WhisperRNSTTAdapter` is a planned alternative (see `_bmad-output/planning-artifacts/research/`).
+Providers are injected via `WakeWordInitializationOptions.sttProvider` / `ttsProvider`. The package exports `WhisperRNSTTAdapter` and `CustomTTSAdapter`; other vendors stay application-owned (see `docs/examples/`).
 
 ### Error Handling
 
@@ -103,10 +102,10 @@ Errors are typed into categories: `permission`, `lifecycle`, `configuration`, `e
 
 ### Testing
 
-Tests use `react-native` Jest preset. Native module is auto-mocked. RunAnywhere adapters use dynamic `jest.mock` of the ONNX native module. Run a single test file:
+Tests use `react-native` Jest preset. Native module and optional peers are mocked via `moduleNameMapper` and file-local `jest.mock`. Run a single test file:
 
 ```bash
-yarn test --testPathPattern=runanywhere-stt-adapter
+yarn test --testPathPattern=whisper-rn-stt-adapter
 ```
 
 ### Build Output

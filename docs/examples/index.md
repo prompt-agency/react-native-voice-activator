@@ -7,19 +7,19 @@ package core while still using the public provider interfaces:
 - `TextToSpeechProvider`
 - `initialize({ sttProvider, ttsProvider, autoSpeak })`
 
-Architecture rule: reference adapters live in `docs/examples/` and app-level code only. User-owned custom adapters belong in application code, not in the library package. They do not belong in `src/`, `src/internal/`, or the mandatory package runtime. The package ships built-in RunAnywhere adapters in `src/providers/runanywhere/` as opt-in defaults; these are the exception, not the pattern for user adapters.
+Architecture rule: reference adapters live in `docs/examples/` and app-level code only. User-owned custom adapters belong in application code, not in the library package. They do not belong in `src/`, `src/internal/`, or the mandatory package runtime.
 
 ## Current Reference Adapters
 
 - [`whisper-stt-provider.md`](./whisper-stt-provider.md)
 - [`expo-speech-tts-provider.md`](./expo-speech-tts-provider.md)
 - [`expo-speech-recognition-stt-provider.md`](./expo-speech-recognition-stt-provider.md)
-- [`runanywhere-stt-tts-provider.md`](./runanywhere-stt-tts-provider.md)
+- [`custom-tts-provider.md`](./custom-tts-provider.md)
 
 ## What These Examples Prove
 
 - provider vendors remain application-owned
-- the package public API stays engine-neutral and vendor-neutral by default, while still allowing an opt-in built-in RunAnywhere path
+- the package public API stays engine-neutral and vendor-neutral by default
 - consumers can compose wake word detection with STT/TTS without reaching into
   private runtime internals
 

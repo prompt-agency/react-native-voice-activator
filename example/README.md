@@ -41,7 +41,7 @@ the current Expo integration path:
 - the example app exposes current runtime diagnostics, recent runtime events, and normalized error categories for evaluator troubleshooting
 - runtime behavior and troubleshooting guidance are still sourced from the package-level docs, not from this example alone
 - the example also shows optional STT/TTS extension points layered on top of the public wake-word event contract
-- the demo STT/TTS flows remain application-level examples only, while the RunAnywhere built-in path is exposed separately as an opt-in package feature
+- the demo STT/TTS flows remain application-level examples only; WhisperRNSTTAdapter is used for the example STT path
 - concrete reference provider adapters are documented in `../docs/examples/`
 
 ## Provider Pattern Evaluation Flow
@@ -52,13 +52,12 @@ Use the example in this order:
 2. choose a bundled keyword preset and re-run Initialize when you want to apply a different `keywordAssetKey`
 3. observe the package runtime diagnostics, including `wakeWordDetected` and any provider lifecycle events produced by the configured app-owned providers
 4. use the STT/TTS preview buttons to inspect separate simulated host-provider bridges that follow the same application-owned provider pattern documented in `../docs/examples/`
-5. if you want to evaluate the built-in RunAnywhere path, review `RUNANYWHERE_CONFIG` in `example/src/reference-provider-adapters.ts`, switch to the RunAnywhere mode in the UI, and run Initialize so the example can download and prepare the configured Whisper/Piper models
+5. to evaluate on-device TTS via `CustomTTSAdapter`, supply a Piper ONNX model file and a phonemize callback — see `../docs/examples/custom-tts-provider.md`
 
-The wake step is real package behavior. The STT/TTS preview path is a simulated
-host implementation that demonstrates how a consumer app can compose
-transcription and speech on top of the public runtime contract. The built-in
-RunAnywhere option uses the official Whisper/Piper model definitions in
-`RUNANYWHERE_CONFIG` and can download them on demand during Initialize.
+The wake step is real package behavior. The STT/TTS preview path demonstrates
+how a consumer app can compose transcription and speech on top of the public
+runtime contract using WhisperRNSTTAdapter for STT and a separate simulated
+host-provider bridge for TTS.
 
 The bundled example presets currently cover `HELLO WORLD`, `HI GOOGLE`,
 `HEY SIRI`, `ALEXA`, `LOVE AND PEACE`, `PLAY MUSIC`, `GO HOME`, `HAPPY NEW

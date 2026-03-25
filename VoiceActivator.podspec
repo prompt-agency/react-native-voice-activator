@@ -21,10 +21,10 @@ Pod::Spec.new do |s|
   onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Headers\""
 
   # When RUNANYWHERE_ONNX_COMPAT=1 is set at `pod install` time, the bundled
-  # sherpa-onnxruntime.xcframework is excluded. sherpa-onnx.a then links against
-  # RunAnywhere's onnxruntime.xcframework (ORT 1.17.1, API v17 — same version),
-  # eliminating the duplicate-symbol conflict and the resulting error -401.
-  # Set this flag in your Podfile when using @runanywhere/onnx for builtInSTT/builtInTTS.
+  # sherpa-onnxruntime.xcframework is excluded so sherpa-onnx can link against
+  # another ONNX Runtime xcframework already in the app (same ORT 1.17.1 /
+  # API v17). Use only when you intentionally link a second ORT and need a
+  # single symbol namespace; see docs/ios-onnx-conflict-resolution.md.
   if ENV['RUNANYWHERE_ONNX_COMPAT'] == '1'
     s.vendored_frameworks = "ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework"
     ort_header_paths = "\"$(PODS_ROOT)/Headers/Private/Yoga\" $(inherited) #{sherpa_header_root}"

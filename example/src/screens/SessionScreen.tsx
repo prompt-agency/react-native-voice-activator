@@ -13,6 +13,7 @@ import {
   initialize,
   startDetection,
   useVoiceSession,
+  WhisperRNSTTAdapter,
   type AIHandler,
 } from 'react-native-voice-activator';
 import { Btn, C, EventLog, SectionCard, StatusPill, type EventEntry } from '../shared';
@@ -60,15 +61,13 @@ export function SessionScreen() {
     try {
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-hello-world.txt' } },
-        builtInSTT: { modelId: 'whisper-tiny-en' },
-        builtInTTS: { modelId: 'piper-en-lessac' },
+        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        // TTS: pass ttsProvider: new CustomTTSAdapter({...}) once you have a model file
         session: {
           aiHandler: mockAiHandler,
           reListenMode,
           silenceTimeoutMs: 10_000,
         },
-        onBuiltInProgress: (u) =>
-          setProgressText(u.progress != null ? `${u.message} (${u.progress}%)` : u.message),
       });
       setProgressText('');
       setWakeStatus(getStatus());

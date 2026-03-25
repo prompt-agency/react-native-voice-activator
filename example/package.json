@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@react-native/new-app-screen": "0.83.2",
-    "@runanywhere/core": "^0.18.1",
-    "@runanywhere/onnx": "^0.18.1",
     "expo": "^55.0.0",
     "expo-dev-client": "~55.0.11",
     "expo-speech": "^55.0.8",
@@ -25,7 +23,7 @@
     "react-native-nitro-modules": "^0.31.3",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-voice-activator": "portal:..",
-    "react-native-zip-archive": "^4.1.5"
+    "whisper.rn": "^0.5.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

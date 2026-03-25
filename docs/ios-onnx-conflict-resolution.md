@@ -1,39 +1,47 @@
 # iOS ONNX Runtime Conflict Resolution
 
-## Problem
+## Default (wake word only)
 
-This package bundles `sherpa-onnxruntime.xcframework` (ONNX Runtime 1.17.1, static library) for the Sherpa-ONNX wake-word engine. The `@runanywhere/onnx` package also bundles `onnxruntime.xcframework` (ONNX Runtime 1.17.1, dynamic framework) for its STT/TTS models.
+This package bundles `sherpa-onnxruntime.xcframework` (ONNX Runtime 1.17.1,
+static library) for the Sherpa-ONNX wake-word engine. **If your app does not
+link another ONNX Runtime copy**, use the default podspec path: both
+`sherpa-onnx.xcframework` and `sherpa-onnxruntime.xcframework` are vendored.
+No Podfile flags are required.
 
-When both are linked into the same iOS app binary:
-- The iOS linker produces hundreds of duplicate symbol warnings for ONNX Runtime and protobuf symbols
-- RunAnywhere's `ONNXProvider.register()` fails with error -401 at runtime
-- `builtInSTT` / `builtInTTS` are non-functional
+**Android is not affected** for the same class of issue: native libraries load
+in per-process namespaces, so separate `.so` files do not produce the iOS-style
+linker duplicate-symbol failure mode.
 
-**Android is not affected.** Android loads native libraries in per-process namespaces, so symbol collisions between separate `.so` files do not occur.
+## When two ONNX Runtimes collide
 
-## Resolution
+If a second dependency also bundles an ONNX Runtime xcframework (same symbol
+names, e.g. `_OrtGetApiBase`), the iOS linker can emit duplicate symbol warnings
+and runtime initialization for one backend may fail (historically seen as ONNX
+provider registration errors such as -401).
 
-The bundled `sherpa-onnxruntime.xcframework` can be excluded at `pod install` time via the `RUNANYWHERE_ONNX_COMPAT=1` environment variable. When this flag is set:
+Typical situations to validate after `pod install` / `xcodebuild`:
 
-- `sherpa-onnx.xcframework` is vendored (the Sherpa C API library, unchanged)
+- optional `onnxruntime-react-native` for `CustomTTSAdapter` (Piper ONNX)
+- any other native module that vendors `onnxruntime.xcframework`
+
+## Escape hatch: `RUNANYWHERE_ONNX_COMPAT=1`
+
+The podspec still honors `ENV['RUNANYWHERE_ONNX_COMPAT'] == '1'` at **pod
+install** time (name retained for existing Podfiles). When set:
+
+- `sherpa-onnx.xcframework` is still vendored
 - `sherpa-onnxruntime.xcframework` is **not** vendored
-- `sherpa-onnx.a`'s undefined ONNX Runtime symbols resolve against RunAnywhere's `onnxruntime.xcframework` (dynamic) at link time
+- `sherpa-onnx.a` must resolve ONNX symbols from the **other** ORT you link
 
-This works because both ORT builds are identical versions:
-- Sherpa bundled: ORT 1.17.1 / `ORT_API_VERSION 17`
-- RunAnywhere: ORT 1.17.1 / `ORT_API_VERSION 17`
+This only works when both builds are compatible at the ABI level with what
+Sherpa was compiled against. This package’s bundled Sherpa stack targets **ORT
+1.17.1 / `ORT_API_VERSION` 17**.
 
-Both export the same required symbols: `_OrtGetApiBase`, `_OrtSessionOptionsAppendExecutionProvider_CoreML`, `_OrtSessionOptionsAppendExecutionProvider_CPU`, etc.
-
-## Setup
-
-In your `ios/Podfile`, add the env flag inside the `target` block **before** `use_expo_modules!` / `use_native_modules!`:
+### Podfile snippet
 
 ```ruby
 target 'YourApp' do
-  # Required when using @runanywhere/onnx for builtInSTT / builtInTTS.
-  # Excludes sherpa-onnxruntime.xcframework so the wake-word engine shares
-  # RunAnywhere's ONNX Runtime instead — no duplicate symbols, no error -401.
+  # Only when you link a second, compatible ORT and need a single symbol space.
   ENV['RUNANYWHERE_ONNX_COMPAT'] = '1'
 
   use_expo_modules!  # or use_native_modules! for bare React Native
@@ -41,7 +49,7 @@ target 'YourApp' do
 end
 ```
 
-Then run:
+Then:
 
 ```sh
 cd ios && pod install
@@ -49,7 +57,8 @@ cd ios && pod install
 
 ## Verification
 
-After rebuilding, confirm zero ONNX duplicate symbol warnings:
+After rebuilding, confirm duplicate ONNX symbols are gone (adjust paths/scheme
+for your app):
 
 ```sh
 xcodebuild -workspace ios/YourApp.xcworkspace \
@@ -60,32 +69,21 @@ xcodebuild -workspace ios/YourApp.xcworkspace \
 # Expected: 0
 ```
 
-At runtime, RunAnywhere's ONNX backend registration succeeds (no error -401 in logs), and `builtInSTT` / `builtInTTS` initialize normally.
+## Maintenance
 
-## Maintenance Notes
+- **Do not set** `RUNANYWHERE_ONNX_COMPAT=1` unless you are deliberately sharing
+  one ORT across Sherpa and another pod; the default is Sherpa’s bundled ORT.
+- If the other ORT upgrades to a different `ORT_API_VERSION` than Sherpa’s
+  1.17.1 build, runtime crashes are possible — re-run the duplicate-symbol
+  check and treat version skew as a release blocker.
+- The flag is read at `pod install` time by the podspec; it does not affect
+  JavaScript, TypeScript, or Android builds.
 
-- **If RunAnywhere upgrades its ORT version**, check that the new version remains API-compatible with sherpa-onnx (`ORT_API_VERSION` must match). Run the duplicate-symbol check again after `pod install`.
-- **If you do not use RunAnywhere** (`builtInSTT: false`, `builtInTTS: false`), do not set `RUNANYWHERE_ONNX_COMPAT=1` — the flag is only needed when both are linked.
-- The flag is evaluated at `pod install` time by the podspec Ruby evaluator; it does not affect JavaScript, TypeScript, or Android builds.
+## onnxruntime-react-native (Custom TTS)
 
-## Transition: onnxruntime-react-native (Epic 11)
-
-Story 11-1 adds `onnxruntime-react-native` as an optional peer dependency for the `TTSInferenceEngine` (ONNX-based neural TTS). When RunAnywhere is removed (Story 11-5), the conflict resolution approach must be re-evaluated:
-
-**What to check before pod install (Story 11-5):**
-
-```bash
-# Inspect onnxruntime-react-native's bundled ORT version
-cat node_modules/onnxruntime-react-native/onnxruntime-react-native.podspec | grep -i ort
-# Check the ORT API version (look for ORT_API_VERSION or the xcframework bundle)
-```
-
-**Likely outcome:** `onnxruntime-react-native` >= 1.20.0 uses ORT API version 20, while Sherpa-ONNX bundles ORT 1.17.1 (API version 17). Despite both exporting `_OrtGetApiBase`, the duplicate symbol conflict at the **linker** level is version-independent (both define the same symbol name).
-
-**Resolution strategy for Story 11-5:**
-
-Replace `RUNANYWHERE_ONNX_COMPAT=1` with an equivalent `ORTS_COMPAT=1` env var in the podspec that excludes `sherpa-onnxruntime.xcframework`, letting sherpa-onnx resolve against `onnxruntime-react-native`'s dynamic framework.
-
-**Runtime compatibility caveat:** This only works correctly if the ORT API version used by `onnxruntime-react-native` is ABI-compatible with the version Sherpa was compiled against. If API versions differ (e.g., ORT 1.17 vs 1.20), sherpa-onnx may crash at runtime when calling ORT APIs that changed between versions. If this happens, the only safe option is to keep Sherpa's bundled ORT (`sherpa-onnxruntime.xcframework`) and ensure `onnxruntime-react-native` uses a **different symbol namespace** (which Microsoft's builds do not do by default).
-
-**Action for Story 11-5:** Verify with a physical `pod install` and run the duplicate-symbol check. If versions are compatible at the ABI level, apply the `ORTS_COMPAT=1` podspec patch. If not, open a dedicated conflict-resolution subtask.
+`onnxruntime-react-native` ≥ 1.20.x typically ships a newer ORT API generation
+than Sherpa’s bundled 1.17.1. **Linking both into one binary without careful
+planning is risky.** Prefer validating with a real `pod install` and the
+duplicate-symbol check above. If versions are incompatible, keep Sherpa’s
+bundled `sherpa-onnxruntime.xcframework` and avoid a second ORT in the same
+process, or pursue a dedicated upgrade task for Sherpa/ORT alignment.

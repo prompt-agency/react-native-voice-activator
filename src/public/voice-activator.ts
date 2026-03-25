@@ -18,8 +18,6 @@ import {
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
-import { RunAnywhereSTTAdapter } from '../providers/runanywhere/RunAnywhereSTTAdapter';
-import { RunAnywhereTTSAdapter } from '../providers/runanywhere/RunAnywhereTTSAdapter';
 import type {
   AudioRoute,
   ProviderError,
@@ -48,11 +46,6 @@ type ActiveProviderFlow = {
   sttProvider?: WakeWordRuntimeConfiguration['sttProvider'];
   ttsProvider?: WakeWordRuntimeConfiguration['ttsProvider'];
   speechText?: string;
-};
-
-type RunAnywhereDisposableProvider = {
-  readonly isBuiltInRunAnywhereProvider: true;
-  dispose(): Promise<void>;
 };
 
 let activeProviderFlow: ActiveProviderFlow | null = null;
@@ -525,28 +518,6 @@ function createConfigurationFailure(error: WakeWordError): WakeWordError {
   };
 }
 
-function createBuiltInProviderInitFailure(message: string): WakeWordError {
-  return {
-    category: 'configuration',
-    code: 'builtin_provider_init_failed',
-    message,
-    recoverable: true,
-  };
-}
-
-function isRunAnywhereDisposableProvider(
-  value: unknown
-): value is RunAnywhereDisposableProvider {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'isBuiltInRunAnywhereProvider' in value &&
-    value.isBuiltInRunAnywhereProvider === true &&
-    'dispose' in value &&
-    typeof value.dispose === 'function'
-  );
-}
-
 function isCancelledTranscriptionError(value: unknown): value is {
   code: 'stt_cancelled';
   message: string;
@@ -559,22 +530,6 @@ function isCancelledTranscriptionError(value: unknown): value is {
     'message' in value &&
     typeof value.message === 'string'
   );
-}
-
-async function cleanupBuiltInProviders(
-  configuration: ReturnType<typeof createRuntimeConfiguration> | null
-) {
-  if (!configuration) {
-    return;
-  }
-
-  if (isRunAnywhereDisposableProvider(configuration.sttProvider)) {
-    await configuration.sttProvider.dispose();
-  }
-
-  if (isRunAnywhereDisposableProvider(configuration.ttsProvider)) {
-    await configuration.ttsProvider.dispose();
-  }
 }
 
 function applyRuntimeError(error: WakeWordError) {
@@ -652,56 +607,7 @@ export const voiceActivator: VoiceActivatorApi = {
       await cleanupActiveProviderFlow();
       await closeActiveVoiceSession();
       await disposeEngineRuntime();
-      await cleanupBuiltInProviders(activeRuntimeConfiguration);
       activeRuntimeConfiguration = null;
-
-      let createdSttAdapter: RunAnywhereSTTAdapter | null = null;
-
-      if (!resolvedSttProvider && runtimeConfiguration.builtInSTT) {
-        const adapter = new RunAnywhereSTTAdapter(
-          runtimeConfiguration.builtInSTT
-        );
-
-        try {
-          await adapter.initialize(runtimeConfiguration.onBuiltInProgress);
-        } catch (cause) {
-          const configError = createBuiltInProviderInitFailure(
-            cause instanceof Error
-              ? cause.message
-              : 'Built-in STT provider failed to initialize.'
-          );
-          runtimeStore.recordError(configError);
-          throw configError;
-        }
-
-        createdSttAdapter = adapter;
-        resolvedSttProvider = adapter;
-      }
-
-      if (!resolvedTtsProvider && runtimeConfiguration.builtInTTS) {
-        const adapter = new RunAnywhereTTSAdapter(
-          runtimeConfiguration.builtInTTS
-        );
-
-        try {
-          await adapter.initialize(runtimeConfiguration.onBuiltInProgress);
-        } catch (cause) {
-          // Dispose the STT adapter if it was created in this same call and
-          // TTS initialization now fails — prevents a loaded model from leaking.
-          if (createdSttAdapter) {
-            await createdSttAdapter.dispose().catch(() => undefined);
-          }
-          const configError = createBuiltInProviderInitFailure(
-            cause instanceof Error
-              ? cause.message
-              : 'Built-in TTS provider failed to initialize.'
-          );
-          runtimeStore.recordError(configError);
-          throw configError;
-        }
-
-        resolvedTtsProvider = adapter;
-      }
 
       const resolvedRuntimeConfiguration = {
         ...runtimeConfiguration,
@@ -831,7 +737,6 @@ export const voiceActivator: VoiceActivatorApi = {
       await closeActiveVoiceSession();
       activeSessionConfig = null;
       await disposeEngineRuntime();
-      await cleanupBuiltInProviders(activeRuntimeConfiguration);
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
       runtimeStore.setStatus(

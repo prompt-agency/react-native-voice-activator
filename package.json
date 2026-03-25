@@ -39,9 +39,8 @@
     "example": "yarn workspace react-native-voice-activator-example",
     "verify:expo-config-resolution": "node scripts/verify-expo-config-resolution.mjs",
     "verify:expo-prebuild": "node scripts/verify-expo-prebuild.mjs",
-    "verify:runanywhere-contract": "node scripts/verify-runanywhere-contract.mjs",
     "evaluate:reliability": "node scripts/run-reliability-evaluation.mjs",
-    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && yarn verify:runanywhere-contract && node scripts/verify-reliability-evidence.mjs",
+    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs",
     "verify:release-readiness": "yarn lint && yarn test --runInBand --watchman=false && yarn prepare && npm_config_cache=.npm-cache npm pack --dry-run",
     "test": "jest",
     "typecheck": "tsc",
@@ -80,8 +79,6 @@
     "@react-native/babel-preset": "0.83.2",
     "@react-native/eslint-config": "^0.81.1",
     "@release-it/conventional-changelog": "^10.0.1",
-    "@runanywhere/core": "^0.18.1",
-    "@runanywhere/onnx": "^0.18.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.3.0",
     "@types/react": "^19.2.0",
@@ -104,16 +101,14 @@
   },
   "peerDependencies": {
     "@expo/config-plugins": ">=8.0.0",
-    "@runanywhere/core": ">=0.18.0",
-    "@runanywhere/onnx": ">=0.18.0",
+    "@fugood/react-native-audio-pcm-stream": ">=1.1.4",
+    "onnxruntime-react-native": ">=1.20.0",
     "react": "*",
     "react-native": "*",
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4",
     "react-native-audio-recorder-player": ">=3.0.0",
     "react-native-fs": ">=2.0.0",
     "react-native-nitro-modules": ">=0.31.3",
-    "whisper.rn": ">=0.5.0",
-    "onnxruntime-react-native": ">=1.20.0"
+    "whisper.rn": ">=0.5.0"
   },
   "peerDependenciesMeta": {
     "@expo/config-plugins": {
@@ -122,10 +117,7 @@
     "@fugood/react-native-audio-pcm-stream": {
       "optional": true
     },
-    "@runanywhere/core": {
-      "optional": true
-    },
-    "@runanywhere/onnx": {
+    "onnxruntime-react-native": {
       "optional": true
     },
     "react-native-audio-recorder-player": {
@@ -138,9 +130,6 @@
       "optional": true
     },
     "whisper.rn": {
-      "optional": true
-    },
-    "onnxruntime-react-native": {
       "optional": true
     }
   },

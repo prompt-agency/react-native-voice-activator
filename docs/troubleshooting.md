@@ -26,22 +26,17 @@ The example app now exposes the same diagnostics surface for evaluation:
 The example app also contains optional STT/TTS extension-point examples. Those
 examples are downstream application integrations only. If they fail, debug
 the app-level handoff code separately from the package runtime itself. Concrete
-reference adapters live in `docs/examples/`, while the built-in RunAnywhere
-path is a separate opt-in package feature.
+reference adapters live in `docs/examples/`.
 
 ## Troubleshoot the Provider Pattern Separately
 
 Use this split when debugging a wake -> transcribe -> optional speak flow:
 
 - if `wakeWordDetected` never fires, debug the package-owned wake-word runtime
-- if `wakeWordDetected` fires but no transcript appears, debug either the
-  app-owned `sttProvider` handoff or the built-in RunAnywhere STT setup,
-  depending on what you initialized
-- if transcription succeeds but no speech response happens, debug either the
-  app-owned `ttsProvider` path or the built-in RunAnywhere TTS setup together
-  with `autoSpeak` configuration
+- if `wakeWordDetected` fires but no transcript appears, debug the app-owned `sttProvider` handoff
+- if transcription succeeds but no speech response happens, debug the app-owned `ttsProvider` path together with `autoSpeak` configuration
 
-The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. The example also shows a built-in RunAnywhere option that can download the configured Whisper/Piper models during Initialize.
+The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. See `docs/examples/` for optional STT/TTS provider adapters you can use in your own app.
 
 ## Common Failure Classes
 
@@ -120,8 +115,8 @@ What to do:
 - confirm whether you are using the bundled native Sherpa assets or intentional
   custom `engineConfig.assetKeys.modelAssetKey` /
   `engineConfig.assetKeys.keywordAssetKey` overrides
-- if you enabled built-in RunAnywhere STT/TTS, verify local model paths and the
-  optional dependency installation first
+- if you use optional STT/TTS adapters (e.g. Whisper or Custom TTS), verify
+  local model paths, native peer installs, and prebuild/pod install first
 - verify your engine-specific configuration is valid
 - verify the runtime did not transition to `unsupported` because of a platform condition before assuming the engine itself is broken
 

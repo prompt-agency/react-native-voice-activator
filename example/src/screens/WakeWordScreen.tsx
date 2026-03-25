@@ -15,6 +15,7 @@ import {
   initialize,
   startDetection,
   stopDetection,
+  WhisperRNSTTAdapter,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordStatus,
@@ -111,11 +112,9 @@ export function WakeWordScreen() {
         engineConfig: {
           assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
         },
-        builtInSTT: { modelId: 'whisper-tiny-en' },
-        builtInTTS: { modelId: 'piper-en-lessac' },
+        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        // TTS: pass ttsProvider: new CustomTTSAdapter({...}) once you have a model file
         autoSpeak: true,
-        onBuiltInProgress: (u) =>
-          setProgressText(u.progress != null ? `${u.message} (${u.progress}%)` : u.message),
       });
       setActivePresetId(selectedPresetId);
       setProgressText('');

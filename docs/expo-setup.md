@@ -79,11 +79,14 @@ Manual in your app:
   bundled Sherpa native assets
 - validate runtime behavior on your target devices after prebuild
 - validate iOS and Android background constraints in your own app context
-- evaluate the extra dependency stack carefully before relying on built-in RunAnywhere STT/TTS in Expo-generated native apps
-- remember that `@runanywhere/core` also lists optional peers such as
-  `react-native-fs`, `react-native-blob-util`, `react-native-device-info`, and
-  `react-native-zip-archive`; those matter more for broader RunAnywhere SDK
-  flows than for the narrow local-model STT/TTS bridge used here
+- add optional native dependencies only for the STT/TTS adapters you actually
+  wire in (for example `whisper.rn` and `react-native-fs` for
+  `WhisperRNSTTAdapter`, or `onnxruntime-react-native` for `CustomTTSAdapter`)
+- expect some vendor stacks to declare additional optional peers (for example
+  `react-native-device-info`) that your app only needs when you adopt those
+  broader SDK flows
+- run `expo prebuild` again after changing native dependencies so generated
+  `ios/` / `android/` projects stay in sync
 
 ## Built-In Sherpa Asset Model
 
@@ -97,11 +100,12 @@ Manual in your app:
 - Expo does not introduce a separate asset runtime; the config plugin and
   prebuild flow align generated native projects with the same package-owned
   native asset model used by bare React Native
-- built-in RunAnywhere STT/TTS adds optional extra dependencies and local model
-  management beyond the default bundled Sherpa wake-word path
+- optional STT/TTS adapters add their own dependencies and model management;
+  the default wake-word path remains the bundled Sherpa engine only
 - the current built-in STT path still depends on the deprecated upstream
-  `react-native-audio-recorder-player` package; treat that recorder dependency
-  as an implementation detail that may change in a future package release
+  `react-native-audio-recorder-player` package for recorder I/O when using
+  `WhisperRNSTTAdapter`; treat that as an implementation detail that may change
+  in a future package release
 
 ## Public API Contract
 
@@ -163,7 +167,8 @@ should stay aligned with that file.
 - Expo Go is NOT supported.
 - The current CI path executes Expo config resolution and Expo prebuild generation, not a full Expo runtime session.
 - This repository currently proves Expo config and prebuild compatibility, not full Expo runtime parity on all devices.
-- if you enable built-in RunAnywhere STT/TTS, treat Expo runtime viability as something you must validate in your own generated native app
+- if you enable optional native STT/TTS stacks, validate Expo prebuild and
+  runtime behavior in your own generated native app
 - iOS background continuation still depends on the app declaring the audio
   background mode and staying alive after explicit activation.
 - Android background continuation still depends on visible-context start,

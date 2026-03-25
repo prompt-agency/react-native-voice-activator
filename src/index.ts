@@ -11,10 +11,6 @@ export {
 } from './public/voice-activator';
 export { addSessionListener } from './internal/session-events';
 export {
-  RunAnywhereSTTAdapter,
-  RunAnywhereTTSAdapter,
-} from './providers/runanywhere';
-export {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
 } from './providers/whisper-rn';
@@ -24,15 +20,10 @@ export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
   AudioRoute,
-  BuiltInProviderProgress,
   CustomTTSConfig,
   WhisperRNSTTConfig,
   WhisperRNSTTModelId,
   ProviderError,
-  RunAnywhereSTTConfig,
-  RunAnywhereSTTModelId,
-  RunAnywhereTTSConfig,
-  RunAnywhereTTSModelId,
   SpeechToTextProvider,
   SpeechCompletedEvent,
   SpeechErrorEvent,

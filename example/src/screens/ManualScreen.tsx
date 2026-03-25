@@ -5,41 +5,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import {
-  RunAnywhereSTTAdapter,
-  RunAnywhereTTSAdapter,
   WhisperRNSTTAdapter,
-  type BuiltInProviderProgress,
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard, StatusPill } from '../shared';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function ManualScreen() {
-  // STT — RunAnywhere
-  const [sttStatus, setSttStatus] = useState<'idle' | 'recording' | 'done' | 'error'>('idle');
-  const [transcript, setTranscript] = useState('');
-  const sttRef = useRef<RunAnywhereSTTAdapter | null>(null);
-
   // STT — WhisperRN
   const [whisperStatus, setWhisperStatus] = useState<'idle' | 'recording' | 'done' | 'error'>('idle');
   const [whisperTranscript, setWhisperTranscript] = useState('');
   const whisperRef = useRef<WhisperRNSTTAdapter | null>(null);
-
-  // TTS
-  const [ttsStatus, setTtsStatus] = useState<'idle' | 'speaking' | 'done' | 'error'>('idle');
-  const [ttsInput, setTtsInput] = useState('Hello from Piper TTS!');
-  const ttsRef = useRef<RunAnywhereTTSAdapter | null>(null);
-
-  // Shared progress
-  const [progressText, setProgressText] = useState('');
-
-  function onProgress(u: BuiltInProviderProgress) {
-    setProgressText(u.progress != null ? `${u.message} (${u.progress}%)` : u.message);
-  }
 
   async function ensurePermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return true;
@@ -50,42 +29,14 @@ export function ManualScreen() {
     return result === PermissionsAndroid.RESULTS.GRANTED;
   }
 
-  async function handleRecord() {
-    if (!(await ensurePermission())) return;
-    setProgressText('');
-    setTranscript('');
-    setSttStatus('recording');
-    try {
-      const adapter = new RunAnywhereSTTAdapter({ modelId: 'whisper-tiny-en' });
-      sttRef.current = adapter;
-      await adapter.initialize(onProgress);
-      const result = await adapter.transcribe();
-      setTranscript(result.text);
-      setSttStatus('done');
-    } catch (e: any) {
-      setTranscript('');
-      setSttStatus('error');
-    } finally {
-      setProgressText('');
-      sttRef.current = null;
-    }
-  }
-
-  async function handleCancelSTT() {
-    try { await sttRef.current?.cancel(); } catch { /* noop */ }
-    setSttStatus('idle');
-    setProgressText('');
-  }
-
   async function handleWhisperRecord() {
     if (!(await ensurePermission())) return;
-    setProgressText('');
     setWhisperTranscript('');
     setWhisperStatus('recording');
     try {
       const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
       whisperRef.current = adapter;
-      await adapter.initialize(onProgress);
+      await adapter.initialize();
       const result = await adapter.transcribe();
       setWhisperTranscript(result.text);
       setWhisperStatus('done');
@@ -93,7 +44,6 @@ export function ManualScreen() {
       setWhisperTranscript('');
       setWhisperStatus('error');
     } finally {
-      setProgressText('');
       whisperRef.current = null;
     }
   }
@@ -101,31 +51,6 @@ export function ManualScreen() {
   async function handleCancelWhisper() {
     try { await whisperRef.current?.cancel(); } catch { /* noop */ }
     setWhisperStatus('idle');
-    setProgressText('');
-  }
-
-  async function handleSpeak() {
-    if (!ttsInput.trim()) return;
-    setProgressText('');
-    setTtsStatus('speaking');
-    try {
-      const adapter = new RunAnywhereTTSAdapter({ modelId: 'piper-en-lessac' });
-      ttsRef.current = adapter;
-      await adapter.initialize(onProgress);
-      await adapter.speak(ttsInput.trim());
-      setTtsStatus('done');
-    } catch {
-      setTtsStatus('error');
-    } finally {
-      setProgressText('');
-      ttsRef.current = null;
-    }
-  }
-
-  async function handleStopTTS() {
-    try { await ttsRef.current?.stop(); } catch { /* noop */ }
-    setTtsStatus('idle');
-    setProgressText('');
   }
 
   return (
@@ -136,39 +61,10 @@ export function ManualScreen() {
         <Text style={s.heroTitle}>STT · TTS Testing</Text>
         <Text style={s.heroSub}>
           Directly exercise{' '}
-          <Text style={s.heroCode}>RunAnywhereSTTAdapter</Text> and{' '}
-          <Text style={s.heroCode}>RunAnywhereTTSAdapter</Text> without the wake-word engine.
-          Models are downloaded on first use and cached on device.
+          <Text style={s.heroCode}>WhisperRNSTTAdapter</Text> without the wake-word engine.
+          Model is downloaded on first use and cached on device.
         </Text>
       </View>
-
-      {progressText ? <Text style={s.progress}>{progressText}</Text> : null}
-
-      {/* STT */}
-      <SectionCard title="Speech-to-Text (Whisper tiny-en)">
-        <View style={s.pillRow}>
-          <StatusPill label={sttStatus} active={sttStatus === 'recording'} />
-        </View>
-        {sttStatus === 'recording' ? (
-          <Btn label="Cancel recording" onPress={handleCancelSTT} tone="quiet" />
-        ) : (
-          <Btn
-            label="Record & Transcribe"
-            onPress={handleRecord}
-            tone="primary"
-          />
-        )}
-        {transcript ? (
-          <View style={s.resultBox}>
-            <Text style={s.resultLabel}>TRANSCRIPT</Text>
-            <Text style={s.resultText}>{transcript}</Text>
-          </View>
-        ) : null}
-        <Text style={s.hint}>
-          Tap the button, speak, then remain silent — the adapter will detect
-          end-of-speech automatically via VAD and return the transcript.
-        </Text>
-      </SectionCard>
 
       {/* STT — WhisperRN */}
       <SectionCard title="Speech-to-Text (whisper.rn — iOS + Android)">
@@ -192,36 +88,21 @@ export function ManualScreen() {
         ) : null}
         <Text style={s.hint}>
           Uses whisper.rn (whisper.cpp binding) — works on iOS and Android.
-          Model downloaded on first use. No RunAnywhere SDK required.
+          Model downloaded on first use.
         </Text>
       </SectionCard>
 
-      {/* TTS */}
-      <SectionCard title="Text-to-Speech (Piper lessac)">
-        <View style={s.pillRow}>
-          <StatusPill label={ttsStatus} active={ttsStatus === 'speaking'} />
-        </View>
-        <TextInput
-          style={s.input}
-          value={ttsInput}
-          onChangeText={setTtsInput}
-          placeholder="Enter text to speak…"
-          placeholderTextColor={C.label}
-          multiline
-        />
-        {ttsStatus === 'speaking' ? (
-          <Btn label="Stop" onPress={handleStopTTS} tone="quiet" />
-        ) : (
-          <Btn
-            label="Speak"
-            onPress={handleSpeak}
-            tone="primary"
-            disabled={!ttsInput.trim()}
-          />
-        )}
+      {/* TTS placeholder */}
+      <SectionCard title="Text-to-Speech (CustomTTSAdapter)">
         <Text style={s.hint}>
-          Edit the text above, tap Speak. The Piper neural TTS model synthesises
-          speech entirely on-device with no network call.
+          TTS with CustomTTSAdapter requires a bundled .onnx model file.
+          {'\n\n'}
+          See docs/examples/custom-tts-provider.md for setup instructions.
+          Supply a Piper TTS ONNX model and a phonemize callback, then pass
+          {'\n'}
+          {'  ttsProvider: new CustomTTSAdapter({ modelPath, phonemize })'}
+          {'\n'}
+          to initialize().
         </Text>
       </SectionCard>
 
@@ -239,7 +120,6 @@ const s = StyleSheet.create({
   heroSub: { fontSize: 14, lineHeight: 20, color: C.heroSub },
   heroCode: { fontFamily: 'Menlo', fontSize: 12, color: '#a8d4be' },
   pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  progress: { fontSize: 13, color: C.meta, textAlign: 'center' },
   hint: { fontSize: 13, color: C.helper, lineHeight: 18 },
   resultBox: {
     backgroundColor: C.tileBg,
@@ -251,16 +131,4 @@ const s = StyleSheet.create({
   },
   resultLabel: { fontSize: 10, fontWeight: '700', color: C.label, letterSpacing: 0.5 },
   resultText: { fontSize: 14, color: C.heading, lineHeight: 20 },
-  input: {
-    backgroundColor: C.tileBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 12,
-    fontSize: 14,
-    color: C.heading,
-    lineHeight: 20,
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
 });
