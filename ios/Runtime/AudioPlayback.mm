@@ -49,26 +49,59 @@
   _AudioPlaybackWavDelegate *_wavDelegate;
 
   BOOL _streaming;
+  /** Matches last successful startStreamingWithSampleRate:earpieceOutput: category choice. */
+  BOOL _streamingUsesEarpieceCategory;
   /** YES when this instance activated the audio session solely for WAV (no streaming). */
   BOOL _wavOwnsSession;
 }
 
 @synthesize streaming = _streaming;
 
+static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
+                                              BOOL earpieceOutput,
+                                              NSError **error)
+{
+  NSError *sessionError = nil;
+  BOOL ok;
+  if (earpieceOutput) {
+    ok = [session
+        setCategory:AVAudioSessionCategoryPlayAndRecord
+                mode:AVAudioSessionModeDefault
+             options:(AVAudioSessionCategoryOptionDuckOthers |
+                      AVAudioSessionCategoryOptionAllowBluetooth |
+                      AVAudioSessionCategoryOptionAllowBluetoothA2DP |
+                      AVAudioSessionCategoryOptionAllowAirPlayEnhancement)
+               error:&sessionError];
+  } else {
+    ok = [session
+        setCategory:AVAudioSessionCategoryPlayback
+            options:(AVAudioSessionCategoryOptionDuckOthers |
+                     AVAudioSessionCategoryOptionAllowBluetoothA2DP |
+                     AVAudioSessionCategoryOptionAllowAirPlayEnhancement)
+              error:&sessionError];
+  }
+  if (!ok && error) {
+    *error = sessionError;
+  }
+  return ok;
+}
+
 // ─── Streaming ─────────────────────────────────────────────────────────────
 
-- (BOOL)startStreamingWithSampleRate:(double)sampleRate error:(NSError **)error
+- (BOOL)startStreamingWithSampleRate:(double)sampleRate
+                     earpieceOutput:(BOOL)earpieceOutput
+                              error:(NSError **)error
 {
   if (_streaming) {
-    return YES; // idempotent
+    if (_streamingUsesEarpieceCategory == earpieceOutput) {
+      return YES;
+    }
+    [self stopStreaming];
   }
 
-  // Activate audio session with ducking
   AVAudioSession *session = [AVAudioSession sharedInstance];
   NSError *sessionError = nil;
-  if (![session setCategory:AVAudioSessionCategoryPlayback
-                    options:AVAudioSessionCategoryOptionDuckOthers
-                      error:&sessionError]) {
+  if (!VoiceActivatorConfigureTTSSession(session, earpieceOutput, &sessionError)) {
     if (error) {
       *error = sessionError;
     }
@@ -106,6 +139,7 @@
   }
 
   _streaming = YES;
+  _streamingUsesEarpieceCategory = earpieceOutput;
   return YES;
 }
 
@@ -158,6 +192,7 @@
     return;
   }
   _streaming = NO;
+  _streamingUsesEarpieceCategory = NO;
 
   [_playerNode stop];
   [_engine stop];
@@ -174,6 +209,7 @@
 // ─── WAV file playback ─────────────────────────────────────────────────────
 
 - (void)playWavFile:(NSString *)filePath
+     earpieceOutput:(BOOL)earpieceOutput
          completion:(void (^)(NSError *_Nullable))completion
 {
   if (_wavPlayer) {
@@ -211,9 +247,7 @@
   if (!_streaming) {
     AVAudioSession *session = [AVAudioSession sharedInstance];
     NSError *sessionError = nil;
-    if (![session setCategory:AVAudioSessionCategoryPlayback
-                      options:AVAudioSessionCategoryOptionDuckOthers
-                        error:&sessionError] ||
+    if (!VoiceActivatorConfigureTTSSession(session, earpieceOutput, &sessionError) ||
         ![session setActive:YES error:&sessionError]) {
       if (completion) {
         dispatch_async(dispatch_get_main_queue(), ^{

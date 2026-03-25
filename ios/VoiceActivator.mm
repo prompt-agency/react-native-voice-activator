@@ -1,6 +1,7 @@
 #import "VoiceActivator.h"
 
 #import "Runtime/AudioPlayback.h"
+#import "Runtime/AudioSessionManager.h"
 #import "Runtime/WakeWordSessionCoordinator.h"
 
 namespace {
@@ -14,6 +15,7 @@ NSString *const kRuntimeAudioRouteChangedEventName = @"VoiceActivatorOnAudioRout
 @implementation VoiceActivator {
   WakeWordSessionCoordinator *_sessionCoordinator;
   AudioPlayback *_audioPlayback;
+  AudioSessionManager *_audioSessionManager;
 }
 
 RCT_EXPORT_MODULE()
@@ -29,6 +31,7 @@ RCT_EXPORT_MODULE()
   if (self) {
     _sessionCoordinator = [WakeWordSessionCoordinator new];
     _audioPlayback = [AudioPlayback new];
+    _audioSessionManager = [AudioSessionManager new];
 
     __weak __typeof(self) weakSelf = self;
     _sessionCoordinator.wakeWordDetectedHandler = ^(NSDictionary *payload) {
@@ -132,11 +135,48 @@ RCT_EXPORT_METHOD(playPCMChunk
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
+  // Register TTS interruption observer before starting playback
+  __weak __typeof(self) weakSelf = self;
+  [_audioSessionManager startObservingInterruptionsWithHandler:^(BOOL began,
+                                                                  BOOL shouldResume) {
+    if (began) {
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) {
+        return;
+      }
+      if ([strongSelf->_audioPlayback isStreaming]) {
+        [strongSelf->_audioPlayback stopStreaming];
+      }
+      [strongSelf->_audioSessionManager stopObservingInterruptions];
+      [strongSelf sendEventWithName:kRuntimeInterruptionEventName
+                               body:@{
+                                 @"reason" : @"audio_interruption",
+                                 @"recoverable" : @YES
+                               }];
+    }
+    // shouldResume=YES on interruption end is not acted upon here;
+    // resuming TTS synthesis requires the CustomTTSAdapter (Story 11-4).
+  }];
+
+  BOOL earpiece =
+      [[_audioSessionManager desiredRoute] isEqualToString:@"earpiece"];
+
   NSError *error = nil;
-  if (![_audioPlayback startStreamingWithSampleRate:sampleRate error:&error]) {
+  if (![_audioPlayback startStreamingWithSampleRate:sampleRate
+                                    earpieceOutput:earpiece
+                                             error:&error]) {
+    [_audioSessionManager stopObservingInterruptions];
     [self reject:reject withCode:@"playback_start_failed" error:error];
     return;
   }
+
+  // Apply route override (non-fatal: log but do not reject on failure)
+  NSError *routeError = nil;
+  if (![_audioSessionManager applyRouteOverride:&routeError]) {
+    NSLog(@"[VoiceActivator] Route override failed (non-fatal): %@",
+          routeError.localizedDescription);
+  }
+
   [_audioPlayback writeChunkFromBase64:pcmBase64];
   resolve(nil);
 }
@@ -146,14 +186,48 @@ RCT_EXPORT_METHOD(playWav
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
+  __weak __typeof(self) weakSelf = self;
+  [_audioSessionManager startObservingInterruptionsWithHandler:^(BOOL began,
+                                                                  BOOL shouldResume) {
+    if (began) {
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) {
+        return;
+      }
+      [strongSelf->_audioPlayback stopStreaming];
+      [strongSelf->_audioSessionManager stopObservingInterruptions];
+      [strongSelf sendEventWithName:kRuntimeInterruptionEventName
+                               body:@{
+                                 @"reason" : @"audio_interruption",
+                                 @"recoverable" : @YES
+                               }];
+    }
+  }];
+
+  BOOL earpiece =
+      [[_audioSessionManager desiredRoute] isEqualToString:@"earpiece"];
+
   [_audioPlayback playWavFile:filePath
+               earpieceOutput:earpiece
                    completion:^(NSError *_Nullable error) {
+                     __strong __typeof(weakSelf) strongSelf = weakSelf;
+                     if (strongSelf) {
+                       [strongSelf->_audioSessionManager
+                           stopObservingInterruptions];
+                     }
                      if (error) {
-                       [self reject:reject withCode:@"wav_playback_failed" error:error];
+                       reject(@"wav_playback_failed", error.localizedDescription,
+                              error);
                      } else {
                        resolve(nil);
                      }
                    }];
+
+  NSError *routeError = nil;
+  if (![_audioSessionManager applyRouteOverride:&routeError]) {
+    NSLog(@"[VoiceActivator] Route override failed (non-fatal): %@",
+          routeError.localizedDescription);
+  }
 }
 
 RCT_EXPORT_METHOD(stopPlayback
@@ -161,6 +235,7 @@ RCT_EXPORT_METHOD(stopPlayback
                   : (RCTPromiseRejectBlock)reject)
 {
   [_audioPlayback stopStreaming];
+  [_audioSessionManager stopObservingInterruptions];
   resolve(nil);
 }
 
@@ -172,6 +247,29 @@ RCT_EXPORT_METHOD(setVolumeDucking
   // Ducking is managed automatically in AudioPlayback startStreaming/stopStreaming.
   // This method is a no-op on iOS since DuckOthers is set on the session category
   // when streaming activates. Exposed for API parity with Android.
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(setAudioRoute
+                  : (NSString *)route resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  NSError *error = nil;
+  if (![_audioSessionManager setRoute:route error:&error]) {
+    [self reject:reject withCode:@"invalid_audio_route" error:error];
+    return;
+  }
+
+  // Apply immediately if TTS is currently streaming
+  if ([_audioPlayback isStreaming]) {
+    NSError *overrideError = nil;
+    if (![_audioSessionManager applyRouteOverride:&overrideError]) {
+      NSLog(@"[VoiceActivator] Route override (live) failed (non-fatal): %@",
+            overrideError.localizedDescription);
+    }
+  }
+
   resolve(nil);
 }
 

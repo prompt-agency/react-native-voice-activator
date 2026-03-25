@@ -1,5 +1,9 @@
 import NativeVoiceActivator from '../NativeVoiceActivator';
-import { NativeEventEmitter, type TurboModule } from 'react-native';
+import {
+  NativeEventEmitter,
+  NativeModules,
+  type TurboModule,
+} from 'react-native';
 
 import type {
   WakeWordAudioRouteChangedEvent,
@@ -17,6 +21,7 @@ export interface NativeVoiceActivatorSpec extends TurboModule {
   stopDetection?(): Promise<void>;
   getStatus?(): ReturnType<VoiceActivatorRuntimeBridge['getStatus']>;
   dispose?(): Promise<void>;
+  setAudioRoute?(route: string): Promise<void>;
 }
 
 const NATIVE_WAKE_WORD_DETECTED_EVENT = 'VoiceActivatorOnWakeWordDetected';
@@ -37,6 +42,25 @@ let nativeRuntimeInterruptionSubscription: { remove(): void } | null = null;
 let nativeRuntimeAudioRouteChangedSubscription: {
   remove(): void;
 } | null = null;
+
+function resolveSetAudioRoute():
+  | VoiceActivatorRuntimeBridge['setAudioRoute']
+  | undefined {
+  const turbo = nativeVoiceActivatorModule as
+    | { setAudioRoute?: (route: string) => Promise<void> }
+    | null
+    | undefined;
+  if (typeof turbo?.setAudioRoute === 'function') {
+    return turbo.setAudioRoute.bind(turbo);
+  }
+  const legacy = NativeModules?.VoiceActivator as
+    | { setAudioRoute?: (route: string) => Promise<void> }
+    | undefined;
+  if (typeof legacy?.setAudioRoute === 'function') {
+    return legacy.setAudioRoute.bind(legacy);
+  }
+  return undefined;
+}
 
 type NativeEventEmitterModule = TurboModule & {
   addListener(eventName: string): void;
@@ -78,13 +102,19 @@ function createUnsupportedRuntimeBridge(
 
 export function getVoiceActivatorRuntimeBridge(): VoiceActivatorRuntimeBridge {
   if (!nativeVoiceActivatorModule) {
-    return createUnsupportedRuntimeBridge(
-      'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
-      'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.',
-      'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
-      'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
-      'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
-    );
+    const setAudioRouteFallback = resolveSetAudioRoute();
+    return {
+      ...createUnsupportedRuntimeBridge(
+        'VoiceActivator requires the native runtime module. Detection is unavailable until the package is installed and built in a supported native environment.',
+        'VoiceActivator.initialize is unavailable until the native runtime module is installed and built in a supported native environment.',
+        'VoiceActivator.startDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
+        'VoiceActivator.stopDetection is unavailable until the native runtime module is installed and built in a supported native environment.',
+        'VoiceActivator.dispose is unavailable until the native runtime module is installed and built in a supported native environment.'
+      ),
+      ...(setAudioRouteFallback
+        ? { setAudioRoute: setAudioRouteFallback }
+        : {}),
+    };
   }
 
   if (
@@ -94,6 +124,7 @@ export function getVoiceActivatorRuntimeBridge(): VoiceActivatorRuntimeBridge {
     nativeVoiceActivatorModule.getStatus &&
     nativeVoiceActivatorModule.dispose
   ) {
+    const setAudioRoute = resolveSetAudioRoute();
     return {
       initialize: nativeVoiceActivatorModule.initialize,
       startDetection: nativeVoiceActivatorModule.startDetection,
@@ -101,16 +132,21 @@ export function getVoiceActivatorRuntimeBridge(): VoiceActivatorRuntimeBridge {
       getStatus: () =>
         nativeVoiceActivatorModule.getStatus!() as WakeWordStatus,
       dispose: nativeVoiceActivatorModule.dispose,
+      ...(setAudioRoute ? { setAudioRoute } : {}),
     };
   }
 
-  return createUnsupportedRuntimeBridge(
-    'VoiceActivator native runtime is partially implemented. The package cannot use the native path until all bridge methods are available.',
-    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling the native path.',
-    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling detection.',
-    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before stopping detection through the native path.',
-    'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before disposing the native path.'
-  );
+  const setAudioRoutePartial = resolveSetAudioRoute();
+  return {
+    ...createUnsupportedRuntimeBridge(
+      'VoiceActivator native runtime is partially implemented. The package cannot use the native path until all bridge methods are available.',
+      'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling the native path.',
+      'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before enabling detection.',
+      'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before stopping detection through the native path.',
+      'VoiceActivator native runtime is partially implemented. Complete the native bridge methods before disposing the native path.'
+    ),
+    ...(setAudioRoutePartial ? { setAudioRoute: setAudioRoutePartial } : {}),
+  };
 }
 
 export function setWakeWordDetectedHandler(

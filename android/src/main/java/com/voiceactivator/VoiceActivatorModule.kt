@@ -121,6 +121,12 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  override fun setAudioRoute(route: String, promise: Promise) {
+    // Audio route selection via AVAudioSession is iOS-only.
+    // This no-op stub satisfies the TurboModule codegen contract on Android.
+    promise.resolve(null)
+  }
+
   override fun addListener(eventName: String?) = Unit
 
   override fun removeListeners(count: Double) = Unit

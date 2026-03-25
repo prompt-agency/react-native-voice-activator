@@ -4,6 +4,7 @@ export {
   getSession,
   getStatus,
   initialize,
+  setAudioRoute,
   startDetection,
   stopDetection,
   voiceActivator,
@@ -21,6 +22,7 @@ export { useWakeWord } from './public/useWakeWord';
 export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
+  AudioRoute,
   BuiltInProviderProgress,
   WhisperRNSTTConfig,
   WhisperRNSTTModelId,

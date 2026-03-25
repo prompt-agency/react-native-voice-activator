@@ -20,13 +20,19 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * Start the streaming engine at the given sample rate.
  * Creates AVAudioEngine + AVAudioPlayerNode and activates audio session with
- * DuckOthers option. Idempotent — calling again while streaming is a no-op.
+ * DuckOthers option. Idempotent when already streaming with the same
+ * `earpieceOutput` value; a category change stops and restarts streaming.
  *
  * @param sampleRate PCM sample rate in Hz (e.g. 22050 for Piper TTS output)
+ * @param earpieceOutput When YES, uses PlayAndRecord (no DefaultToSpeaker) so audio
+ *                       can route to the built-in receiver when requested. When NO,
+ *                       uses Playback with Bluetooth A2DP / AirPlay enhancement options.
  * @param error       Set on failure; streaming will NOT start in that case
  * @return YES on success
  */
-- (BOOL)startStreamingWithSampleRate:(double)sampleRate error:(NSError **)error;
+- (BOOL)startStreamingWithSampleRate:(double)sampleRate
+                     earpieceOutput:(BOOL)earpieceOutput
+                              error:(NSError **)error;
 
 /**
  * Feed a chunk of PCM float32 audio for playback.
@@ -48,10 +54,13 @@ NS_ASSUME_NONNULL_BEGIN
  * Play a WAV file to completion asynchronously.
  * Uses a dedicated AVAudioPlayer instance. Calls completion on the main queue.
  *
- * @param filePath   Absolute local file path
- * @param completion Called with nil on success, NSError on failure
+ * @param filePath        Absolute local file path
+ * @param earpieceOutput  Session category for standalone WAV playback when not streaming;
+ *                        must match AudioSessionManager route (earpiece vs speaker/default).
+ * @param completion      Called with nil on success, NSError on failure
  */
 - (void)playWavFile:(NSString *)filePath
+     earpieceOutput:(BOOL)earpieceOutput
          completion:(void (^)(NSError *_Nullable))completion;
 
 /** YES while the streaming engine is running. */

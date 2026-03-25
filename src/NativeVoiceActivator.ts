@@ -13,6 +13,7 @@ export interface Spec extends TurboModule {
   playWav(filePath: string): Promise<void>;
   stopPlayback(): Promise<void>;
   setVolumeDucking(active: boolean): Promise<void>;
+  setAudioRoute(route: string): Promise<void>;
 }
 
 export default TurboModuleRegistry.get<Spec>('VoiceActivator');

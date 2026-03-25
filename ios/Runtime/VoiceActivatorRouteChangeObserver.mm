@@ -29,6 +29,12 @@ NSString *VoiceActivatorDescribeRoute(AVAudioSessionRouteDescription *route)
   if ([portType isEqualToString:AVAudioSessionPortUSBAudio]) {
     return @"usb";
   }
+  if ([portType isEqualToString:AVAudioSessionPortCarAudio]) {
+    return @"carplay";
+  }
+  if ([portType isEqualToString:AVAudioSessionPortAirPlay]) {
+    return @"airplay";
+  }
 
   return portType ?: @"unknown";
 }

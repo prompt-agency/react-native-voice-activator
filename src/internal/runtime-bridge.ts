@@ -7,4 +7,6 @@ export interface VoiceActivatorRuntimeBridge {
   stopDetection(): Promise<void>;
   getStatus(): WakeWordStatus;
   dispose(): Promise<void>;
+  /** iOS TTS route; optional so unsupported / partial bridges can omit it. */
+  setAudioRoute?(route: string): Promise<void>;
 }

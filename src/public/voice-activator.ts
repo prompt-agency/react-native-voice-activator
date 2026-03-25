@@ -21,6 +21,7 @@ import { createNativeManagedEngineRuntime } from '../engines';
 import { RunAnywhereSTTAdapter } from '../providers/runanywhere/RunAnywhereSTTAdapter';
 import { RunAnywhereTTSAdapter } from '../providers/runanywhere/RunAnywhereTTSAdapter';
 import type {
+  AudioRoute,
   ProviderError,
   VoiceActivatorApi,
   VoiceSession,
@@ -850,6 +851,14 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 
   addListener,
+
+  async setAudioRoute(route: AudioRoute): Promise<void> {
+    const setRoute = getVoiceActivatorRuntimeBridge().setAudioRoute;
+    if (!setRoute) {
+      return;
+    }
+    return setRoute(route);
+  },
 };
 
 export const initialize = voiceActivator.initialize;
@@ -857,6 +866,7 @@ export const startDetection = voiceActivator.startDetection;
 export const stopDetection = voiceActivator.stopDetection;
 export const getStatus = voiceActivator.getStatus;
 export const dispose = voiceActivator.dispose;
+export const setAudioRoute = voiceActivator.setAudioRoute;
 export const addWakeWordListener = addListener;
 
 export function getSession(): VoiceSession | null {

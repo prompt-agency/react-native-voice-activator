@@ -267,12 +267,15 @@ export interface WakeWordSubscription {
   remove(): void;
 }
 
+export type AudioRoute = 'default' | 'speaker' | 'earpiece' | 'bluetooth';
+
 export interface VoiceActivatorApi {
   initialize(options?: WakeWordInitializationOptions): Promise<void>;
   startDetection(): Promise<void>;
   stopDetection(): Promise<void>;
   getStatus(): WakeWordStatus;
   dispose(): Promise<void>;
+  setAudioRoute(route: AudioRoute): Promise<void>;
   addListener<TEventName extends WakeWordEventName>(
     eventName: TEventName,
     listener: WakeWordEventListener<TEventName>
