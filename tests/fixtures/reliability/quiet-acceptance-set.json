@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "scenario": "quiet-acceptance",
+  "description": "Controlled low-noise wake word validation set for the current Porcupine-backed runtime.",
+  "expectedBehavior": {
+    "minimumDetections": 1,
+    "maximumFalseTriggers": 0,
+    "requiredRuntimeStates": [
+      "running",
+      "stopped"
+    ]
+  },
+  "fixtures": [
+    {
+      "id": "quiet-primary-wake-word",
+      "environment": "quiet",
+      "playbackSource": "deterministic-host-fixture",
+      "fixturePath": "tests/fixtures/reliability/scenarios/quiet-primary-wake-word.json",
+      "notes": "Use the deterministic host fixture for automated contract validation, then repeat the same scenario on physical devices for real acoustic evidence."
+    }
+  ]
+}

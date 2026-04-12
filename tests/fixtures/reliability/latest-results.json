@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "updatedAt": "2026-03-11",
+  "summary": {
+    "status": "deterministic-validation-complete-pending-physical-device-validation",
+    "notes": [
+      "Deterministic host-side quiet, noisy, and endurance evaluation runs are recorded.",
+      "Android native compile validation is green on the host path.",
+      "Physical-device quiet/noisy and endurance runs are still pending."
+    ]
+  },
+  "results": [
+    {
+      "scenario": "android-native-compile",
+      "deviceId": "android-build-host",
+      "status": "passed",
+      "evidenceType": "compile-only",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "Kotlin native module compile succeeded via ./gradlew :react-native-voice-activator:compileDebugKotlin."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical iOS reference device was available in the current environment."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical iOS reference device was available in the current environment."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "ios-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "The 30-minute endurance requirement is still pending physical-device execution."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical Android reference device was available in the current environment."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "No physical Android reference device was available in the current environment."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "android-physical-primary",
+      "status": "pending",
+      "evidenceType": "awaiting-device-run",
+      "latencyMsP95": null,
+      "falseTriggerCount": null,
+      "interruptionCount": null,
+      "unsupportedTransitionCount": null,
+      "teardownIssueCount": null,
+      "unrecoverableFailureCount": null,
+      "notes": "The 30-minute endurance requirement is still pending physical-device execution."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "ios-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 182,
+      "falseTriggerCount": 0,
+      "interruptionCount": 0,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic fixture run covering a clean wake-word handoff without competing speech."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "ios-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 247,
+      "falseTriggerCount": 1,
+      "interruptionCount": 0,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic fixture run covering representative background-noise handling within the current package contract."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "ios-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 231,
+      "falseTriggerCount": 0,
+      "interruptionCount": 1,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic endurance fixture records the contract shape and expected result fields; it does not replace physical-device endurance proof."
+    },
+    {
+      "scenario": "quiet-acceptance",
+      "deviceId": "android-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 182,
+      "falseTriggerCount": 0,
+      "interruptionCount": 0,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic fixture run covering a clean wake-word handoff without competing speech."
+    },
+    {
+      "scenario": "noisy-acceptance",
+      "deviceId": "android-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 247,
+      "falseTriggerCount": 1,
+      "interruptionCount": 0,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic fixture run covering representative background-noise handling within the current package contract."
+    },
+    {
+      "scenario": "endurance-30m",
+      "deviceId": "android-host-deterministic",
+      "status": "passed",
+      "evidenceType": "deterministic-fixture-run",
+      "latencyMsP95": 231,
+      "falseTriggerCount": 0,
+      "interruptionCount": 1,
+      "unsupportedTransitionCount": 0,
+      "teardownIssueCount": 0,
+      "unrecoverableFailureCount": 0,
+      "notes": "Host-side deterministic endurance fixture records the contract shape and expected result fields; it does not replace physical-device endurance proof."
+    }
+  ]
+}

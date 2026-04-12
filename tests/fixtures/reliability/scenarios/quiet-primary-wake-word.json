@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "quiet-primary-wake-word",
+  "scenario": "quiet-acceptance",
+  "mode": "deterministic-fixture",
+  "description": "Deterministic host-side quiet wake word evaluation fixture for the current Porcupine-backed runtime contract.",
+  "metrics": {
+    "latencyMsP95": 182,
+    "falseTriggerCount": 0,
+    "interruptionCount": 0,
+    "unsupportedTransitionCount": 0,
+    "teardownIssueCount": 0,
+    "unrecoverableFailureCount": 0
+  },
+  "notes": "Host-side deterministic fixture run covering a clean wake-word handoff without competing speech."
+}

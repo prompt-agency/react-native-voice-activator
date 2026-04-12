@@ -1,0 +1,1 @@
+export { SileroVADEngine } from './SileroVADEngine';

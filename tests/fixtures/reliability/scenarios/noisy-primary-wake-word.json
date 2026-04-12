@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "noisy-primary-wake-word",
+  "scenario": "noisy-acceptance",
+  "mode": "deterministic-fixture",
+  "description": "Deterministic host-side noisy wake word evaluation fixture for the current Porcupine-backed runtime contract.",
+  "metrics": {
+    "latencyMsP95": 247,
+    "falseTriggerCount": 1,
+    "interruptionCount": 0,
+    "unsupportedTransitionCount": 0,
+    "teardownIssueCount": 0,
+    "unrecoverableFailureCount": 0
+  },
+  "notes": "Host-side deterministic fixture run covering representative background-noise handling within the current package contract."
+}

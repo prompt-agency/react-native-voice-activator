@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "VoiceActivatorExample",
+    "slug": "voice-activator-example",
+    "plugins": [
+      [
+        "../app.plugin.js",
+        {
+          "microphonePermissionText": "This app uses the microphone to detect wake words."
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.anonymous.voiceactivatorexample"
+    },
+    "ios": {
+      "bundleIdentifier": "com.anonymous.voiceactivatorexample"
+    }
+  }
+}
