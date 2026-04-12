@@ -62,7 +62,6 @@ export function SessionScreen() {
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
         sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
-        // TTS: pass ttsProvider: new CustomTTSAdapter({...}) once you have a model file
         session: {
           aiHandler: mockAiHandler,
           reListenMode,

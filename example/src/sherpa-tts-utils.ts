@@ -332,26 +332,5 @@ export async function ensureRyanSherpaAssets(
     dataDir = downloadedDataDir; // native layer will report a clear error
   }
 
-  // ── Diagnostics ────────────────────────────────────────────────────────────
-  const [modelStat, tokensStat, jsonStat] = await Promise.all([
-    RNFS.stat(modelPath).catch(() => null),
-    RNFS.stat(tokensPath).catch(() => null),
-    RNFS.stat(modelJsonPath).catch(() => null),
-  ]);
-  const jsonPreview = jsonStat
-    ? await RNFS.readFile(modelJsonPath, 'utf8')
-        .then((c) => c.slice(0, 120))
-        .catch(() => '(read error)')
-    : '(missing)';
-  const tokensFirstLine = tokensStat
-    ? await RNFS.readFile(tokensPath, 'utf8')
-        .then((c) => c.split('\n')[0])
-        .catch(() => '(read error)')
-    : '(missing)';
-  console.log('[SherpaAssets] model:', Number(modelStat?.size ?? 0), 'bytes');
-  console.log('[SherpaAssets] tokens first line:', tokensFirstLine);
-  console.log('[SherpaAssets] json size:', Number(jsonStat?.size ?? 0), 'bytes, preview:', jsonPreview);
-  console.log('[SherpaAssets] dataDir:', dataDir, 'exists:', await RNFS.exists(dataDir));
-
   return { modelPath, tokensPath, dataDir };
 }

@@ -76,11 +76,9 @@ export function ManualScreen() {
       setWhisperStatus('recording');
       const result = await adapter.transcribe();
       setWhisperStatus('transcribing');
-      console.log('[ManualScreen] STT result:', result);
       setWhisperTranscript(result.text || '(empty — model returned no text)');
       setWhisperStatus('done');
     } catch (error) {
-      console.error('[ManualScreen] STT error:', error);
       setWhisperError(String(error));
       setWhisperStatus('error');
     } finally {
@@ -114,7 +112,6 @@ export function ManualScreen() {
           setTtsProgress(pct != null ? `${msg} (${pct}%)` : msg);
         }
       );
-      console.log('[ManualScreen] TTS assets ready:', { modelPath, tokensPath, dataDir });
 
       // Step 2 — synthesize + play (model loading is inside native layer)
       setTtsProgress('Step 2/2: Synthesising…');
@@ -126,7 +123,6 @@ export function ManualScreen() {
 
       setTtsStatus('idle');
     } catch (error) {
-      console.error('[ManualScreen] TTS error:', error);
       setTtsError(String(error));
       setTtsStatus('error');
     } finally {

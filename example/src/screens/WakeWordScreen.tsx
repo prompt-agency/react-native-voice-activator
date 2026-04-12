@@ -113,7 +113,6 @@ export function WakeWordScreen() {
           assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
         },
         sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
-        // TTS: pass ttsProvider: new CustomTTSAdapter({...}) once you have a model file
         autoSpeak: true,
       });
       setActivePresetId(selectedPresetId);
