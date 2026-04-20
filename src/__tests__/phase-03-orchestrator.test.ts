@@ -55,7 +55,7 @@ function makeSttProvider(): jest.Mocked<SpeechToTextProvider> {
 function makeTtsProvider(): jest.Mocked<TextToSpeechProvider> {
   return {
     name: 'test-tts',
-    speak: jest.fn(async () => undefined),
+    speak: jest.fn(async (_text: string) => undefined),
     stop: jest.fn(async () => undefined),
   };
 }
