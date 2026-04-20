@@ -130,6 +130,10 @@ export interface WakeWordInitializationOptions {
   ttsProvider?: TextToSpeechProvider;
   autoSpeak?: boolean;
   session?: VoiceSessionConfig;
+  speakerVerificationProvider?: SpeakerVerificationProvider;
+  audioPreprocessingProvider?: AudioPreprocessingProvider;
+  antiSpoofingProvider?: AntiSpoofingProvider;
+  spoofingThreshold?: number;
 }
 
 export interface WakeWordStatus {

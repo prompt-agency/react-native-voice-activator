@@ -20,8 +20,11 @@ import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
 import type {
+  AntiSpoofingProvider,
+  AudioPreprocessingProvider,
   AudioRoute,
   ProviderError,
+  SpeakerVerificationProvider,
   VoiceActivatorApi,
   VoiceSession,
   VoiceSessionConfig,
@@ -52,6 +55,11 @@ type ActiveProviderFlow = {
 let activeProviderFlow: ActiveProviderFlow | null = null;
 let activeSessionConfig: VoiceSessionConfig | null = null;
 let activeVoiceSession: VoiceSessionOrchestrator | null = null;
+let activeSpeakerVerificationProvider: SpeakerVerificationProvider | null =
+  null;
+let activeAudioPreprocessingProvider: AudioPreprocessingProvider | null = null;
+let activeAntiSpoofingProvider: AntiSpoofingProvider | null = null;
+let activeSpoofingThreshold: number = 0.5;
 
 addSessionListener('sessionEnded', () => {
   if (activeVoiceSession?.state === 'closed') {
@@ -635,6 +643,12 @@ export const voiceActivator: VoiceActivatorApi = {
       });
       activeRuntimeConfiguration = resolvedRuntimeConfiguration;
       activeSessionConfig = options.session ?? null;
+      activeSpeakerVerificationProvider =
+        options?.speakerVerificationProvider ?? null;
+      activeAudioPreprocessingProvider =
+        options?.audioPreprocessingProvider ?? null;
+      activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
+      activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -743,6 +757,10 @@ export const voiceActivator: VoiceActivatorApi = {
       await cleanupActiveProviderFlow();
       await closeActiveVoiceSession();
       activeSessionConfig = null;
+      activeSpeakerVerificationProvider = null;
+      activeAudioPreprocessingProvider = null;
+      activeAntiSpoofingProvider = null;
+      activeSpoofingThreshold = 0.5;
       await disposeEngineRuntime();
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
@@ -783,6 +801,22 @@ export const addWakeWordListener = addListener;
 
 export function getSession(): VoiceSession | null {
   return activeVoiceSession;
+}
+
+export function getSpeakerVerificationProvider(): SpeakerVerificationProvider | null {
+  return activeSpeakerVerificationProvider;
+}
+
+export function getAudioPreprocessingProvider(): AudioPreprocessingProvider | null {
+  return activeAudioPreprocessingProvider;
+}
+
+export function getAntiSpoofingProvider(): AntiSpoofingProvider | null {
+  return activeAntiSpoofingProvider;
+}
+
+export function getSpoofingThreshold(): number {
+  return activeSpoofingThreshold;
 }
 
 export type VoiceActivatorEventMap = WakeWordEventMap;
