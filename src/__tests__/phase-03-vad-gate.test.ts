@@ -40,14 +40,12 @@ describe('VAD pre-wake gate', () => {
     isRunning: boolean;
   };
   let capturedSpeechStartListener: (() => void) | null;
-  let capturedSpeechEndListener: (() => void) | null;
   let capturedPcmFrameListener: ((e: { pcm: string }) => void) | null;
   let mockNativeEventEmitterAddListener: jest.Mock;
 
   function setupMocks() {
     capturedWakeWordHandler = null;
     capturedSpeechStartListener = null;
-    capturedSpeechEndListener = null;
     capturedPcmFrameListener = null;
 
     mockVadEngineInstance = {
@@ -120,7 +118,7 @@ describe('VAD pre-wake gate', () => {
         addSessionListener: jest.fn(
           (event: string, cb: () => void) => {
             if (event === 'speechStart') capturedSpeechStartListener = cb;
-            if (event === 'speechEnd') capturedSpeechEndListener = cb;
+            // speechEnd listener captured for completeness; VAD engine handles internally
             return { remove: jest.fn() };
           }
         ),
@@ -349,7 +347,7 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 9: VAD gate engine stops on interruption ────────────────────────
 
   it('Test 9: VAD gate engine stops on syncEngineRuntimeWithNativeStatus interrupted state', async () => {
-    let capturedStatusHandler: ((s: any) => void) | null = null;
+    let capturedStatusHandler = null as ((s: unknown) => void) | null;
 
     jest.resetModules();
 
@@ -418,7 +416,6 @@ describe('VAD pre-wake gate', () => {
     jest.doMock('../internal/session-events', () => ({
       addSessionListener: jest.fn((event: string, cb: () => void) => {
         if (event === 'speechStart') capturedSpeechStartListener = cb;
-        if (event === 'speechEnd') capturedSpeechEndListener = cb;
         return { remove: jest.fn() };
       }),
       emitSessionEvent: jest.fn(),
@@ -431,13 +428,15 @@ describe('VAD pre-wake gate', () => {
     expect(mockVadEngineInstance.start).toHaveBeenCalled();
 
     // Simulate interruption via status handler
-    capturedStatusHandler?.({
-      state: 'interrupted',
-      isAvailable: true,
-      isListening: false,
-      canStart: false,
-      lastError: null,
-    });
+    if (capturedStatusHandler) {
+      capturedStatusHandler({
+        state: 'interrupted',
+        isAvailable: true,
+        isListening: false,
+        canStart: false,
+        lastError: null,
+      });
+    }
 
     await flushAsync();
 
