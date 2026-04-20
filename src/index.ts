@@ -17,15 +17,22 @@ export {
 export { CustomTTSAdapter, SherpaOnnxTTSAdapter } from './providers/tts';
 export type { SherpaOnnxTTSConfig } from './providers/tts';
 export { SileroVADEngine } from './providers/vad';
+export { SherpaOnnxSpeakerVerificationAdapter } from './providers/speaker-verification';
+export { SherpaOnnxNoiseSuppressionAdapter } from './providers/noise-suppression';
+export { SherpaOnnxAntiSpoofingAdapter } from './providers/anti-spoofing';
 export { useWakeWord } from './public/useWakeWord';
 export { useVoiceSession } from './public/useVoiceSession';
 export { wakeWordStates, voiceSessionStates } from './public/types';
 export type {
+  AntiSpoofingProvider,
+  AudioPreprocessingProvider,
   AudioRoute,
   CustomTTSConfig,
+  EnrollmentData,
   WhisperRNSTTConfig,
   WhisperRNSTTModelId,
   ProviderError,
+  SpeakerVerificationProvider,
   SpeechToTextProvider,
   SpeechCompletedEvent,
   SpeechErrorEvent,
