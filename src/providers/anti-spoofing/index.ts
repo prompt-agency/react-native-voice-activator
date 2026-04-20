@@ -1,0 +1,1 @@
+export { SherpaOnnxAntiSpoofingAdapter } from './SherpaOnnxAntiSpoofingAdapter';
