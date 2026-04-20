@@ -53,7 +53,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Define provider interfaces + EnrollmentData type + SherpaOnnxSpeakerVerificationAdapter with tests
-- [ ] 02-02-PLAN.md — SherpaOnnxNoiseSuppressionAdapter + SherpaOnnxAntiSpoofingAdapter with tests
+- [x] 02-02-PLAN.md — SherpaOnnxNoiseSuppressionAdapter + SherpaOnnxAntiSpoofingAdapter with tests
 - [ ] 02-03-PLAN.md — Wire WakeWordInitializationOptions + voice-activator.ts + src/index.ts exports
 **UI hint**: no
 
