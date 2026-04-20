@@ -31,14 +31,14 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 - [ ] **VERIFY-02**: The verification check runs asynchronously — the session starts optimistically and is aborted if verification fails, to stay within the 300ms barge-in budget
 - [ ] **VERIFY-03**: Developer can configure `verificationThreshold: number` (0–1, default 0.55) in `WakeWordInitializationOptions`
 - [ ] **VERIFY-04**: Developer can configure `verificationFailureBehavior: 'open' | 'closed' | 'emit'` — `open` continues the session, `closed` aborts it, `emit` fires an event and lets the app decide
-- [ ] **VERIFY-05**: Library emits `speakerVerificationPassed` event on `sessionEvents` when verification succeeds, including similarity score and matched speaker ID
-- [ ] **VERIFY-06**: Library emits `speakerVerificationFailed` event on `sessionEvents` when verification fails, including similarity score
+- [x] **VERIFY-05**: Library emits `speakerVerificationPassed` event on `sessionEvents` when verification succeeds, including similarity score and matched speaker ID
+- [x] **VERIFY-06**: Library emits `speakerVerificationFailed` event on `sessionEvents` when verification fails, including similarity score
 
 ### Pre-STT Noise Suppression
 
 - [x] **NOISE-01**: Library defines an `AudioPreprocessingProvider` interface with `process(audioBuffer: ArrayBuffer): Promise<ArrayBuffer>`
 - [x] **NOISE-02**: Library ships a `SherpaOnnxNoiseSuppressionAdapter` implementing `AudioPreprocessingProvider` using the `gtcrn_simple.onnx` model (<1MB)
-- [ ] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
+- [x] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
 - [x] **NOISE-04**: Noise suppression model path is configurable via `SherpaOnnxNoiseSuppressionAdapter` constructor options
 
 ### VAD Gate (Pre-Wake)
@@ -51,7 +51,7 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 - [x] **API-01**: Library defines a `SpeakerVerificationProvider` interface with `enrollSpeaker`, `verifySpeaker`, `exportEnrollment`, `importEnrollment`, `clearEnrollment`
 - [x] **API-02**: Library ships a `SherpaOnnxSpeakerVerificationAdapter` as the default implementation of `SpeakerVerificationProvider`
-- [ ] **API-03**: All new `WakeWordInitializationOptions` fields are optional — existing apps with no changes continue to work identically
+- [x] **API-03**: All new `WakeWordInitializationOptions` fields are optional — existing apps with no changes continue to work identically
 - [ ] **API-04**: New provider types and configuration options are exported from the library's public API surface (`src/public/`)
 
 ### Expo Plugin
@@ -113,7 +113,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | ENROLL-05 | Phase 2 | Complete |
 | NOISE-01 | Phase 2 | Complete |
 | NOISE-02 | Phase 2 | Complete |
-| NOISE-03 | Phase 3 | Pending |
+| NOISE-03 | Phase 3 | Complete |
 | NOISE-04 | Phase 2 | Complete |
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
@@ -124,12 +124,12 @@ Deferred to future releases. Tracked but not in current roadmap.
 | VERIFY-02 | Phase 3 | Pending |
 | VERIFY-03 | Phase 3 | Pending |
 | VERIFY-04 | Phase 3 | Pending |
-| VERIFY-05 | Phase 3 | Pending |
-| VERIFY-06 | Phase 3 | Pending |
+| VERIFY-05 | Phase 3 | Complete |
+| VERIFY-06 | Phase 3 | Complete |
 | VAD-01 | Phase 3 | Pending |
 | VAD-02 | Phase 3 | Pending |
 | VAD-03 | Phase 3 | Pending |
-| API-03 | Phase 3 | Pending |
+| API-03 | Phase 3 | Complete |
 | API-04 | Phase 3 | Pending |
 | PLUGIN-01 | Phase 4 | Pending |
 | PLUGIN-02 | Phase 4 | Pending |
