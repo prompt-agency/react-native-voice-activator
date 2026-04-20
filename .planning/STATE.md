@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-native-bridge-03-PLAN.md — Android Kotlin wrappers + VoiceActivatorModule 8 bridge methods
-last_updated: "2026-04-20T16:48:51.510Z"
+status: verifying
+stopped_at: Completed 01-native-bridge-02-PLAN.md — iOS SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
+last_updated: "2026-04-20T16:51:52.975Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-20)
 
 Phase: 01 (native-bridge) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-20
 
 Progress: [░░░░░░░░░░] 0%
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-native-bridge P01 | 5m | 2 tasks | 2 files |
 | Phase 01-native-bridge P03 | 125 | 2 tasks | 3 files |
+| Phase 01-native-bridge P02 | 4m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,8 @@ Recent decisions affecting current work:
 - [Phase 01-native-bridge]: detectSpoofing declared as spec stub returning Promise<number> 0.0 — anti-spoofing absent from Sherpa-ONNX v1.12.29 and upstream v1.12.39; real AASIST integration deferred per RESEARCH.md
 - [Phase 01-native-bridge]: Android score approximation: SpeakerEmbeddingManager.search() returns only a name string; score is 1.0 if matched, 0.0 otherwise
 - [Phase 01-native-bridge]: detectSpoofing returns 0.0 stub on Android (SPOOF-01); no Sherpa-ONNX anti-spoofing API in v1.12.29
+- [Phase 01-native-bridge]: detectSpoofing implemented as stub returning 0.0 on iOS (SPOOF-01); no anti-spoofing API in Sherpa-ONNX v1.12.29
+- [Phase 01-native-bridge]: iOS: speakerModelPath and denoiserModelPath passed via initialize() options dict; lazy-configured on first call with 8MB NSThread
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-20T16:48:51.508Z
-Stopped at: Completed 01-native-bridge-03-PLAN.md — Android Kotlin wrappers + VoiceActivatorModule 8 bridge methods
+Last session: 2026-04-20T16:51:52.972Z
+Stopped at: Completed 01-native-bridge-02-PLAN.md — iOS SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
 Resume file: None

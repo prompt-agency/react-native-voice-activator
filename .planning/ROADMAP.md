@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Spec-first: declare 8 bridge methods in NativeVoiceActivator.ts + unit tests
-- [ ] 01-02-PLAN.md — iOS native: SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
+- [x] 01-02-PLAN.md — iOS native: SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
 - [x] 01-03-PLAN.md — Android native: SherpaOnnxSpeakerEmbedding.kt + SherpaOnnxDenoiser.kt wrappers + VoiceActivatorModule.kt wiring
 
 ### Phase 2: Provider Interfaces and Adapters
