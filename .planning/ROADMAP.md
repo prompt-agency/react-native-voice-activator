@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Native Bridge** - Expose Sherpa-ONNX speaker embedding, speech denoiser, and anti-spoofing APIs through Nitro Modules on iOS and Android
 - [x] **Phase 2: Provider Interfaces and Adapters** - Define typed provider contracts and ship `SherpaOnnxSpeakerVerificationAdapter`, `SherpaOnnxNoiseSuppressionAdapter`, and `SherpaOnnxAntiSpoofingAdapter` with privacy no-storage invariant (completed 2026-04-20)
-- [ ] **Phase 3: Orchestrator Hook and Public API** - Wire the verification gate and enrollment API into the session orchestrator and `voice-activator.ts`
+- [x] **Phase 3: Orchestrator Hook and Public API** - Wire the verification gate and enrollment API into the session orchestrator and `voice-activator.ts` (completed 2026-04-20)
 - [ ] **Phase 4: Expo Plugin and Integration Testing** - Extend the Expo config plugin for model asset copying, validate the full pipeline with real audio fixtures, and deliver privacy compliance documentation
 
 ## Phase Details
@@ -67,7 +67,7 @@ Plans:
   3. Two wake words fired 60ms apart result in only the second verification callback completing — the first stale callback is discarded by the generation-ID guard without corrupting session state
   4. An existing app that passes no new options to `initialize()` continues to work identically — no TypeScript errors, no behavior changes, no new required fields
   5. When `vadGateEnabled: true`, audio frames below the configured `vadGateThreshold` do not reach the wake word engine; the VAD gate adds no measurable latency to the barge-in fast-path
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — Types, session-events registry, orchestrator abort + NOISE-03 preprocessing
@@ -97,5 +97,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Native Bridge | 2/3 | In Progress|  |
 | 2. Provider Interfaces and Adapters | 3/3 | Complete   | 2026-04-20 |
-| 3. Orchestrator Hook and Public API | 2/3 | In Progress|  |
+| 3. Orchestrator Hook and Public API | 2/3 | Complete    | 2026-04-20 |
 | 4. Expo Plugin and Integration Testing | 0/TBD | Not started | - |
