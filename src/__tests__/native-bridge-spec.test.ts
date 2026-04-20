@@ -11,9 +11,9 @@
 function createMockNativeModule() {
   return {
     // Existing methods (required to avoid "partially implemented" guard)
-    initialize: jest.fn(async () => undefined),
-    startDetection: jest.fn(async () => undefined),
-    stopDetection: jest.fn(async () => undefined),
+    initialize: jest.fn<Promise<void>, [any]>(async () => undefined),
+    startDetection: jest.fn<Promise<void>, []>(async () => undefined),
+    stopDetection: jest.fn<Promise<void>, []>(async () => undefined),
     getStatus: jest.fn(() => ({
       state: 'idle',
       isAvailable: true,
@@ -21,38 +21,55 @@ function createMockNativeModule() {
       canStart: false,
       lastError: null,
     })),
-    dispose: jest.fn(async () => undefined),
-    addListener: jest.fn(),
-    removeListeners: jest.fn(),
-    playPCMChunk: jest.fn(async () => undefined),
-    playWav: jest.fn(async () => undefined),
-    stopPlayback: jest.fn(async () => undefined),
-    setVolumeDucking: jest.fn(async () => undefined),
-    setAudioRoute: jest.fn(async () => undefined),
-    startVADCapture: jest.fn(async () => undefined),
-    stopVADCapture: jest.fn(async () => undefined),
-    synthesizeTTS: jest.fn(async () => undefined),
+    dispose: jest.fn<Promise<void>, []>(async () => undefined),
+    addListener: jest.fn<void, [string]>(),
+    removeListeners: jest.fn<void, [number]>(),
+    playPCMChunk: jest.fn<Promise<void>, [string, number]>(
+      async () => undefined
+    ),
+    playWav: jest.fn<Promise<void>, [string]>(async () => undefined),
+    stopPlayback: jest.fn<Promise<void>, []>(async () => undefined),
+    setVolumeDucking: jest.fn<Promise<void>, [boolean]>(async () => undefined),
+    setAudioRoute: jest.fn<Promise<void>, [string]>(async () => undefined),
+    startVADCapture: jest.fn<Promise<void>, [number]>(async () => undefined),
+    stopVADCapture: jest.fn<Promise<void>, []>(async () => undefined),
+    synthesizeTTS: jest.fn<Promise<void>, [any]>(async () => undefined),
 
     // Phase 1 — Speaker Embedding (BRIDGE-01)
-    extractSpeakerEmbedding: jest.fn(async () => 'dGVzdGVtYmVkZGluZw=='),
+    extractSpeakerEmbedding: jest.fn<Promise<string>, [string, number]>(
+      async () => 'dGVzdGVtYmVkZGluZw=='
+    ),
 
     // Phase 1 — Speaker Registration (BRIDGE-02)
-    registerSpeaker: jest.fn(async () => undefined),
+    registerSpeaker: jest.fn<Promise<void>, [string, string]>(
+      async () => undefined
+    ),
 
     // Phase 1 — Speaker Verification (BRIDGE-03)
-    verifySpeaker: jest.fn(async () => ({ matched: true, score: 0.85 })),
+    // Returns UnsafeObject with shape: { matched: boolean, score: number }
+    verifySpeaker: jest.fn<
+      Promise<{ matched: boolean; score: number }>,
+      [string, string, number]
+    >(async () => ({ matched: true, score: 0.85 })),
 
     // Phase 1 — Speaker Identification (BRIDGE-04)
-    identifySpeaker: jest.fn(async () => ({ name: 'alice', score: 0.9 })),
+    // Returns UnsafeObject with shape: { name: string | null, score: number }
+    identifySpeaker: jest.fn<
+      Promise<{ name: string | null; score: number }>,
+      [string, number]
+    >(async () => ({ name: 'alice', score: 0.9 })),
 
     // Phase 1 — Clear Speakers (BRIDGE-05)
-    clearSpeakers: jest.fn(async () => undefined),
+    clearSpeakers: jest.fn<Promise<void>, []>(async () => undefined),
 
     // Phase 1 — Audio Denoising (BRIDGE-06)
-    denoiseAudio: jest.fn(async () => 'Y2xlYW5hdWRpbw=='),
+    denoiseAudio: jest.fn<Promise<string>, [string, number]>(
+      async () => 'Y2xlYW5hdWRpbw=='
+    ),
 
     // Phase 1 — Anti-Spoofing (SPOOF-01)
-    detectSpoofing: jest.fn(async () => 0.0),
+    // Returns spoof probability 0-1 (stub: returns 0.0 until anti-spoofing model available)
+    detectSpoofing: jest.fn<Promise<number>, [string, number]>(async () => 0.0),
   };
 }
 
