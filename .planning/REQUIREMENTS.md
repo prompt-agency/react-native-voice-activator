@@ -38,7 +38,7 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 - [x] **NOISE-01**: Library defines an `AudioPreprocessingProvider` interface with `process(audioBuffer: ArrayBuffer): Promise<ArrayBuffer>`
 - [x] **NOISE-02**: Library ships a `SherpaOnnxNoiseSuppressionAdapter` implementing `AudioPreprocessingProvider` using the `gtcrn_simple.onnx` model (<1MB)
-- [x] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
+- [ ] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
 - [x] **NOISE-04**: Noise suppression model path is configurable via `SherpaOnnxNoiseSuppressionAdapter` constructor options
 
 ### VAD Gate (Pre-Wake)
@@ -113,7 +113,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | ENROLL-05 | Phase 2 | Complete |
 | NOISE-01 | Phase 2 | Complete |
 | NOISE-02 | Phase 2 | Complete |
-| NOISE-03 | Phase 2 | Complete |
+| NOISE-03 | Phase 3 | Pending |
 | NOISE-04 | Phase 2 | Complete |
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
