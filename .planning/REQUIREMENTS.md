@@ -36,10 +36,10 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### Pre-STT Noise Suppression
 
-- [ ] **NOISE-01**: Library defines an `AudioPreprocessingProvider` interface with `process(audioBuffer: ArrayBuffer): Promise<ArrayBuffer>`
-- [ ] **NOISE-02**: Library ships a `SherpaOnnxNoiseSuppressionAdapter` implementing `AudioPreprocessingProvider` using the `gtcrn_simple.onnx` model (<1MB)
-- [ ] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
-- [ ] **NOISE-04**: Noise suppression model path is configurable via `SherpaOnnxNoiseSuppressionAdapter` constructor options
+- [x] **NOISE-01**: Library defines an `AudioPreprocessingProvider` interface with `process(audioBuffer: ArrayBuffer): Promise<ArrayBuffer>`
+- [x] **NOISE-02**: Library ships a `SherpaOnnxNoiseSuppressionAdapter` implementing `AudioPreprocessingProvider` using the `gtcrn_simple.onnx` model (<1MB)
+- [x] **NOISE-03**: When `audioPreprocessingProvider` is set in `WakeWordInitializationOptions`, captured audio is preprocessed before being passed to the STT provider (VAD path only for v1.0)
+- [x] **NOISE-04**: Noise suppression model path is configurable via `SherpaOnnxNoiseSuppressionAdapter` constructor options
 
 ### VAD Gate (Pre-Wake)
 
@@ -67,7 +67,7 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 ### Anti-Spoofing
 
 - [x] **SPOOF-01**: Library exposes an anti-spoofing bridge method `detectSpoofing(pcmBase64, sampleRate)` via Nitro Modules, returning a spoof probability score (0–1) using an AASIST-class on-device model
-- [ ] **SPOOF-02**: Library ships a `SherpaOnnxAntiSpoofingAdapter` implementing an `AntiSpoofingProvider` interface; when `antiSpoofingProvider` is set in `WakeWordInitializationOptions`, spoof detection runs alongside speaker verification and rejects sessions where spoof probability exceeds a configurable `spoofingThreshold`
+- [x] **SPOOF-02**: Library ships a `SherpaOnnxAntiSpoofingAdapter` implementing an `AntiSpoofingProvider` interface; when `antiSpoofingProvider` is set in `WakeWordInitializationOptions`, spoof detection runs alongside speaker verification and rejects sessions where spoof probability exceeds a configurable `spoofingThreshold`
 - [x] **SPOOF-03**: `SpeakerVerificationProvider` interface includes an optional `detectSpoofing()` method so custom provider implementations can add liveness detection without breaking the interface contract
 
 ## v2 Requirements
@@ -111,14 +111,14 @@ Deferred to future releases. Tracked but not in current roadmap.
 | ENROLL-03 | Phase 2 | Complete |
 | ENROLL-04 | Phase 2 | Complete |
 | ENROLL-05 | Phase 2 | Complete |
-| NOISE-01 | Phase 2 | Pending |
-| NOISE-02 | Phase 2 | Pending |
-| NOISE-03 | Phase 2 | Pending |
-| NOISE-04 | Phase 2 | Pending |
+| NOISE-01 | Phase 2 | Complete |
+| NOISE-02 | Phase 2 | Complete |
+| NOISE-03 | Phase 2 | Complete |
+| NOISE-04 | Phase 2 | Complete |
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
 | PRIV-01 | Phase 2 | Complete |
-| SPOOF-02 | Phase 2 | Pending |
+| SPOOF-02 | Phase 2 | Complete |
 | SPOOF-03 | Phase 2 | Complete |
 | VERIFY-01 | Phase 3 | Pending |
 | VERIFY-02 | Phase 3 | Pending |

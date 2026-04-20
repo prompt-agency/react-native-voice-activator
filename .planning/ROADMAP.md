@@ -13,7 +13,7 @@ This roadmap delivers the v1.0 Speech Verification milestone: speaker enrollment
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Native Bridge** - Expose Sherpa-ONNX speaker embedding, speech denoiser, and anti-spoofing APIs through Nitro Modules on iOS and Android
-- [ ] **Phase 2: Provider Interfaces and Adapters** - Define typed provider contracts and ship `SherpaOnnxSpeakerVerificationAdapter`, `SherpaOnnxNoiseSuppressionAdapter`, and `SherpaOnnxAntiSpoofingAdapter` with privacy no-storage invariant
+- [x] **Phase 2: Provider Interfaces and Adapters** - Define typed provider contracts and ship `SherpaOnnxSpeakerVerificationAdapter`, `SherpaOnnxNoiseSuppressionAdapter`, and `SherpaOnnxAntiSpoofingAdapter` with privacy no-storage invariant (completed 2026-04-20)
 - [ ] **Phase 3: Orchestrator Hook and Public API** - Wire the verification gate and enrollment API into the session orchestrator and `voice-activator.ts`
 - [ ] **Phase 4: Expo Plugin and Integration Testing** - Extend the Expo config plugin for model asset copying, validate the full pipeline with real audio fixtures, and deliver privacy compliance documentation
 
@@ -49,12 +49,12 @@ Plans:
   5. A developer can construct a `SherpaOnnxAntiSpoofingAdapter` and call `detectSpoofing(pcm, sampleRate)` via the `AntiSpoofingProvider` interface, receiving a spoof probability score; when `antiSpoofingProvider` is set in `WakeWordInitializationOptions`, sessions with spoof probability above `spoofingThreshold` are rejected
   6. The `SpeakerVerificationProvider` interface compiles with the optional `detectSpoofing?()` method present — existing custom implementations that do not declare `detectSpoofing` continue to satisfy the interface without TypeScript errors
   7. Unit tests for all adapters pass using mocked native bridge methods, verifying enrollment accumulation, export shape, import restoration, noise suppression passthrough, and anti-spoofing score passthrough
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — Define provider interfaces + EnrollmentData type + SherpaOnnxSpeakerVerificationAdapter with tests
 - [x] 02-02-PLAN.md — SherpaOnnxNoiseSuppressionAdapter + SherpaOnnxAntiSpoofingAdapter with tests
-- [ ] 02-03-PLAN.md — Wire WakeWordInitializationOptions + voice-activator.ts + src/index.ts exports
+- [x] 02-03-PLAN.md — Wire WakeWordInitializationOptions + voice-activator.ts + src/index.ts exports
 **UI hint**: no
 
 ### Phase 3: Orchestrator Hook and Public API
@@ -91,6 +91,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Native Bridge | 2/3 | In Progress|  |
-| 2. Provider Interfaces and Adapters | 1/3 | In Progress|  |
+| 2. Provider Interfaces and Adapters | 3/3 | Complete   | 2026-04-20 |
 | 3. Orchestrator Hook and Public API | 0/TBD | Not started | - |
 | 4. Expo Plugin and Integration Testing | 0/TBD | Not started | - |
