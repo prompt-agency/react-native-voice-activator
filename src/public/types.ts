@@ -134,6 +134,10 @@ export interface WakeWordInitializationOptions {
   audioPreprocessingProvider?: AudioPreprocessingProvider;
   antiSpoofingProvider?: AntiSpoofingProvider;
   spoofingThreshold?: number;
+  verificationThreshold?: number;
+  verificationFailureBehavior?: 'open' | 'closed' | 'emit';
+  vadGateEnabled?: boolean;
+  vadGateThreshold?: number;
 }
 
 export interface WakeWordStatus {
@@ -284,6 +288,10 @@ export interface VoiceActivatorApi {
     eventName: TEventName,
     listener: WakeWordEventListener<TEventName>
   ): WakeWordSubscription;
+  enrollSpeaker(userId: string, audioBuffer: ArrayBuffer): Promise<void>;
+  exportEnrollment(): Promise<EnrollmentData>;
+  importEnrollment(data: EnrollmentData): Promise<void>;
+  clearEnrollment(): Promise<void>;
 }
 
 // ─── Voice Session Types ─────────────────────────────────────────────────────
@@ -362,6 +370,17 @@ export type VoiceSessionVADSpeechStartEvent = VoiceSessionSpeechStartEvent;
 /** @deprecated Use {@link VoiceSessionSpeechEndEvent} */
 export type VoiceSessionVADSpeechEndEvent = VoiceSessionSpeechEndEvent;
 
+/** Fired when the enrolled speaker is successfully verified post-wake-word. */
+export interface SpeakerVerificationPassedEvent {
+  score: number;
+  speakerId: string;
+}
+
+/** Fired when speaker verification fails post-wake-word. */
+export interface SpeakerVerificationFailedEvent {
+  score: number;
+}
+
 export interface VoiceSessionEventMap {
   sessionStarted: VoiceSessionStartedEvent;
   sessionListening: VoiceSessionListeningEvent;
@@ -372,6 +391,8 @@ export interface VoiceSessionEventMap {
   sessionError: VoiceSessionErrorEvent;
   speechStart: VoiceSessionSpeechStartEvent;
   speechEnd: VoiceSessionSpeechEndEvent;
+  speakerVerificationPassed: SpeakerVerificationPassedEvent;
+  speakerVerificationFailed: SpeakerVerificationFailedEvent;
 }
 
 export type VoiceSessionEventName = keyof VoiceSessionEventMap;
