@@ -389,3 +389,41 @@ export interface VoiceSession {
     listener: VoiceSessionEventListener<TEventName>
   ): VoiceSessionSubscription;
 }
+
+// ─── Speaker Verification Types ─────────────────────────────────────────────
+
+export type EnrollmentData = {
+  version: 1;
+  speakers: Record<string, { embeddings: string[]; sampleCount: number }>;
+};
+
+export interface SpeakerVerificationProvider {
+  enrollSpeaker(
+    userId: string,
+    audioBuffer: ArrayBuffer,
+    sampleRate: number
+  ): Promise<void>;
+  verifySpeaker(
+    userId: string,
+    audioBuffer: ArrayBuffer,
+    sampleRate: number,
+    threshold: number
+  ): Promise<{ matched: boolean; score: number }>;
+  identifySpeaker(
+    audioBuffer: ArrayBuffer,
+    sampleRate: number,
+    threshold: number
+  ): Promise<{ name: string | null; score: number }>;
+  exportEnrollment(): Promise<EnrollmentData>;
+  importEnrollment(data: EnrollmentData): Promise<void>;
+  clearEnrollment(): Promise<void>;
+  detectSpoofing?(pcmBuffer: ArrayBuffer, sampleRate: number): Promise<number>;
+}
+
+export interface AudioPreprocessingProvider {
+  process(audioBuffer: ArrayBuffer, sampleRate: number): Promise<ArrayBuffer>;
+}
+
+export interface AntiSpoofingProvider {
+  detectSpoofing(pcmBuffer: ArrayBuffer, sampleRate: number): Promise<number>;
+}
