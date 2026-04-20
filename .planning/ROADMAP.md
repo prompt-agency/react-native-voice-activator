@@ -67,11 +67,11 @@ Plans:
   3. Two wake words fired 60ms apart result in only the second verification callback completing — the first stale callback is discarded by the generation-ID guard without corrupting session state
   4. An existing app that passes no new options to `initialize()` continues to work identically — no TypeScript errors, no behavior changes, no new required fields
   5. When `vadGateEnabled: true`, audio frames below the configured `vadGateThreshold` do not reach the wake word engine; the VAD gate adds no measurable latency to the barge-in fast-path
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 03-01-PLAN.md — Types, session-events registry, orchestrator abort + NOISE-03 preprocessing
-- [ ] 03-02-PLAN.md — Verification gate in queueProviderOrchestration + enrollment API on voiceActivator
+- [x] 03-02-PLAN.md — Verification gate in queueProviderOrchestration + enrollment API on voiceActivator
 - [ ] 03-03-PLAN.md — VAD pre-wake gate + public API exports
 **UI hint**: no
 
@@ -97,5 +97,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Native Bridge | 2/3 | In Progress|  |
 | 2. Provider Interfaces and Adapters | 3/3 | Complete   | 2026-04-20 |
-| 3. Orchestrator Hook and Public API | 1/3 | In Progress|  |
+| 3. Orchestrator Hook and Public API | 2/3 | In Progress|  |
 | 4. Expo Plugin and Integration Testing | 0/TBD | Not started | - |
