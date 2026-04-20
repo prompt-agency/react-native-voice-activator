@@ -1,0 +1,1 @@
+export { SherpaOnnxNoiseSuppressionAdapter } from './SherpaOnnxNoiseSuppressionAdapter';

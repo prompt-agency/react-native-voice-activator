@@ -9,6 +9,8 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.bridge.Arguments
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxDenoiser
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxSpeakerEmbedding
 import com.voiceactivator.Runtime.AudioPlayback
 import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
@@ -20,6 +22,10 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   NativeVoiceActivatorSpec(reactContext) {
   private val audioPlayback = AudioPlayback(reactContext.applicationContext)
   private val vadCapture = VADCapture()
+  private val speakerEmbedding = SherpaOnnxSpeakerEmbedding(reactContext.assets)
+  private val denoiser = SherpaOnnxDenoiser(reactContext.assets)
+  private var speakerModelPath: String? = null
+  private var denoiserModelPath: String? = null
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
     applicationContext = reactContext.applicationContext,
     serviceLauncher = ServiceLauncher(reactContext.applicationContext),
@@ -55,6 +61,8 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   override fun initialize(options: ReadableMap?, promise: Promise) {
     try {
       runtimeCoordinator.initialize(options)
+      speakerModelPath = options?.getString("speakerModelPath")
+      denoiserModelPath = options?.getString("denoiserModelPath")
       promise.resolve(null)
     } catch (error: Throwable) {
       promise.reject("runtime_initialize_failed", error.message, error)
@@ -84,6 +92,8 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   override fun dispose(promise: Promise) {
     try {
       runtimeCoordinator.dispose()
+      speakerEmbedding.release()
+      denoiser.release()
       promise.resolve(null)
     } catch (error: Throwable) {
       promise.reject("runtime_dispose_failed", error.message, error)
@@ -165,6 +175,108 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       "SherpaOnnxTTSAdapter: native TTS synthesis is iOS-only. " +
         "Use CustomTTSAdapter with onnxruntime-react-native on Android."
     )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Speaker embedding + denoiser bridge methods (BRIDGE-01 through BRIDGE-06, SPOOF-01)
+  // ---------------------------------------------------------------------------
+
+  private fun ensureSpeakerEngine() {
+    val path = speakerModelPath
+      ?: throw IllegalStateException("speakerModelPath not set in initialize() options")
+    speakerEmbedding.initialize(path)
+  }
+
+  private fun ensureDenoiser() {
+    val path = denoiserModelPath
+      ?: throw IllegalStateException("denoiserModelPath not set in initialize() options")
+    denoiser.initialize(path)
+  }
+
+  // BRIDGE-01
+  override fun extractSpeakerEmbedding(pcmBase64: String, sampleRate: Double, promise: Promise) {
+    try {
+      ensureSpeakerEngine()
+      val result = speakerEmbedding.extractEmbedding(pcmBase64, sampleRate.toInt())
+      promise.resolve(result)
+    } catch (error: Throwable) {
+      promise.reject("extract_embedding_failed", error.message, error)
+    }
+  }
+
+  // BRIDGE-02
+  override fun registerSpeaker(name: String, embeddingBase64: String, promise: Promise) {
+    try {
+      ensureSpeakerEngine()
+      val success = speakerEmbedding.registerSpeaker(name, embeddingBase64)
+      if (!success) {
+        promise.reject("register_speaker_failed", "Failed to register speaker '$name'")
+        return
+      }
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("register_speaker_failed", error.message, error)
+    }
+  }
+
+  // BRIDGE-03
+  override fun verifySpeaker(name: String, embeddingBase64: String, threshold: Double, promise: Promise) {
+    try {
+      ensureSpeakerEngine()
+      val result = speakerEmbedding.verifySpeaker(name, embeddingBase64, threshold.toFloat())
+      val map = Arguments.createMap()
+      map.putBoolean("matched", result["matched"] as Boolean)
+      map.putDouble("score", result["score"] as Double)
+      promise.resolve(map)
+    } catch (error: Throwable) {
+      promise.reject("verify_speaker_failed", error.message, error)
+    }
+  }
+
+  // BRIDGE-04
+  override fun identifySpeaker(embeddingBase64: String, threshold: Double, promise: Promise) {
+    try {
+      ensureSpeakerEngine()
+      val result = speakerEmbedding.identifySpeaker(embeddingBase64, threshold.toFloat())
+      val map = Arguments.createMap()
+      val name = result["name"] as? String
+      if (name != null) {
+        map.putString("name", name)
+      } else {
+        map.putNull("name")
+      }
+      map.putDouble("score", result["score"] as Double)
+      promise.resolve(map)
+    } catch (error: Throwable) {
+      promise.reject("identify_speaker_failed", error.message, error)
+    }
+  }
+
+  // BRIDGE-05
+  override fun clearSpeakers(promise: Promise) {
+    try {
+      speakerEmbedding.clearSpeakers()
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("clear_speakers_failed", error.message, error)
+    }
+  }
+
+  // BRIDGE-06
+  override fun denoiseAudio(pcmBase64: String, sampleRate: Double, promise: Promise) {
+    try {
+      ensureDenoiser()
+      val result = denoiser.denoise(pcmBase64, sampleRate.toInt())
+      promise.resolve(result)
+    } catch (error: Throwable) {
+      promise.reject("denoise_failed", error.message, error)
+    }
+  }
+
+  // SPOOF-01 (stub — no Sherpa-ONNX anti-spoofing API available in v1.12.29)
+  override fun detectSpoofing(pcmBase64: String, sampleRate: Double, promise: Promise) {
+    // Stub: returns 0.0 (not a spoof) until anti-spoofing model is available.
+    promise.resolve(0.0)
   }
 
   override fun addListener(eventName: String?) = Unit
