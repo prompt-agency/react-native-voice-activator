@@ -13,9 +13,9 @@
 		7BAE6E0F4EA6D4FC347B7EED /* libPods-VoiceActivatorExample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 394E772A6DFD2B9406A60D10 /* libPods-VoiceActivatorExample.a */; };
 		B50ECD065DDD75BF384616A5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A2F7DF72606A574C37D561F5 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		DD4455667788990011223344 /* espeak-ng-data in Resources */ = {isa = PBXBuildFile; fileRef = AA1122334455667788990011 /* espeak-ng-data */; };
 		EE5566778899001122334455 /* en_US-ryan-low.onnx in Resources */ = {isa = PBXBuildFile; fileRef = BB2233445566778899001122 /* en_US-ryan-low.onnx */; };
+		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		FF6677889900112233445566 /* piper-tokens.txt in Resources */ = {isa = PBXBuildFile; fileRef = CC3344556677889900112233 /* piper-tokens.txt */; };
 /* End PBXBuildFile section */
 
@@ -27,15 +27,15 @@
 		394E772A6DFD2B9406A60D10 /* libPods-VoiceActivatorExample.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VoiceActivatorExample.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		950A455714A8EFA7D020403C /* Pods-VoiceActivatorExample.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VoiceActivatorExample.debug.xcconfig"; path = "Target Support Files/Pods-VoiceActivatorExample/Pods-VoiceActivatorExample.debug.xcconfig"; sourceTree = "<group>"; };
 		A2F7DF72606A574C37D561F5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = VoiceActivatorExample/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA1122334455667788990011 /* espeak-ng-data */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "espeak-ng-data"; path = "espeak-ng-data"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = VoiceActivatorExample/SplashScreen.storyboard; sourceTree = "<group>"; };
+		BB2233445566778899001122 /* en_US-ryan-low.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; name = "en_US-ryan-low.onnx"; path = "VoiceActivatorExample/en_US-ryan-low.onnx"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		CC3344556677889900112233 /* piper-tokens.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "piper-tokens.txt"; path = "VoiceActivatorExample/piper-tokens.txt"; sourceTree = "<group>"; };
 		D28551855E8EE92B705E221E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-VoiceActivatorExample/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = VoiceActivatorExample/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* VoiceActivatorExample-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "VoiceActivatorExample-Bridging-Header.h"; path = "VoiceActivatorExample/VoiceActivatorExample-Bridging-Header.h"; sourceTree = "<group>"; };
-		AA1122334455667788990011 /* espeak-ng-data */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "espeak-ng-data"; path = "espeak-ng-data"; sourceTree = "<group>"; };
-		BB2233445566778899001122 /* en_US-ryan-low.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; name = "en_US-ryan-low.onnx"; path = "VoiceActivatorExample/en_US-ryan-low.onnx"; sourceTree = "<group>"; };
-		CC3344556677889900112233 /* piper-tokens.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "piper-tokens.txt"; path = "VoiceActivatorExample/piper-tokens.txt"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
