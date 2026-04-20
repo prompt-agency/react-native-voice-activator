@@ -72,7 +72,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — Types, session-events registry, orchestrator abort + NOISE-03 preprocessing
 - [x] 03-02-PLAN.md — Verification gate in queueProviderOrchestration + enrollment API on voiceActivator
-- [ ] 03-03-PLAN.md — VAD pre-wake gate + public API exports
+- [x] 03-03-PLAN.md — VAD pre-wake gate + public API exports
 **UI hint**: no
 
 ### Phase 4: Expo Plugin and Integration Testing

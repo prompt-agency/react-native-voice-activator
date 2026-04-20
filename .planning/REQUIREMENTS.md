@@ -27,10 +27,10 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### Speaker Verification Gate
 
-- [ ] **VERIFY-01**: When `speakerVerificationProvider` is set in `WakeWordInitializationOptions`, wake word events trigger an async speaker verification check before the voice session starts
-- [ ] **VERIFY-02**: The verification check runs asynchronously — the session starts optimistically and is aborted if verification fails, to stay within the 300ms barge-in budget
-- [ ] **VERIFY-03**: Developer can configure `verificationThreshold: number` (0–1, default 0.55) in `WakeWordInitializationOptions`
-- [ ] **VERIFY-04**: Developer can configure `verificationFailureBehavior: 'open' | 'closed' | 'emit'` — `open` continues the session, `closed` aborts it, `emit` fires an event and lets the app decide
+- [x] **VERIFY-01**: When `speakerVerificationProvider` is set in `WakeWordInitializationOptions`, wake word events trigger an async speaker verification check before the voice session starts
+- [x] **VERIFY-02**: The verification check runs asynchronously — the session starts optimistically and is aborted if verification fails, to stay within the 300ms barge-in budget
+- [x] **VERIFY-03**: Developer can configure `verificationThreshold: number` (0–1, default 0.55) in `WakeWordInitializationOptions`
+- [x] **VERIFY-04**: Developer can configure `verificationFailureBehavior: 'open' | 'closed' | 'emit'` — `open` continues the session, `closed` aborts it, `emit` fires an event and lets the app decide
 - [x] **VERIFY-05**: Library emits `speakerVerificationPassed` event on `sessionEvents` when verification succeeds, including similarity score and matched speaker ID
 - [x] **VERIFY-06**: Library emits `speakerVerificationFailed` event on `sessionEvents` when verification fails, including similarity score
 
@@ -43,16 +43,16 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### VAD Gate (Pre-Wake)
 
-- [ ] **VAD-01**: When `vadGateEnabled: true` is set in `WakeWordInitializationOptions`, audio frames are gated through Silero VAD before reaching the wake word engine
-- [ ] **VAD-02**: Developer can configure `vadGateThreshold: number` (0–1, default 0.5) to tune sensitivity of the pre-wake VAD gate
-- [ ] **VAD-03**: VAD gate runs with negligible additional latency (<30ms) and does not affect the barge-in fast path
+- [x] **VAD-01**: When `vadGateEnabled: true` is set in `WakeWordInitializationOptions`, audio frames are gated through Silero VAD before reaching the wake word engine
+- [x] **VAD-02**: Developer can configure `vadGateThreshold: number` (0–1, default 0.5) to tune sensitivity of the pre-wake VAD gate
+- [x] **VAD-03**: VAD gate runs with negligible additional latency (<30ms) and does not affect the barge-in fast path
 
 ### Developer API
 
 - [x] **API-01**: Library defines a `SpeakerVerificationProvider` interface with `enrollSpeaker`, `verifySpeaker`, `exportEnrollment`, `importEnrollment`, `clearEnrollment`
 - [x] **API-02**: Library ships a `SherpaOnnxSpeakerVerificationAdapter` as the default implementation of `SpeakerVerificationProvider`
 - [x] **API-03**: All new `WakeWordInitializationOptions` fields are optional — existing apps with no changes continue to work identically
-- [ ] **API-04**: New provider types and configuration options are exported from the library's public API surface (`src/public/`)
+- [x] **API-04**: New provider types and configuration options are exported from the library's public API surface (`src/public/`)
 
 ### Expo Plugin
 
@@ -120,17 +120,17 @@ Deferred to future releases. Tracked but not in current roadmap.
 | PRIV-01 | Phase 2 | Complete |
 | SPOOF-02 | Phase 2 | Complete |
 | SPOOF-03 | Phase 2 | Complete |
-| VERIFY-01 | Phase 3 | Pending |
-| VERIFY-02 | Phase 3 | Pending |
-| VERIFY-03 | Phase 3 | Pending |
-| VERIFY-04 | Phase 3 | Pending |
+| VERIFY-01 | Phase 3 | Complete |
+| VERIFY-02 | Phase 3 | Complete |
+| VERIFY-03 | Phase 3 | Complete |
+| VERIFY-04 | Phase 3 | Complete |
 | VERIFY-05 | Phase 3 | Complete |
 | VERIFY-06 | Phase 3 | Complete |
-| VAD-01 | Phase 3 | Pending |
-| VAD-02 | Phase 3 | Pending |
-| VAD-03 | Phase 3 | Pending |
+| VAD-01 | Phase 3 | Complete |
+| VAD-02 | Phase 3 | Complete |
+| VAD-03 | Phase 3 | Complete |
 | API-03 | Phase 3 | Complete |
-| API-04 | Phase 3 | Pending |
+| API-04 | Phase 3 | Complete |
 | PLUGIN-01 | Phase 4 | Pending |
 | PLUGIN-02 | Phase 4 | Pending |
 | PRIV-02 | Phase 4 | Pending |

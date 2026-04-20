@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-04-20T21:37:06.876Z"
+status: verifying
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-04-20T21:44:14.937Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-20)
 
 Phase: 03 (orchestrator-hook-and-public-api) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-20
 
 Progress: [░░░░░░░░░░] 0%
@@ -60,6 +60,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-provider-interfaces-and-adapters P03 | 2 | 2 tasks | 3 files |
 | Phase 03-orchestrator-hook-and-public-api P01 | 4m | 2 tasks | 5 files |
 | Phase 03-orchestrator-hook-and-public-api P02 | 5m | 1 tasks | 3 files |
+| Phase 03-orchestrator-hook-and-public-api P03 | 8m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase 03-orchestrator-hook-and-public-api]: VAD_SAMPLE_RATE = 16000 hardcoded in NOISE-03 preprocessing path — matches Silero VAD native capture rate
 - [Phase 03-orchestrator-hook-and-public-api]: invalidateProviderOrchestration() called before closeActiveVoiceSession() in session-mode queue path — ensures pending verification IIFEs from prior session are discarded by generation guard when new session starts
 - [Phase 03-orchestrator-hook-and-public-api]: setVerificationAudioBuffer() exported for Plan 03 VAD gate to wire PCM ring buffer as verification audio source; until wired, verification gate is optimistic pass (no-op)
+- [Phase 03-orchestrator-hook-and-public-api]: VAD gate check placed after barge-in fast-path to preserve <300ms barge-in latency (VAD-03)
+- [Phase 03-orchestrator-hook-and-public-api]: PCM ring buffer uses 32 frames (~1.024s) for slight over-sampling safety margin
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-20T21:37:06.873Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-04-20T21:44:14.934Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
