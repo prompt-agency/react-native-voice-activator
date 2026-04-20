@@ -373,13 +373,13 @@ describe('speaker verification gate', () => {
       }),
     });
 
-    const mod = await initializeWithSession({
+    const verificationMod = await initializeWithSession({
       speakerVerificationProvider: verificationProvider,
       verificationFailureBehavior: 'closed',
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
+    (verificationMod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
       .setVerificationAudioBuffer?.(dummyBuffer);
 
     // First wake word — verification pending
@@ -403,7 +403,7 @@ describe('speaker verification gate', () => {
   // ─── Test 8: No verification provider → session proceeds without verification ──
 
   it('T8: When speakerVerificationProvider is not set, session proceeds normally with no verification', async () => {
-    const mod = await initializeWithSession({
+    await initializeWithSession({
       // no speakerVerificationProvider
     });
 
