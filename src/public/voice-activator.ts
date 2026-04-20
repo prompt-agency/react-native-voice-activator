@@ -15,7 +15,7 @@ import {
   addRuntimeListener,
   emitRuntimeEvent,
 } from '../internal/runtime-events';
-import { addSessionListener } from '../internal/session-events';
+import { addSessionListener, emitSessionEvent } from '../internal/session-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
@@ -23,6 +23,7 @@ import type {
   AntiSpoofingProvider,
   AudioPreprocessingProvider,
   AudioRoute,
+  EnrollmentData,
   ProviderError,
   SpeakerVerificationProvider,
   VoiceActivatorApi,
@@ -60,6 +61,17 @@ let activeSpeakerVerificationProvider: SpeakerVerificationProvider | null =
 let activeAudioPreprocessingProvider: AudioPreprocessingProvider | null = null;
 let activeAntiSpoofingProvider: AntiSpoofingProvider | null = null;
 let activeSpoofingThreshold: number = 0.5;
+let activeVerificationThreshold: number = 0.55;
+let activeVerificationFailureBehavior: 'open' | 'closed' | 'emit' = 'closed';
+let verificationAudioBuffer: ArrayBuffer | null = null;
+
+export function setVerificationAudioBuffer(buffer: ArrayBuffer | null): void {
+  verificationAudioBuffer = buffer;
+}
+
+function getVerificationAudioBuffer(): ArrayBuffer | null {
+  return verificationAudioBuffer;
+}
 
 addSessionListener('sessionEnded', () => {
   if (activeVoiceSession?.state === 'closed') {
@@ -190,13 +202,90 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
       ) {
         // Start a fresh session (any previously active session was already handled by
         // the fast-path barge-in above, or was closed/idle before this queued call ran).
+        // Invalidate the provider orchestration generation before closing the old session
+        // so that any pending verification IIFEs from the previous session are discarded
+        // by the generation-ID guard (VERIFY-02).
+        invalidateProviderOrchestration();
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,
           configuration.sttProvider,
-          configuration.ttsProvider
+          configuration.ttsProvider,
+          activeAudioPreprocessingProvider ?? undefined
         );
         activeVoiceSession = orchestrator;
+
+        // Concurrent verification gate (D-06): does not block session start.
+        // Verification fires as a fire-and-forget IIFE alongside orchestrator.start().
+        if (activeSpeakerVerificationProvider) {
+          const verGen = providerOrchestrationGeneration;
+          const isSessionMode = true; // we are inside the session-mode branch
+          (async () => {
+            try {
+              const verificationAudio = getVerificationAudioBuffer();
+
+              if (verificationAudio) {
+                // Build concurrent checks: verification + optional anti-spoofing
+                const verificationPromise = activeSpeakerVerificationProvider!
+                  .identifySpeaker(verificationAudio, 16000, activeVerificationThreshold);
+
+                const spoofPromise = activeAntiSpoofingProvider
+                  ? activeAntiSpoofingProvider.detectSpoofing(verificationAudio, 16000)
+                  : Promise.resolve(null as number | null);
+
+                const [verificationResult, rawSpoofScore] = await Promise.all([
+                  verificationPromise,
+                  spoofPromise,
+                ]);
+
+                // Generation guard: discard if a new wake word has fired
+                if (providerOrchestrationGeneration !== verGen) return;
+
+                const verificationPassed = verificationResult.name !== null;
+                const spoofPassed = rawSpoofScore !== null
+                  ? rawSpoofScore <= activeSpoofingThreshold
+                  : true; // No anti-spoofing = pass
+
+                const passed = verificationPassed && spoofPassed;
+
+                if (passed && verificationResult.name !== null) {
+                  if (isSessionMode) {
+                    emitSessionEvent('speakerVerificationPassed', {
+                      score: verificationResult.score,
+                      speakerId: verificationResult.name,
+                    });
+                  }
+                } else {
+                  const score = verificationResult.score;
+                  if (isSessionMode) {
+                    emitSessionEvent('speakerVerificationFailed', { score });
+                  }
+                  if (activeVerificationFailureBehavior === 'closed') {
+                    await orchestrator.abort();
+                    if (activeVoiceSession === orchestrator) {
+                      activeVoiceSession = null;
+                    }
+                  }
+                  // 'open': session continues — no action needed
+                  // 'emit': event already fired above — app decides
+                }
+              }
+              // No audio buffer available: optimistic pass (no-op), no events
+            } catch {
+              if (providerOrchestrationGeneration !== verGen) return;
+              if (isSessionMode) {
+                emitSessionEvent('speakerVerificationFailed', { score: 0 });
+              }
+              if (activeVerificationFailureBehavior === 'closed') {
+                await orchestrator.abort();
+                if (activeVoiceSession === orchestrator) {
+                  activeVoiceSession = null;
+                }
+              }
+            }
+          })();
+        }
+
         await orchestrator.start();
         return;
       }
@@ -649,6 +738,8 @@ export const voiceActivator: VoiceActivatorApi = {
         options?.audioPreprocessingProvider ?? null;
       activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
       activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
+      activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
+      activeVerificationFailureBehavior = options?.verificationFailureBehavior ?? 'closed';
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -724,6 +815,7 @@ export const voiceActivator: VoiceActivatorApi = {
       // activeSessionConfig is intentionally kept — session config persists across
       // stopDetection()/startDetection() cycles until initialize() is called again.
       await closeActiveVoiceSession();
+      verificationAudioBuffer = null;
       await stopEngineRuntime();
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
@@ -761,6 +853,9 @@ export const voiceActivator: VoiceActivatorApi = {
       activeAudioPreprocessingProvider = null;
       activeAntiSpoofingProvider = null;
       activeSpoofingThreshold = 0.5;
+      activeVerificationThreshold = 0.55;
+      activeVerificationFailureBehavior = 'closed';
+      verificationAudioBuffer = null;
       await disposeEngineRuntime();
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
@@ -789,6 +884,42 @@ export const voiceActivator: VoiceActivatorApi = {
     }
     return setRoute(route);
   },
+
+  async enrollSpeaker(userId: string, audioBuffer: ArrayBuffer): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'enrollSpeaker() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.enrollSpeaker(userId, audioBuffer, 16000);
+  },
+
+  async exportEnrollment(): Promise<EnrollmentData> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'exportEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    return activeSpeakerVerificationProvider.exportEnrollment();
+  },
+
+  async importEnrollment(data: EnrollmentData): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'importEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.importEnrollment(data);
+  },
+
+  async clearEnrollment(): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'clearEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.clearEnrollment();
+  },
 };
 
 export const initialize = voiceActivator.initialize;
@@ -798,6 +929,10 @@ export const getStatus = voiceActivator.getStatus;
 export const dispose = voiceActivator.dispose;
 export const setAudioRoute = voiceActivator.setAudioRoute;
 export const addWakeWordListener = addListener;
+export const enrollSpeaker = voiceActivator.enrollSpeaker;
+export const exportEnrollment = voiceActivator.exportEnrollment;
+export const importEnrollment = voiceActivator.importEnrollment;
+export const clearEnrollment = voiceActivator.clearEnrollment;
 
 export function getSession(): VoiceSession | null {
   return activeVoiceSession;
