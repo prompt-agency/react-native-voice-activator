@@ -36,6 +36,8 @@ import type {
   WakeWordStatus,
 } from './types';
 import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
+import { SileroVADEngine, VAD_NATIVE_PCM_FRAME_EVENT } from '../providers/vad/SileroVADEngine';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -64,6 +66,59 @@ let activeSpoofingThreshold: number = 0.5;
 let activeVerificationThreshold: number = 0.55;
 let activeVerificationFailureBehavior: 'open' | 'closed' | 'emit' = 'closed';
 let verificationAudioBuffer: ArrayBuffer | null = null;
+
+// ─── VAD pre-wake gate state (VAD-01 / VAD-02 / VAD-03) ─────────────────────
+
+let activeVadGateEnabled: boolean = false;
+let activeVadGateThreshold: number = 0.5;
+let activeVadGateEngine: SileroVADEngine | null = null;
+let vadGateSpeechActive: boolean = false;
+let vadGateSpeechSub: { remove(): void } | null = null;
+let vadGateSilenceSub: { remove(): void } | null = null;
+
+// ─── PCM ring buffer for verification audio ───────────────────────────────────
+
+/** ~1 second of 512-sample frames at 16 kHz */
+const VAD_RING_BUFFER_SIZE = 32;
+let vadPcmRingBuffer: string[] = [];
+let vadPcmRingBufferSub: { remove(): void } | null = null;
+
+function pushVadPcmFrame(pcmBase64: string): void {
+  vadPcmRingBuffer.push(pcmBase64);
+  if (vadPcmRingBuffer.length > VAD_RING_BUFFER_SIZE) {
+    vadPcmRingBuffer.shift();
+  }
+  updateVerificationAudioFromRingBuffer();
+}
+
+function updateVerificationAudioFromRingBuffer(): void {
+  if (vadPcmRingBuffer.length === 0) {
+    verificationAudioBuffer = null;
+    return;
+  }
+  const chunks: Float32Array[] = [];
+  for (const b64 of vadPcmRingBuffer) {
+    const binaryStr = atob(b64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    chunks.push(new Float32Array(bytes.buffer));
+  }
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const combined = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  verificationAudioBuffer = combined.buffer;
+}
+
+function clearVadRingBuffer(): void {
+  vadPcmRingBuffer = [];
+  verificationAudioBuffer = null;
+}
 
 export function setVerificationAudioBuffer(buffer: ArrayBuffer | null): void {
   verificationAudioBuffer = buffer;
@@ -173,6 +228,12 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
     activeVoiceSession.state !== 'idle'
   ) {
     activeVoiceSession.bargeIn().catch(() => undefined);
+    return;
+  }
+
+  // VAD pre-wake gate (VAD-01): suppress wake word when no speech energy detected.
+  // Placed AFTER barge-in fast-path so barge-in is unaffected (VAD-03).
+  if (activeVadGateEnabled && !vadGateSpeechActive) {
     return;
   }
 
@@ -455,6 +516,10 @@ async function syncEngineRuntimeWithNativeStatus(
     await cleanupActiveProviderFlow();
     await closeActiveVoiceSession();
     await stopEngineRuntime();
+    if (activeVadGateEngine) {
+      await activeVadGateEngine.stop().catch(() => undefined);
+      vadGateSpeechActive = false;
+    }
     return;
   }
 
@@ -464,6 +529,9 @@ async function syncEngineRuntimeWithNativeStatus(
     status.isListening
   ) {
     await startEngineRuntime();
+    if (activeVadGateEngine && !activeVadGateEngine.isRunning) {
+      await activeVadGateEngine.start().catch(() => undefined);
+    }
     return;
   }
 
@@ -477,6 +545,10 @@ async function syncEngineRuntimeWithNativeStatus(
     await cleanupActiveProviderFlow();
     await closeActiveVoiceSession();
     await stopEngineRuntime();
+    if (activeVadGateEngine) {
+      await activeVadGateEngine.stop().catch(() => undefined);
+      vadGateSpeechActive = false;
+    }
   }
 }
 
@@ -740,6 +812,23 @@ export const voiceActivator: VoiceActivatorApi = {
       activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
       activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
       activeVerificationFailureBehavior = options?.verificationFailureBehavior ?? 'closed';
+
+      // VAD gate: dispose previous engine if re-initializing
+      if (activeVadGateEngine) {
+        vadGateSpeechSub?.remove();
+        vadGateSilenceSub?.remove();
+        vadPcmRingBufferSub?.remove();
+        vadGateSpeechSub = null;
+        vadGateSilenceSub = null;
+        vadPcmRingBufferSub = null;
+        await activeVadGateEngine.dispose().catch(() => undefined);
+        activeVadGateEngine = null;
+        vadGateSpeechActive = false;
+        clearVadRingBuffer();
+      }
+      activeVadGateEnabled = options?.vadGateEnabled ?? false;
+      activeVadGateThreshold = options?.vadGateThreshold ?? 0.5;
+
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -777,6 +866,32 @@ export const voiceActivator: VoiceActivatorApi = {
     try {
       await activeRuntime.startDetection();
       await startEngineRuntime();
+
+      // Start VAD gate engine if enabled
+      if (activeVadGateEnabled) {
+        if (!activeVadGateEngine) {
+          activeVadGateEngine = new SileroVADEngine({ threshold: activeVadGateThreshold });
+        }
+        await activeVadGateEngine.loadModel();
+        // Subscribe to speechStart/speechEnd for gate flag
+        vadGateSpeechSub = addSessionListener('speechStart', () => {
+          vadGateSpeechActive = true;
+        });
+        vadGateSilenceSub = addSessionListener('speechEnd', () => {
+          vadGateSpeechActive = false;
+        });
+        // Subscribe to PCM frames for ring buffer (verification audio source)
+        const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
+        vadPcmRingBufferSub = emitter.addListener(
+          VAD_NATIVE_PCM_FRAME_EVENT,
+          ((...args: readonly object[]) => {
+            const e = args[0] as { pcm: string };
+            pushVadPcmFrame(e.pcm);
+          }) as (...args: readonly object[]) => unknown
+        );
+        await activeVadGateEngine.start();
+      }
+
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -817,6 +932,20 @@ export const voiceActivator: VoiceActivatorApi = {
       await closeActiveVoiceSession();
       verificationAudioBuffer = null;
       await stopEngineRuntime();
+
+      // Stop VAD gate engine
+      if (activeVadGateEngine) {
+        vadGateSpeechSub?.remove();
+        vadGateSilenceSub?.remove();
+        vadPcmRingBufferSub?.remove();
+        vadGateSpeechSub = null;
+        vadGateSilenceSub = null;
+        vadPcmRingBufferSub = null;
+        await activeVadGateEngine.stop().catch(() => undefined);
+        vadGateSpeechActive = false;
+        clearVadRingBuffer();
+      }
+
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
         resolveStatus({
@@ -856,6 +985,22 @@ export const voiceActivator: VoiceActivatorApi = {
       activeVerificationThreshold = 0.55;
       activeVerificationFailureBehavior = 'closed';
       verificationAudioBuffer = null;
+
+      // Dispose VAD gate engine
+      activeVadGateEnabled = false;
+      activeVadGateThreshold = 0.5;
+      vadGateSpeechSub?.remove();
+      vadGateSilenceSub?.remove();
+      vadPcmRingBufferSub?.remove();
+      vadGateSpeechSub = null;
+      vadGateSilenceSub = null;
+      vadPcmRingBufferSub = null;
+      await activeVadGateEngine?.stop().catch(() => undefined);
+      await activeVadGateEngine?.dispose().catch(() => undefined);
+      activeVadGateEngine = null;
+      vadGateSpeechActive = false;
+      clearVadRingBuffer();
+
       await disposeEngineRuntime();
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
