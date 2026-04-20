@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 01-native-bridge-02-PLAN.md — iOS SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
-last_updated: "2026-04-20T16:51:52.975Z"
+status: executing
+stopped_at: Completed 02-provider-interfaces-and-adapters/02-01-PLAN.md
+last_updated: "2026-04-20T20:47:37.287Z"
 last_activity: 2026-04-20
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-20)
 
 **Core value:** Wake word detection that reliably triggers only for the intended user — even in noisy, real-world environments.
-**Current focus:** Phase 01 — native-bridge
+**Current focus:** Phase 02 — provider-interfaces-and-adapters
 
 ## Current Position
 
-Phase: 01 (native-bridge) — EXECUTING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
+Phase: 02 (provider-interfaces-and-adapters) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-04-20
 
 Progress: [░░░░░░░░░░] 0%
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-native-bridge P01 | 5m | 2 tasks | 2 files |
 | Phase 01-native-bridge P03 | 125 | 2 tasks | 3 files |
 | Phase 01-native-bridge P02 | 4m | 2 tasks | 5 files |
+| Phase 02-provider-interfaces-and-adapters P01 | 3 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 01-native-bridge]: detectSpoofing returns 0.0 stub on Android (SPOOF-01); no Sherpa-ONNX anti-spoofing API in v1.12.29
 - [Phase 01-native-bridge]: detectSpoofing implemented as stub returning 0.0 on iOS (SPOOF-01); no anti-spoofing API in Sherpa-ONNX v1.12.29
 - [Phase 01-native-bridge]: iOS: speakerModelPath and denoiserModelPath passed via initialize() options dict; lazy-configured on first call with 8MB NSThread
+- [Phase 02-01]: verifySpeaker passes stored averaged embedding to bridge (not query embedding) per D-05 — native registerSpeaker keeps native registry current on each enroll
+- [Phase 02-01]: enrollSpeaker 5-sample cap guard checked synchronously before any await — 6th call throws without consuming bridge extractSpeakerEmbedding
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-20T16:51:52.972Z
-Stopped at: Completed 01-native-bridge-02-PLAN.md — iOS SherpaOnnxSpeakerEmbedding + SherpaOnnxDenoiser wrappers + VoiceActivator.mm wiring
+Last session: 2026-04-20T20:47:37.284Z
+Stopped at: Completed 02-provider-interfaces-and-adapters/02-01-PLAN.md
 Resume file: None

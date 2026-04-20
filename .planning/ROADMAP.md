@@ -49,7 +49,12 @@ Plans:
   5. A developer can construct a `SherpaOnnxAntiSpoofingAdapter` and call `detectSpoofing(pcm, sampleRate)` via the `AntiSpoofingProvider` interface, receiving a spoof probability score; when `antiSpoofingProvider` is set in `WakeWordInitializationOptions`, sessions with spoof probability above `spoofingThreshold` are rejected
   6. The `SpeakerVerificationProvider` interface compiles with the optional `detectSpoofing?()` method present — existing custom implementations that do not declare `detectSpoofing` continue to satisfy the interface without TypeScript errors
   7. Unit tests for all adapters pass using mocked native bridge methods, verifying enrollment accumulation, export shape, import restoration, noise suppression passthrough, and anti-spoofing score passthrough
-**Plans**: TBD
+**Plans:** 1/3 plans executed
+
+Plans:
+- [x] 02-01-PLAN.md — Define provider interfaces + EnrollmentData type + SherpaOnnxSpeakerVerificationAdapter with tests
+- [ ] 02-02-PLAN.md — SherpaOnnxNoiseSuppressionAdapter + SherpaOnnxAntiSpoofingAdapter with tests
+- [ ] 02-03-PLAN.md — Wire WakeWordInitializationOptions + voice-activator.ts + src/index.ts exports
 **UI hint**: no
 
 ### Phase 3: Orchestrator Hook and Public API
@@ -86,6 +91,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Native Bridge | 2/3 | In Progress|  |
-| 2. Provider Interfaces and Adapters | 0/TBD | Not started | - |
+| 2. Provider Interfaces and Adapters | 1/3 | In Progress|  |
 | 3. Orchestrator Hook and Public API | 0/TBD | Not started | - |
 | 4. Expo Plugin and Integration Testing | 0/TBD | Not started | - |

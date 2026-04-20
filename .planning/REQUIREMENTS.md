@@ -19,11 +19,11 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### Speaker Enrollment
 
-- [ ] **ENROLL-01**: Developer can call `enrollSpeaker(userId, audioBuffer)` multiple times to accumulate 2–5 samples; the library averages embeddings across samples for improved accuracy
-- [ ] **ENROLL-02**: Developer can call `exportEnrollment()` to retrieve all speaker embeddings as a serialisable object (no raw audio, embeddings only)
-- [ ] **ENROLL-03**: Developer can call `importEnrollment(data)` to restore previously exported enrollment data into the in-memory speaker manager
-- [ ] **ENROLL-04**: Developer can call `clearEnrollment()` to remove all enrolled speakers and reset the in-memory manager
-- [ ] **ENROLL-05**: Library supports multi-speaker enrollment — multiple named users can be registered simultaneously; `identifySpeaker` returns which one matched
+- [x] **ENROLL-01**: Developer can call `enrollSpeaker(userId, audioBuffer)` multiple times to accumulate 2–5 samples; the library averages embeddings across samples for improved accuracy
+- [x] **ENROLL-02**: Developer can call `exportEnrollment()` to retrieve all speaker embeddings as a serialisable object (no raw audio, embeddings only)
+- [x] **ENROLL-03**: Developer can call `importEnrollment(data)` to restore previously exported enrollment data into the in-memory speaker manager
+- [x] **ENROLL-04**: Developer can call `clearEnrollment()` to remove all enrolled speakers and reset the in-memory manager
+- [x] **ENROLL-05**: Library supports multi-speaker enrollment — multiple named users can be registered simultaneously; `identifySpeaker` returns which one matched
 
 ### Speaker Verification Gate
 
@@ -49,8 +49,8 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### Developer API
 
-- [ ] **API-01**: Library defines a `SpeakerVerificationProvider` interface with `enrollSpeaker`, `verifySpeaker`, `exportEnrollment`, `importEnrollment`, `clearEnrollment`
-- [ ] **API-02**: Library ships a `SherpaOnnxSpeakerVerificationAdapter` as the default implementation of `SpeakerVerificationProvider`
+- [x] **API-01**: Library defines a `SpeakerVerificationProvider` interface with `enrollSpeaker`, `verifySpeaker`, `exportEnrollment`, `importEnrollment`, `clearEnrollment`
+- [x] **API-02**: Library ships a `SherpaOnnxSpeakerVerificationAdapter` as the default implementation of `SpeakerVerificationProvider`
 - [ ] **API-03**: All new `WakeWordInitializationOptions` fields are optional — existing apps with no changes continue to work identically
 - [ ] **API-04**: New provider types and configuration options are exported from the library's public API surface (`src/public/`)
 
@@ -61,14 +61,14 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 
 ### Privacy & Compliance
 
-- [ ] **PRIV-01**: Library never stores, caches, or logs speaker embeddings or raw audio internally — all biometric data is passed through to the consuming app via `exportEnrollment()` and is not retained in module state after `clearEnrollment()` is called
+- [x] **PRIV-01**: Library never stores, caches, or logs speaker embeddings or raw audio internally — all biometric data is passed through to the consuming app via `exportEnrollment()` and is not retained in module state after `clearEnrollment()` is called
 - [ ] **PRIV-02**: Library documentation explicitly states GDPR/CCPA/BIPA obligations — consuming apps must obtain explicit user consent before calling `enrollSpeaker()`, and must implement their own compliant storage for enrollment data
 
 ### Anti-Spoofing
 
 - [x] **SPOOF-01**: Library exposes an anti-spoofing bridge method `detectSpoofing(pcmBase64, sampleRate)` via Nitro Modules, returning a spoof probability score (0–1) using an AASIST-class on-device model
 - [ ] **SPOOF-02**: Library ships a `SherpaOnnxAntiSpoofingAdapter` implementing an `AntiSpoofingProvider` interface; when `antiSpoofingProvider` is set in `WakeWordInitializationOptions`, spoof detection runs alongside speaker verification and rejects sessions where spoof probability exceeds a configurable `spoofingThreshold`
-- [ ] **SPOOF-03**: `SpeakerVerificationProvider` interface includes an optional `detectSpoofing()` method so custom provider implementations can add liveness detection without breaking the interface contract
+- [x] **SPOOF-03**: `SpeakerVerificationProvider` interface includes an optional `detectSpoofing()` method so custom provider implementations can add liveness detection without breaking the interface contract
 
 ## v2 Requirements
 
@@ -106,20 +106,20 @@ Deferred to future releases. Tracked but not in current roadmap.
 | BRIDGE-06 | Phase 1 | Complete |
 | BRIDGE-07 | Phase 1 | Complete |
 | SPOOF-01 | Phase 1 | Complete |
-| ENROLL-01 | Phase 2 | Pending |
-| ENROLL-02 | Phase 2 | Pending |
-| ENROLL-03 | Phase 2 | Pending |
-| ENROLL-04 | Phase 2 | Pending |
-| ENROLL-05 | Phase 2 | Pending |
+| ENROLL-01 | Phase 2 | Complete |
+| ENROLL-02 | Phase 2 | Complete |
+| ENROLL-03 | Phase 2 | Complete |
+| ENROLL-04 | Phase 2 | Complete |
+| ENROLL-05 | Phase 2 | Complete |
 | NOISE-01 | Phase 2 | Pending |
 | NOISE-02 | Phase 2 | Pending |
 | NOISE-03 | Phase 2 | Pending |
 | NOISE-04 | Phase 2 | Pending |
-| API-01 | Phase 2 | Pending |
-| API-02 | Phase 2 | Pending |
-| PRIV-01 | Phase 2 | Pending |
+| API-01 | Phase 2 | Complete |
+| API-02 | Phase 2 | Complete |
+| PRIV-01 | Phase 2 | Complete |
 | SPOOF-02 | Phase 2 | Pending |
-| SPOOF-03 | Phase 2 | Pending |
+| SPOOF-03 | Phase 2 | Complete |
 | VERIFY-01 | Phase 3 | Pending |
 | VERIFY-02 | Phase 3 | Pending |
 | VERIFY-03 | Phase 3 | Pending |
