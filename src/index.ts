@@ -1,8 +1,12 @@
 export {
   addWakeWordListener,
+  clearEnrollment,
   dispose,
+  enrollSpeaker,
+  exportEnrollment,
   getSession,
   getStatus,
+  importEnrollment,
   initialize,
   setAudioRoute,
   startDetection,
@@ -93,4 +97,6 @@ export type {
   VoiceSessionSpeechEndEvent,
   VoiceSessionVADSpeechStartEvent,
   VoiceSessionVADSpeechEndEvent,
+  SpeakerVerificationPassedEvent,
+  SpeakerVerificationFailedEvent,
 } from './public/types';
