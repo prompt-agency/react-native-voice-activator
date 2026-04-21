@@ -57,7 +57,7 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 ### Expo Plugin
 
 - [ ] **PLUGIN-01**: Expo config plugin is extended to accept optional `speakerModelPath` and `denoiserModelPath` paths in plugin config
-- [ ] **PLUGIN-02**: When model paths are configured, the plugin copies the model files to iOS Copy Bundle Resources and Android assets during Expo prebuild
+- [x] **PLUGIN-02**: When model paths are configured, the plugin copies the model files to iOS Copy Bundle Resources and Android assets during Expo prebuild
 
 ### Privacy & Compliance
 
@@ -132,7 +132,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | API-03 | Phase 3 | Complete |
 | API-04 | Phase 3 | Complete |
 | PLUGIN-01 | Phase 4 | Pending |
-| PLUGIN-02 | Phase 4 | Pending |
+| PLUGIN-02 | Phase 4 | Complete |
 | PRIV-02 | Phase 4 | Pending |
 
 **Coverage:**
