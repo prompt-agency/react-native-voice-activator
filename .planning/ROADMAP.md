@@ -85,14 +85,14 @@ Plans:
   3. The `speaker-verification-contract.test.ts` contract test asserts that `SherpaOnnxSpeakerVerificationAdapter` fully implements the `SpeakerVerificationProvider` interface, including all method signatures and return types
   4. The example app demonstrates enrollment, export, app-restart simulation (import), and verification in a runnable flow that a developer can copy
   5. Published documentation (README or dedicated docs page) includes a Privacy & Compliance section that explicitly names GDPR, CCPA, and BIPA; states that consuming apps must obtain explicit user consent before calling `enrollSpeaker()`; and describes the app's responsibility for compliant storage of enrollment data
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — Expo plugin withModelAssets (speakerModelPath + denoiserModelPath copy logic)
 - [x] 04-02-PLAN.md — Contract test + WAV fixtures + Privacy & Compliance README section
 - [x] 04-03-PLAN.md — Example app EnrollmentScreen (full round-trip demo)
 - [x] 04-04-PLAN.md — Gap closure: withModelAssets unit tests (PLUGIN-02 CI verification)
-- [ ] 04-05-PLAN.md — Gap closure: ROADMAP SC-2 deferral note + README plugin config docs
+- [x] 04-05-PLAN.md — Gap closure: ROADMAP SC-2 deferral note + README plugin config docs
 **UI hint**: no
 
 ## Progress
@@ -105,4 +105,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Native Bridge | 2/3 | In Progress|  |
 | 2. Provider Interfaces and Adapters | 3/3 | Complete   | 2026-04-20 |
 | 3. Orchestrator Hook and Public API | 2/3 | Complete    | 2026-04-20 |
-| 4. Expo Plugin and Integration Testing | 5/6 | In Progress|  |
+| 4. Expo Plugin and Integration Testing | 6/6 | Complete   | 2026-04-21 |
