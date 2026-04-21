@@ -19,6 +19,7 @@ import { withAndroidForegroundService } from './withAndroidForegroundService';
 import { withBackgroundModes } from './withBackgroundModes';
 import { withBundledAssets } from './withBundledAssets';
 import { withMicrophonePermissions } from './withMicrophonePermissions';
+import { withModelAssets } from './withModelAssets';
 
 // Re-exported so dependent with* modules can reference the type without
 // creating a circular dependency through config-plugin.ts.
@@ -29,6 +30,10 @@ export interface VoiceActivatorPluginProps {
    * @default "This app uses the microphone to detect wake words."
    */
   microphonePermissionText?: string;
+  /** Relative (to app root) or absolute path to speaker embedding model (e.g. campplus.onnx) */
+  speakerModelPath?: string;
+  /** Relative (to app root) or absolute path to speech denoiser model (e.g. gtcrn_simple.onnx) */
+  denoiserModelPath?: string;
 }
 
 const withVoiceActivator: ConfigPlugin<VoiceActivatorPluginProps | void> = (
@@ -41,6 +46,7 @@ const withVoiceActivator: ConfigPlugin<VoiceActivatorPluginProps | void> = (
   config = withBackgroundModes(config);
   config = withAndroidForegroundService(config);
   config = withBundledAssets(config);
+  config = withModelAssets(config, resolvedProps);
 
   return config;
 };
