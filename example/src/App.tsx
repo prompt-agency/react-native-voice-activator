@@ -5,15 +5,17 @@ import { C } from './shared';
 import { WakeWordScreen } from './screens/WakeWordScreen';
 import { SessionScreen } from './screens/SessionScreen';
 import { ManualScreen } from './screens/ManualScreen';
+import { EnrollmentScreen } from './screens/EnrollmentScreen';
 
 // ─── Tab definition ───────────────────────────────────────────────────────────
 
-type TabId = 'wake-word' | 'session' | 'manual';
+type TabId = 'wake-word' | 'session' | 'manual' | 'enroll';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'wake-word', label: 'Wake Word' },
   { id: 'session', label: 'Session' },
   { id: 'manual', label: 'STT · TTS' },
+  { id: 'enroll', label: 'Enroll' },
 ];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -44,6 +46,7 @@ export default function App() {
         {activeTab === 'wake-word' && <WakeWordScreen />}
         {activeTab === 'session' && <SessionScreen />}
         {activeTab === 'manual' && <ManualScreen />}
+        {activeTab === 'enroll' && <EnrollmentScreen />}
       </View>
     </SafeAreaView>
   );
