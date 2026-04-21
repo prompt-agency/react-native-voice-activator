@@ -98,13 +98,17 @@ Add the config plugin to `app.json` or `app.config.js`:
       [
         "react-native-voice-activator",
         {
-          "microphonePermissionText": "This app uses the microphone to detect wake words."
+          "microphonePermissionText": "This app uses the microphone to detect wake words.",
+          "speakerModelPath": "./models/campplus.onnx",
+          "denoiserModelPath": "./models/gtcrn_simple.onnx"
         }
       ]
     ]
   }
 }
 ```
+
+> `speakerModelPath` and `denoiserModelPath` are optional. When set, the plugin copies the specified model files into the iOS bundle resources and Android assets during `expo prebuild`. Paths are resolved relative to your project root.
 
 Generate your native projects:
 
