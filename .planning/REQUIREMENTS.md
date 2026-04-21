@@ -62,7 +62,7 @@ The Sherpa-ONNX C APIs for speaker embedding and speech denoising must be expose
 ### Privacy & Compliance
 
 - [x] **PRIV-01**: Library never stores, caches, or logs speaker embeddings or raw audio internally — all biometric data is passed through to the consuming app via `exportEnrollment()` and is not retained in module state after `clearEnrollment()` is called
-- [ ] **PRIV-02**: Library documentation explicitly states GDPR/CCPA/BIPA obligations — consuming apps must obtain explicit user consent before calling `enrollSpeaker()`, and must implement their own compliant storage for enrollment data
+- [x] **PRIV-02**: Library documentation explicitly states GDPR/CCPA/BIPA obligations — consuming apps must obtain explicit user consent before calling `enrollSpeaker()`, and must implement their own compliant storage for enrollment data
 
 ### Anti-Spoofing
 
@@ -133,7 +133,7 @@ Deferred to future releases. Tracked but not in current roadmap.
 | API-04 | Phase 3 | Complete |
 | PLUGIN-01 | Phase 4 | Complete |
 | PLUGIN-02 | Phase 4 | Complete |
-| PRIV-02 | Phase 4 | Pending |
+| PRIV-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1.0 requirements: 36 total
