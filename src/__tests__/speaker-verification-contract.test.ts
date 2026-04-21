@@ -17,7 +17,8 @@ import { existsSync } from 'node:fs';
 
 describe('SpeakerVerificationProvider interface contract', () => {
   it('SherpaOnnxSpeakerVerificationAdapter satisfies SpeakerVerificationProvider', () => {
-    const adapter: SpeakerVerificationProvider = new SherpaOnnxSpeakerVerificationAdapter();
+    const adapter: SpeakerVerificationProvider =
+      new SherpaOnnxSpeakerVerificationAdapter();
     expect(adapter).toBeDefined();
   });
 
