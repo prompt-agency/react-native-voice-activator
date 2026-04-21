@@ -1,0 +1,1 @@
+export { SherpaOnnxSpeakerVerificationAdapter } from './SherpaOnnxSpeakerVerificationAdapter';

@@ -10,6 +10,7 @@ import {
   VAD_NATIVE_PCM_FRAME_EVENT,
 } from '../providers/vad/SileroVADEngine';
 import type {
+  AudioPreprocessingProvider,
   SpeechToTextProvider,
   TextToSpeechProvider,
   TranscriptionResult,
@@ -47,7 +48,8 @@ export class VoiceSessionOrchestrator implements VoiceSession {
   constructor(
     private readonly config: VoiceSessionConfig,
     private readonly sttProvider: SpeechToTextProvider,
-    private readonly ttsProvider: TextToSpeechProvider
+    private readonly ttsProvider: TextToSpeechProvider,
+    private readonly audioPreprocessingProvider?: AudioPreprocessingProvider
   ) {}
 
   get state(): VoiceSessionState {
@@ -122,6 +124,25 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     await this.sttProvider.cancel().catch(() => undefined);
     await this.ttsProvider.stop().catch(() => undefined);
     this._emitAll('sessionEnded', { reason: 'explicit' });
+  }
+
+  /**
+   * Abort the session without emitting sessionEnded.
+   * Used for verification-rejected sessions that never fully started (D-05).
+   * Idempotent — safe to call multiple times.
+   */
+  async abort(): Promise<void> {
+    if (this._closed) return;
+    this._clearSilenceTimeout();
+    this._abortActiveListen();
+    this._listenAbort = null;
+    this._closed = true;
+    this._bargingIn = false;
+    this._state = 'closed';
+    await this._vadEngine?.stop().catch(() => undefined);
+    await this.sttProvider.cancel().catch(() => undefined);
+    await this.ttsProvider.stop().catch(() => undefined);
+    // Intentionally does NOT emit sessionEnded (D-05)
   }
 
   /**
@@ -248,7 +269,33 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       await vad.stop();
 
       const slice = pcmChunks.slice(speechStartChunkIndex);
-      const wavBase64 = float32PcmBase64ChunksToWavBase64(slice);
+      const VAD_SAMPLE_RATE = 16000;
+
+      let wavBase64: string;
+      if (this.audioPreprocessingProvider) {
+        // NOISE-03: denoise the speech segment before STT
+        const rawWavBase64 = float32PcmBase64ChunksToWavBase64(slice);
+        // Decode base64 WAV to ArrayBuffer for the preprocessing provider
+        const binaryStr = atob(rawWavBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const denoised = await this.audioPreprocessingProvider.process(
+          bytes.buffer,
+          VAD_SAMPLE_RATE
+        );
+        // Re-encode denoised ArrayBuffer back to base64 for file write
+        const denoisedBytes = new Uint8Array(denoised);
+        let binaryResult = '';
+        for (let i = 0; i < denoisedBytes.length; i++) {
+          binaryResult += String.fromCharCode(denoisedBytes[i]!);
+        }
+        wavBase64 = btoa(binaryResult);
+      } else {
+        wavBase64 = float32PcmBase64ChunksToWavBase64(slice);
+      }
+
       const RNFS = await import('react-native-fs');
       const dir = `${RNFS.default.CachesDirectoryPath}/voice-activator`;
       await RNFS.default.mkdir(dir);

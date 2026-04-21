@@ -15,13 +15,17 @@ import {
   addRuntimeListener,
   emitRuntimeEvent,
 } from '../internal/runtime-events';
-import { addSessionListener } from '../internal/session-events';
+import { addSessionListener, emitSessionEvent } from '../internal/session-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
 import type {
+  AntiSpoofingProvider,
+  AudioPreprocessingProvider,
   AudioRoute,
+  EnrollmentData,
   ProviderError,
+  SpeakerVerificationProvider,
   VoiceActivatorApi,
   VoiceSession,
   VoiceSessionConfig,
@@ -32,6 +36,8 @@ import type {
   WakeWordStatus,
 } from './types';
 import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
+import { SileroVADEngine, VAD_NATIVE_PCM_FRAME_EVENT } from '../providers/vad/SileroVADEngine';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -52,6 +58,75 @@ type ActiveProviderFlow = {
 let activeProviderFlow: ActiveProviderFlow | null = null;
 let activeSessionConfig: VoiceSessionConfig | null = null;
 let activeVoiceSession: VoiceSessionOrchestrator | null = null;
+let activeSpeakerVerificationProvider: SpeakerVerificationProvider | null =
+  null;
+let activeAudioPreprocessingProvider: AudioPreprocessingProvider | null = null;
+let activeAntiSpoofingProvider: AntiSpoofingProvider | null = null;
+let activeSpoofingThreshold: number = 0.5;
+let activeVerificationThreshold: number = 0.55;
+let activeVerificationFailureBehavior: 'open' | 'closed' | 'emit' = 'closed';
+let verificationAudioBuffer: ArrayBuffer | null = null;
+
+// ─── VAD pre-wake gate state (VAD-01 / VAD-02 / VAD-03) ─────────────────────
+
+let activeVadGateEnabled: boolean = false;
+let activeVadGateThreshold: number = 0.5;
+let activeVadGateEngine: SileroVADEngine | null = null;
+let vadGateSpeechActive: boolean = false;
+let vadGateSpeechSub: { remove(): void } | null = null;
+let vadGateSilenceSub: { remove(): void } | null = null;
+
+// ─── PCM ring buffer for verification audio ───────────────────────────────────
+
+/** ~1 second of 512-sample frames at 16 kHz */
+const VAD_RING_BUFFER_SIZE = 32;
+let vadPcmRingBuffer: string[] = [];
+let vadPcmRingBufferSub: { remove(): void } | null = null;
+
+function pushVadPcmFrame(pcmBase64: string): void {
+  vadPcmRingBuffer.push(pcmBase64);
+  if (vadPcmRingBuffer.length > VAD_RING_BUFFER_SIZE) {
+    vadPcmRingBuffer.shift();
+  }
+  updateVerificationAudioFromRingBuffer();
+}
+
+function updateVerificationAudioFromRingBuffer(): void {
+  if (vadPcmRingBuffer.length === 0) {
+    verificationAudioBuffer = null;
+    return;
+  }
+  const chunks: Float32Array[] = [];
+  for (const b64 of vadPcmRingBuffer) {
+    const binaryStr = atob(b64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    chunks.push(new Float32Array(bytes.buffer));
+  }
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const combined = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  verificationAudioBuffer = combined.buffer;
+}
+
+function clearVadRingBuffer(): void {
+  vadPcmRingBuffer = [];
+  verificationAudioBuffer = null;
+}
+
+export function setVerificationAudioBuffer(buffer: ArrayBuffer | null): void {
+  verificationAudioBuffer = buffer;
+}
+
+function getVerificationAudioBuffer(): ArrayBuffer | null {
+  return verificationAudioBuffer;
+}
 
 addSessionListener('sessionEnded', () => {
   if (activeVoiceSession?.state === 'closed') {
@@ -156,6 +231,12 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
     return;
   }
 
+  // VAD pre-wake gate (VAD-01): suppress wake word when no speech energy detected.
+  // Placed AFTER barge-in fast-path so barge-in is unaffected (VAD-03).
+  if (activeVadGateEnabled && !vadGateSpeechActive) {
+    return;
+  }
+
   providerOrchestrationQueue = providerOrchestrationQueue
     .catch(() => {
       // Keep the queue alive after a prior failure.
@@ -182,13 +263,90 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
       ) {
         // Start a fresh session (any previously active session was already handled by
         // the fast-path barge-in above, or was closed/idle before this queued call ran).
+        // Invalidate the provider orchestration generation before closing the old session
+        // so that any pending verification IIFEs from the previous session are discarded
+        // by the generation-ID guard (VERIFY-02).
+        invalidateProviderOrchestration();
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,
           configuration.sttProvider,
-          configuration.ttsProvider
+          configuration.ttsProvider,
+          activeAudioPreprocessingProvider ?? undefined
         );
         activeVoiceSession = orchestrator;
+
+        // Concurrent verification gate (D-06): does not block session start.
+        // Verification fires as a fire-and-forget IIFE alongside orchestrator.start().
+        if (activeSpeakerVerificationProvider) {
+          const verGen = providerOrchestrationGeneration;
+          const isSessionMode = true; // we are inside the session-mode branch
+          (async () => {
+            try {
+              const verificationAudio = getVerificationAudioBuffer();
+
+              if (verificationAudio) {
+                // Build concurrent checks: verification + optional anti-spoofing
+                const verificationPromise = activeSpeakerVerificationProvider!
+                  .identifySpeaker(verificationAudio, 16000, activeVerificationThreshold);
+
+                const spoofPromise = activeAntiSpoofingProvider
+                  ? activeAntiSpoofingProvider.detectSpoofing(verificationAudio, 16000)
+                  : Promise.resolve(null as number | null);
+
+                const [verificationResult, rawSpoofScore] = await Promise.all([
+                  verificationPromise,
+                  spoofPromise,
+                ]);
+
+                // Generation guard: discard if a new wake word has fired
+                if (providerOrchestrationGeneration !== verGen) return;
+
+                const verificationPassed = verificationResult.name !== null;
+                const spoofPassed = rawSpoofScore !== null
+                  ? rawSpoofScore <= activeSpoofingThreshold
+                  : true; // No anti-spoofing = pass
+
+                const passed = verificationPassed && spoofPassed;
+
+                if (passed && verificationResult.name !== null) {
+                  if (isSessionMode) {
+                    emitSessionEvent('speakerVerificationPassed', {
+                      score: verificationResult.score,
+                      speakerId: verificationResult.name,
+                    });
+                  }
+                } else {
+                  const score = verificationResult.score;
+                  if (isSessionMode) {
+                    emitSessionEvent('speakerVerificationFailed', { score });
+                  }
+                  if (activeVerificationFailureBehavior === 'closed') {
+                    await orchestrator.abort();
+                    if (activeVoiceSession === orchestrator) {
+                      activeVoiceSession = null;
+                    }
+                  }
+                  // 'open': session continues — no action needed
+                  // 'emit': event already fired above — app decides
+                }
+              }
+              // No audio buffer available: optimistic pass (no-op), no events
+            } catch {
+              if (providerOrchestrationGeneration !== verGen) return;
+              if (isSessionMode) {
+                emitSessionEvent('speakerVerificationFailed', { score: 0 });
+              }
+              if (activeVerificationFailureBehavior === 'closed') {
+                await orchestrator.abort();
+                if (activeVoiceSession === orchestrator) {
+                  activeVoiceSession = null;
+                }
+              }
+            }
+          })();
+        }
+
         await orchestrator.start();
         return;
       }
@@ -358,6 +516,10 @@ async function syncEngineRuntimeWithNativeStatus(
     await cleanupActiveProviderFlow();
     await closeActiveVoiceSession();
     await stopEngineRuntime();
+    if (activeVadGateEngine) {
+      await activeVadGateEngine.stop().catch(() => undefined);
+      vadGateSpeechActive = false;
+    }
     return;
   }
 
@@ -367,6 +529,9 @@ async function syncEngineRuntimeWithNativeStatus(
     status.isListening
   ) {
     await startEngineRuntime();
+    if (activeVadGateEngine && !activeVadGateEngine.isRunning) {
+      await activeVadGateEngine.start().catch(() => undefined);
+    }
     return;
   }
 
@@ -380,6 +545,10 @@ async function syncEngineRuntimeWithNativeStatus(
     await cleanupActiveProviderFlow();
     await closeActiveVoiceSession();
     await stopEngineRuntime();
+    if (activeVadGateEngine) {
+      await activeVadGateEngine.stop().catch(() => undefined);
+      vadGateSpeechActive = false;
+    }
   }
 }
 
@@ -635,6 +804,31 @@ export const voiceActivator: VoiceActivatorApi = {
       });
       activeRuntimeConfiguration = resolvedRuntimeConfiguration;
       activeSessionConfig = options.session ?? null;
+      activeSpeakerVerificationProvider =
+        options?.speakerVerificationProvider ?? null;
+      activeAudioPreprocessingProvider =
+        options?.audioPreprocessingProvider ?? null;
+      activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
+      activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
+      activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
+      activeVerificationFailureBehavior = options?.verificationFailureBehavior ?? 'closed';
+
+      // VAD gate: dispose previous engine if re-initializing
+      if (activeVadGateEngine) {
+        vadGateSpeechSub?.remove();
+        vadGateSilenceSub?.remove();
+        vadPcmRingBufferSub?.remove();
+        vadGateSpeechSub = null;
+        vadGateSilenceSub = null;
+        vadPcmRingBufferSub = null;
+        await activeVadGateEngine.dispose().catch(() => undefined);
+        activeVadGateEngine = null;
+        vadGateSpeechActive = false;
+        clearVadRingBuffer();
+      }
+      activeVadGateEnabled = options?.vadGateEnabled ?? false;
+      activeVadGateThreshold = options?.vadGateThreshold ?? 0.5;
+
       activeEngineRuntime = nextEngineRuntime;
       engineRuntimeRunning = false;
       runtimeStore.setStatus(
@@ -672,6 +866,32 @@ export const voiceActivator: VoiceActivatorApi = {
     try {
       await activeRuntime.startDetection();
       await startEngineRuntime();
+
+      // Start VAD gate engine if enabled
+      if (activeVadGateEnabled) {
+        if (!activeVadGateEngine) {
+          activeVadGateEngine = new SileroVADEngine({ threshold: activeVadGateThreshold });
+        }
+        await activeVadGateEngine.loadModel();
+        // Subscribe to speechStart/speechEnd for gate flag
+        vadGateSpeechSub = addSessionListener('speechStart', () => {
+          vadGateSpeechActive = true;
+        });
+        vadGateSilenceSub = addSessionListener('speechEnd', () => {
+          vadGateSpeechActive = false;
+        });
+        // Subscribe to PCM frames for ring buffer (verification audio source)
+        const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
+        vadPcmRingBufferSub = emitter.addListener(
+          VAD_NATIVE_PCM_FRAME_EVENT,
+          ((...args: readonly object[]) => {
+            const e = args[0] as { pcm: string };
+            pushVadPcmFrame(e.pcm);
+          }) as (...args: readonly object[]) => unknown
+        );
+        await activeVadGateEngine.start();
+      }
+
       runtimeStore.setStatus(
         resolveStatus({
           ...getCurrentStatus(),
@@ -710,7 +930,22 @@ export const voiceActivator: VoiceActivatorApi = {
       // activeSessionConfig is intentionally kept — session config persists across
       // stopDetection()/startDetection() cycles until initialize() is called again.
       await closeActiveVoiceSession();
+      verificationAudioBuffer = null;
       await stopEngineRuntime();
+
+      // Stop VAD gate engine
+      if (activeVadGateEngine) {
+        vadGateSpeechSub?.remove();
+        vadGateSilenceSub?.remove();
+        vadPcmRingBufferSub?.remove();
+        vadGateSpeechSub = null;
+        vadGateSilenceSub = null;
+        vadPcmRingBufferSub = null;
+        await activeVadGateEngine.stop().catch(() => undefined);
+        vadGateSpeechActive = false;
+        clearVadRingBuffer();
+      }
+
       await activeRuntime.stopDetection();
       runtimeStore.setStatus(
         resolveStatus({
@@ -743,6 +978,29 @@ export const voiceActivator: VoiceActivatorApi = {
       await cleanupActiveProviderFlow();
       await closeActiveVoiceSession();
       activeSessionConfig = null;
+      activeSpeakerVerificationProvider = null;
+      activeAudioPreprocessingProvider = null;
+      activeAntiSpoofingProvider = null;
+      activeSpoofingThreshold = 0.5;
+      activeVerificationThreshold = 0.55;
+      activeVerificationFailureBehavior = 'closed';
+      verificationAudioBuffer = null;
+
+      // Dispose VAD gate engine
+      activeVadGateEnabled = false;
+      activeVadGateThreshold = 0.5;
+      vadGateSpeechSub?.remove();
+      vadGateSilenceSub?.remove();
+      vadPcmRingBufferSub?.remove();
+      vadGateSpeechSub = null;
+      vadGateSilenceSub = null;
+      vadPcmRingBufferSub = null;
+      await activeVadGateEngine?.stop().catch(() => undefined);
+      await activeVadGateEngine?.dispose().catch(() => undefined);
+      activeVadGateEngine = null;
+      vadGateSpeechActive = false;
+      clearVadRingBuffer();
+
       await disposeEngineRuntime();
       await activeRuntime.dispose();
       activeRuntimeConfiguration = null;
@@ -771,6 +1029,42 @@ export const voiceActivator: VoiceActivatorApi = {
     }
     return setRoute(route);
   },
+
+  async enrollSpeaker(userId: string, audioBuffer: ArrayBuffer): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'enrollSpeaker() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.enrollSpeaker(userId, audioBuffer, 16000);
+  },
+
+  async exportEnrollment(): Promise<EnrollmentData> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'exportEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    return activeSpeakerVerificationProvider.exportEnrollment();
+  },
+
+  async importEnrollment(data: EnrollmentData): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'importEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.importEnrollment(data);
+  },
+
+  async clearEnrollment(): Promise<void> {
+    if (!activeSpeakerVerificationProvider) {
+      throw new Error(
+        'clearEnrollment() requires a speakerVerificationProvider to be configured in initialize()'
+      );
+    }
+    await activeSpeakerVerificationProvider.clearEnrollment();
+  },
 };
 
 export const initialize = voiceActivator.initialize;
@@ -780,9 +1074,29 @@ export const getStatus = voiceActivator.getStatus;
 export const dispose = voiceActivator.dispose;
 export const setAudioRoute = voiceActivator.setAudioRoute;
 export const addWakeWordListener = addListener;
+export const enrollSpeaker = voiceActivator.enrollSpeaker;
+export const exportEnrollment = voiceActivator.exportEnrollment;
+export const importEnrollment = voiceActivator.importEnrollment;
+export const clearEnrollment = voiceActivator.clearEnrollment;
 
 export function getSession(): VoiceSession | null {
   return activeVoiceSession;
+}
+
+export function getSpeakerVerificationProvider(): SpeakerVerificationProvider | null {
+  return activeSpeakerVerificationProvider;
+}
+
+export function getAudioPreprocessingProvider(): AudioPreprocessingProvider | null {
+  return activeAudioPreprocessingProvider;
+}
+
+export function getAntiSpoofingProvider(): AntiSpoofingProvider | null {
+  return activeAntiSpoofingProvider;
+}
+
+export function getSpoofingThreshold(): number {
+  return activeSpoofingThreshold;
 }
 
 export type VoiceActivatorEventMap = WakeWordEventMap;

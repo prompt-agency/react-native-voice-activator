@@ -1,5 +1,7 @@
 #import "VoiceActivator.h"
 
+#import "Engines/SherpaOnnx/SherpaOnnxDenoiser.h"
+#import "Engines/SherpaOnnx/SherpaOnnxSpeakerEmbedding.h"
 #import "Engines/SherpaOnnx/SherpaOnnxTTS.h"
 #import "Runtime/AudioPlayback.h"
 #import "Runtime/AudioSessionManager.h"
@@ -21,6 +23,10 @@ NSString *const kVADPCMFrameEventName = @"VoiceActivatorOnVADPCMFrame";
   AudioSessionManager *_audioSessionManager;
   VADCapture *_vadCapture;
   SherpaOnnxTTS *_sherpaOnnxTTS;
+  SherpaOnnxSpeakerEmbedding *_speakerEmbedding;
+  SherpaOnnxDenoiser *_denoiser;
+  NSString *_speakerModelPath;
+  NSString *_denoiserModelPath;
   NSUInteger _lastSynthesisCallId;
   NSString *_pendingTTSWavPath;
 }
@@ -41,6 +47,8 @@ RCT_EXPORT_MODULE()
     _audioSessionManager = [AudioSessionManager new];
     _vadCapture = [VADCapture new];
     _sherpaOnnxTTS = [SherpaOnnxTTS new];
+    _speakerEmbedding = [SherpaOnnxSpeakerEmbedding new];
+    _denoiser = [SherpaOnnxDenoiser new];
     _lastSynthesisCallId = 0;
 
     __weak __typeof(self) weakSelf = self;
@@ -93,6 +101,11 @@ RCT_EXPORT_METHOD(initialize
     return;
   }
 
+  // Store optional model paths for speaker embedding and denoiser.
+  // These are used lazily when the respective bridge methods are first called.
+  _speakerModelPath = options[@"speakerModelPath"];
+  _denoiserModelPath = options[@"denoiserModelPath"];
+
   resolve(nil);
 }
 
@@ -136,6 +149,9 @@ RCT_EXPORT_METHOD(dispose
     [self reject:reject withCode:@"dispose_failed" error:error];
     return;
   }
+
+  [_speakerEmbedding dispose];
+  [_denoiser dispose];
 
   resolve(nil);
 }
@@ -446,6 +462,222 @@ RCT_EXPORT_METHOD(stopVADCapture
           resumeError.localizedDescription ?: @"unknown error");
   }
   resolve(nil);
+}
+
+// ── Speaker embedding & denoiser lazy-init helpers ───────────────────────────
+
+/**
+ * Ensures the speaker embedding engine is configured on an 8MB stack thread.
+ * ORT loads ONNX models with deep recursion — the default 512KB GCD stack
+ * is too small (see Pitfall 3 in RESEARCH.md). Caches result across calls.
+ */
+- (void)ensureSpeakerEngineConfigured:(void (^)(NSError *_Nullable))completion
+{
+  if (!_speakerModelPath.length) {
+    completion([NSError
+        errorWithDomain:@"VoiceActivator"
+                   code:-1
+               userInfo:@{
+                 NSLocalizedDescriptionKey :
+                     @"speakerModelPath not set — pass speakerModelPath in initialize() options"
+               }]);
+    return;
+  }
+
+  NSThread *initThread = [[NSThread alloc] initWithBlock:^{
+    NSError *error = nil;
+    [self->_speakerEmbedding configureWithModelPath:self->_speakerModelPath
+                                         numThreads:1
+                                              error:&error];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      completion(error);
+    });
+  }];
+  initThread.stackSize = 8 * 1024 * 1024;
+  initThread.qualityOfService = NSQualityOfServiceUserInitiated;
+  [initThread start];
+}
+
+/**
+ * Ensures the speech denoiser is configured on an 8MB stack thread.
+ * Caches result across calls.
+ */
+- (void)ensureDenoiserConfigured:(void (^)(NSError *_Nullable))completion
+{
+  if (!_denoiserModelPath.length) {
+    completion([NSError
+        errorWithDomain:@"VoiceActivator"
+                   code:-1
+               userInfo:@{
+                 NSLocalizedDescriptionKey :
+                     @"denoiserModelPath not set — pass denoiserModelPath in initialize() options"
+               }]);
+    return;
+  }
+
+  NSThread *initThread = [[NSThread alloc] initWithBlock:^{
+    NSError *error = nil;
+    [self->_denoiser configureWithModelPath:self->_denoiserModelPath
+                                 numThreads:1
+                                      error:&error];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      completion(error);
+    });
+  }];
+  initThread.stackSize = 8 * 1024 * 1024;
+  initThread.qualityOfService = NSQualityOfServiceUserInitiated;
+  [initThread start];
+}
+
+// ── BRIDGE-01: extractSpeakerEmbedding ───────────────────────────────────────
+
+RCT_EXPORT_METHOD(extractSpeakerEmbedding
+                  : (NSString *)pcmBase64 sampleRate
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [self ensureSpeakerEngineConfigured:^(NSError *initError) {
+    if (initError) {
+      [self reject:reject withCode:@"speaker_engine_init_failed" error:initError];
+      return;
+    }
+    NSError *error = nil;
+    NSString *result = [self->_speakerEmbedding extractEmbeddingFromPCMBase64:pcmBase64
+                                                                    sampleRate:(int32_t)sampleRate
+                                                                         error:&error];
+    if (!result) {
+      [self reject:reject withCode:@"extract_embedding_failed" error:error];
+      return;
+    }
+    resolve(result);
+  }];
+}
+
+// ── BRIDGE-02: registerSpeaker ────────────────────────────────────────────────
+
+RCT_EXPORT_METHOD(registerSpeaker
+                  : (NSString *)name embeddingBase64
+                  : (NSString *)embeddingBase64 resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [self ensureSpeakerEngineConfigured:^(NSError *initError) {
+    if (initError) {
+      [self reject:reject withCode:@"speaker_engine_init_failed" error:initError];
+      return;
+    }
+    NSError *error = nil;
+    if (![self->_speakerEmbedding registerSpeakerWithName:name
+                                          embeddingBase64:embeddingBase64
+                                                    error:&error]) {
+      [self reject:reject withCode:@"register_speaker_failed" error:error];
+      return;
+    }
+    resolve(nil);
+  }];
+}
+
+// ── BRIDGE-03: verifySpeaker ──────────────────────────────────────────────────
+
+RCT_EXPORT_METHOD(verifySpeaker
+                  : (NSString *)name embeddingBase64
+                  : (NSString *)embeddingBase64 threshold
+                  : (double)threshold resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [self ensureSpeakerEngineConfigured:^(NSError *initError) {
+    if (initError) {
+      [self reject:reject withCode:@"speaker_engine_init_failed" error:initError];
+      return;
+    }
+    NSError *error = nil;
+    NSDictionary *result = [self->_speakerEmbedding verifySpeaker:name
+                                                  embeddingBase64:embeddingBase64
+                                                        threshold:(float)threshold
+                                                            error:&error];
+    if (!result) {
+      [self reject:reject withCode:@"verify_speaker_failed" error:error];
+      return;
+    }
+    resolve(result);
+  }];
+}
+
+// ── BRIDGE-04: identifySpeaker ────────────────────────────────────────────────
+
+RCT_EXPORT_METHOD(identifySpeaker
+                  : (NSString *)embeddingBase64 threshold
+                  : (double)threshold resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [self ensureSpeakerEngineConfigured:^(NSError *initError) {
+    if (initError) {
+      [self reject:reject withCode:@"speaker_engine_init_failed" error:initError];
+      return;
+    }
+    NSError *error = nil;
+    NSDictionary *result = [self->_speakerEmbedding identifySpeaker:embeddingBase64
+                                                          threshold:(float)threshold
+                                                              error:&error];
+    if (!result) {
+      [self reject:reject withCode:@"identify_speaker_failed" error:error];
+      return;
+    }
+    resolve(result);
+  }];
+}
+
+// ── BRIDGE-05: clearSpeakers ──────────────────────────────────────────────────
+
+RCT_EXPORT_METHOD(clearSpeakers
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [_speakerEmbedding clearSpeakers];
+  resolve(nil);
+}
+
+// ── BRIDGE-06: denoiseAudio ───────────────────────────────────────────────────
+
+RCT_EXPORT_METHOD(denoiseAudio
+                  : (NSString *)pcmBase64 sampleRate
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  [self ensureDenoiserConfigured:^(NSError *initError) {
+    if (initError) {
+      [self reject:reject withCode:@"denoiser_init_failed" error:initError];
+      return;
+    }
+    NSError *error = nil;
+    NSString *result = [self->_denoiser denoiseFromPCMBase64:pcmBase64
+                                                  sampleRate:(int32_t)sampleRate
+                                                       error:&error];
+    if (!result) {
+      [self reject:reject withCode:@"denoise_failed" error:error];
+      return;
+    }
+    resolve(result);
+  }];
+}
+
+// ── SPOOF-01: detectSpoofing (stub) ───────────────────────────────────────────
+
+RCT_EXPORT_METHOD(detectSpoofing
+                  : (NSString *)pcmBase64 sampleRate
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  // Stub: returns 0.0 (not a spoof) until anti-spoofing model is available.
+  // Sherpa-ONNX v1.12.29 and upstream v1.12.39 do not expose an anti-spoofing
+  // API. See RESEARCH.md Pitfall 6 and Open Question 1 for details.
+  // Real AASIST integration is deferred to v1.1+ per PROJECT.md Out of Scope.
+  resolve(@(0.0));
 }
 
 RCT_EXPORT_METHOD(addListener : (NSString *)eventName)
