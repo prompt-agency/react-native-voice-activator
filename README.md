@@ -22,6 +22,7 @@ No cloud required for wake word detection. Speech-to-text and text-to-speech run
 - [Optional: Speech-to-Text](#optional-speech-to-text)
 - [Optional: Text-to-Speech](#optional-text-to-speech)
 - [Troubleshooting](#troubleshooting)
+- [Privacy & Compliance](#privacy--compliance)
 - [Documentation](#documentation)
 
 ---
@@ -325,6 +326,78 @@ optional downstream STT/TTS extension examples in [docs/examples/](docs/examples
 4. TTS response step can run after detection or transcript handling in your TTS provider
 
 downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals. STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features. those speech flows remain outside the package runtime and use public APIs only.
+
+## Privacy & Compliance
+
+This library provides on-device speaker verification using biometric voiceprint data. **Consuming apps have legal obligations** under multiple privacy frameworks.
+
+### What the Library Does
+
+- All speaker embedding extraction and comparison runs **on-device** — no data is sent to external servers
+- The library **never stores, caches, or logs** speaker embeddings or raw audio internally
+- Enrollment data exists only in memory and is accessible via `exportEnrollment()`
+- Calling `clearEnrollment()` removes all biometric data from memory immediately
+
+### What Your App Must Do
+
+#### GDPR (EU — Article 9: Special Category Data)
+
+Voiceprint embeddings are **biometric data** under GDPR Art. 9. Your app must:
+- Obtain **explicit consent** before calling `enrollSpeaker()`
+- Provide a clear privacy notice explaining voiceprint processing
+- Implement data subject rights (access, deletion, portability)
+- Document your lawful basis for processing biometric data
+
+#### CCPA (California — Biometric Information)
+
+Voiceprint data is classified as **biometric information** under CCPA. Your app must:
+- Disclose collection of biometric information in your privacy policy
+- Honor opt-out and deletion requests
+- Not sell biometric information
+
+#### BIPA (Illinois — Biometric Information Privacy Act)
+
+BIPA requires **written consent before collection**. Your app must:
+- Obtain informed written consent before the first `enrollSpeaker()` call
+- Publish a retention schedule and destruction policy
+- Not profit from biometric data
+
+### Compliant Integration Example
+
+```typescript
+import { voiceActivator } from 'react-native-voice-activator';
+
+async function enrollWithConsent(userId: string, audioBuffer: ArrayBuffer) {
+  // 1. Obtain explicit consent BEFORE enrollment (app-owned UI)
+  const hasConsent = await showBiometricConsentDialog(userId);
+  if (!hasConsent) {
+    throw new Error('User must provide explicit consent before enrollment');
+  }
+
+  // 2. Enroll speaker (library processes audio, returns embedding)
+  await voiceActivator.enrollSpeaker(userId, audioBuffer);
+
+  // 3. Export and store securely (app-owned storage)
+  const enrollment = await voiceActivator.exportEnrollment();
+  await secureStorage.save(`enrollment_${userId}`, JSON.stringify(enrollment));
+}
+
+async function handleAccountDeletion(userId: string) {
+  // On account deletion or consent revocation:
+  await voiceActivator.clearEnrollment();
+  await secureStorage.delete(`enrollment_${userId}`);
+}
+```
+
+### Your Responsibilities Summary
+
+| Responsibility | Required By | Action |
+|----------------|-------------|--------|
+| Explicit consent before enrollment | GDPR, BIPA, CCPA | Show consent UI before `enrollSpeaker()` |
+| Retention/deletion policy | BIPA, GDPR | Document how long you store enrollment data |
+| Secure storage of exported data | All | Encrypt `exportEnrollment()` output at rest |
+| Deletion on revocation | GDPR, BIPA | Call `clearEnrollment()` + delete stored data |
+| Privacy policy disclosure | All | State you collect biometric voiceprint data |
 
 ## Built-In Model Configuration
 
