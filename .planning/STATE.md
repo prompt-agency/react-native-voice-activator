@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-04-21T07:46:08.806Z"
+status: executing
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-04-21T09:38:11.738Z"
 last_activity: 2026-04-21
 progress:
   total_phases: 4
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 3
+  total_plans: 15
+  completed_plans: 14
   percent: 0
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-20)
 ## Current Position
 
 Phase: 04 (expo-plugin-and-integration-testing) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-04-21
 
 Progress: [░░░░░░░░░░] 0%
@@ -65,6 +65,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 04-expo-plugin-and-integration-testing P01 | 5m | 2 tasks | 2 files |
 | Phase 04-expo-plugin-and-integration-testing P02 | 2m | 2 tasks | 2 files |
 | Phase 04-expo-plugin-and-integration-testing P03 | 2m | 1 tasks | 2 files |
+| Phase 04-expo-plugin-and-integration-testing P04 | 5m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,7 @@ Recent decisions affecting current work:
 - [Phase 04-expo-plugin-and-integration-testing]: SpeakerVerificationProvider interface verified via type-level adapter assignment + method signature assertions (contract test GREEN)
 - [Phase 04-expo-plugin-and-integration-testing]: Privacy section covers GDPR/CCPA/BIPA with consent-before-enrollment example — PRIV-02 documentation deliverable complete
 - [Phase 04-expo-plugin-and-integration-testing]: enrollSpeaker public API takes 2 args (userId, audioBuffer) — sampleRate is passed internally to the provider; plan interface showed 3-arg signature that does not match public surface
+- [Phase 04-expo-plugin-and-integration-testing]: async callbacks inside withDangerousMod require immediate .catch attachment in mock to prevent unhandled rejection warnings; errors captured via CallbackResult.settled promise and collected via flushCallbackErrors helper
 
 ### Pending Todos
 
@@ -112,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T07:46:08.802Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-04-21T09:38:11.735Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
