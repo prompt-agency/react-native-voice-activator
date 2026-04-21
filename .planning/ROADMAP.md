@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Native Bridge** - Expose Sherpa-ONNX speaker embedding, speech denoiser, and anti-spoofing APIs through Nitro Modules on iOS and Android
 - [x] **Phase 2: Provider Interfaces and Adapters** - Define typed provider contracts and ship `SherpaOnnxSpeakerVerificationAdapter`, `SherpaOnnxNoiseSuppressionAdapter`, and `SherpaOnnxAntiSpoofingAdapter` with privacy no-storage invariant (completed 2026-04-20)
 - [x] **Phase 3: Orchestrator Hook and Public API** - Wire the verification gate and enrollment API into the session orchestrator and `voice-activator.ts` (completed 2026-04-20)
-- [ ] **Phase 4: Expo Plugin and Integration Testing** - Extend the Expo config plugin for model asset copying, validate the full pipeline with real audio fixtures, and deliver privacy compliance documentation
+- [x] **Phase 4: Expo Plugin and Integration Testing** - Extend the Expo config plugin for model asset copying, validate the full pipeline with real audio fixtures, and deliver privacy compliance documentation (completed 2026-04-21)
 
 ## Phase Details
 
@@ -85,12 +85,12 @@ Plans:
   3. The `speaker-verification-contract.test.ts` contract test asserts that `SherpaOnnxSpeakerVerificationAdapter` fully implements the `SpeakerVerificationProvider` interface, including all method signatures and return types
   4. The example app demonstrates enrollment, export, app-restart simulation (import), and verification in a runnable flow that a developer can copy
   5. Published documentation (README or dedicated docs page) includes a Privacy & Compliance section that explicitly names GDPR, CCPA, and BIPA; states that consuming apps must obtain explicit user consent before calling `enrollSpeaker()`; and describes the app's responsibility for compliant storage of enrollment data
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — Expo plugin withModelAssets (speakerModelPath + denoiserModelPath copy logic)
 - [x] 04-02-PLAN.md — Contract test + WAV fixtures + Privacy & Compliance README section
-- [ ] 04-03-PLAN.md — Example app EnrollmentScreen (full round-trip demo)
+- [x] 04-03-PLAN.md — Example app EnrollmentScreen (full round-trip demo)
 **UI hint**: no
 
 ## Progress
@@ -103,4 +103,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Native Bridge | 2/3 | In Progress|  |
 | 2. Provider Interfaces and Adapters | 3/3 | Complete   | 2026-04-20 |
 | 3. Orchestrator Hook and Public API | 2/3 | Complete    | 2026-04-20 |
-| 4. Expo Plugin and Integration Testing | 3/4 | In Progress|  |
+| 4. Expo Plugin and Integration Testing | 4/4 | Complete   | 2026-04-21 |
