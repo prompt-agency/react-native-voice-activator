@@ -17,7 +17,7 @@ type LiveAudioStreamModule =
   typeof import('@fugood/react-native-audio-pcm-stream');
 type LiveAudioStreamType = LiveAudioStreamModule['default'];
 type LiveAudioStreamSubscription = ReturnType<
-  LiveAudioStreamType['addListener']
+  LiveAudioStreamType['on']
 >;
 
 type ActiveTranscription = {
@@ -393,7 +393,7 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
 
     await rnfs.mkdir(tmpDir);
 
-    subscription = this.audioPcmStream!.addListener('data', (data: string) => {
+    subscription = this.audioPcmStream!.on('data', (data: string) => {
       if (!activeTranscription.cancelled) {
         pcmChunks.push(data);
       }

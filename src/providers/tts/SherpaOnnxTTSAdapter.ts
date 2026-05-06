@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules } from 'react-native';
 
 import type { TextToSpeechProvider, TTSOptions } from '../../public/types';
 
@@ -70,8 +70,7 @@ function getNativeModule(): SherpaOnnxNative {
   if (!mod?.synthesizeTTS) {
     throw new Error(
       'SherpaOnnxTTSAdapter: the VoiceActivator native module is not ' +
-        'available or does not expose synthesizeTTS. Ensure the library is ' +
-        'linked and you are running on iOS 15+.'
+        'available or does not expose synthesizeTTS. Ensure the library is linked.'
     );
   }
   return mod;
@@ -80,15 +79,12 @@ function getNativeModule(): SherpaOnnxNative {
 // ─── Adapter ──────────────────────────────────────────────────────────────────
 
 /**
- * TextToSpeechProvider that uses the sherpa-onnx C API compiled into the
- * library's bundled XCFramework to run Piper VITS models entirely on-device.
+ * TextToSpeechProvider that uses the sherpa-onnx native layer to run Piper VITS
+ * models entirely on-device.
  *
- * Unlike CustomTTSAdapter (which uses onnxruntime-react-native), this adapter
- * bypasses the JS-side ORT runtime and runs inference natively via sherpa-onnx,
- * avoiding the memory pressure that causes onnxruntime-react-native to crash
- * on iOS when loading large Piper models.
- *
- * @platform iOS only. On Android, speak() rejects with `tts_platform_unsupported`.
+ * On iOS this calls into the bundled XCFramework C API; on Android it calls into
+ * the sherpa-onnx JNI layer from the bundled AAR. Both platforms synthesize to a
+ * temporary WAV file which is played back via the native audio layer.
  *
  * @example
  * ```ts
@@ -107,24 +103,9 @@ function getNativeModule(): SherpaOnnxNative {
 export class SherpaOnnxTTSAdapter implements TextToSpeechProvider {
   readonly name = 'sherpa-onnx-tts';
 
-  constructor(private readonly config: SherpaOnnxTTSConfig) {
-    if (Platform.OS !== 'ios') {
-      console.warn(
-        '[SherpaOnnxTTSAdapter] This adapter is iOS-only. ' +
-          'Calling speak() on Android will reject with tts_platform_unsupported.'
-      );
-    }
-  }
+  constructor(private readonly config: SherpaOnnxTTSConfig) {}
 
   async speak(text: string, _options?: TTSOptions): Promise<void> {
-    if (Platform.OS !== 'ios') {
-      throw Object.assign(new Error('SherpaOnnxTTSAdapter is iOS-only.'), {
-        code: 'tts_platform_unsupported',
-        category: 'platform',
-        recoverable: false,
-      });
-    }
-
     await getNativeModule().synthesizeTTS({
       modelPath: this.config.modelPath,
       tokensPath: this.config.tokensPath,

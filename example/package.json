@@ -9,7 +9,8 @@
     "start": "expo start",
     "prebuild": "CI=1 expo prebuild --clean",
     "build:android": "react-native build-android --extra-params \"--no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a\"",
-    "build:ios": "react-native build-ios --mode Debug --verbose"
+    "build:ios": "react-native build-ios --mode Debug --verbose",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@fugood/react-native-audio-pcm-stream": "^1.1.4",
@@ -38,6 +39,7 @@
     "@react-native/metro-config": "0.83.2",
     "@react-native/typescript-config": "0.83.2",
     "@types/react": "^19.2.0",
+    "patch-package": "^8.0.1",
     "react-native-builder-bob": "^0.40.18",
     "react-native-monorepo-config": "^0.1.9"
   },
