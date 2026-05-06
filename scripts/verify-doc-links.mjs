@@ -17,6 +17,7 @@ const requiredDocs = [
   'docs/troubleshooting.md',
   'docs/migration.md',
   'docs/android-battery-optimization.md',
+  'docs/android-tts-setup.md',
   'docs/app-store-submission.md',
 ];
 const readmePath = join(root, 'README.md');

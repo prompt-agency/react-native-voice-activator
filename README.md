@@ -284,13 +284,7 @@ Runs Piper VITS models entirely on-device via the sherpa-onnx native layer. No a
 
 **No extra install required.** The adapter is exported from the main package.
 
-**Android:** Model assets must be placed in the Android asset directory before building. Run the included setup script once:
-
-```sh
-bash node_modules/react-native-voice-activator/scripts/setup-sherpa-tts-android.sh
-```
-
-Then rebuild the Android app. See the [Android TTS Setup guide](docs/android-tts-setup.md) for details.
+**Android:** Model assets must be placed in `android/app/src/main/assets/sherpa-tts/` before building. See the [Android TTS Setup guide](docs/android-tts-setup.md) for download commands and runtime asset-copy setup.
 
 **iOS:** Add the `en_US-ryan-low.onnx`, `tokens.txt`, and `espeak-ng-data/` to Xcode → Copy Bundle Resources, or let the Expo config plugin copy them automatically.
 
