@@ -205,7 +205,7 @@ export function ManualScreen() {
       </SectionCard>
 
       {/* TTS — SherpaOnnxTTSAdapter */}
-      <SectionCard title="Text-to-Speech (Ryan · Sherpa-ONNX · iOS)">
+      <SectionCard title="Text-to-Speech (Ryan · Sherpa-ONNX)">
         <View style={s.pillRow}>
           <StatusPill
             label={ttsStatus}
@@ -242,9 +242,9 @@ export function ManualScreen() {
         ) : null}
         <Text style={s.hint}>
           Uses SherpaOnnxTTSAdapter — runs Piper VITS natively via the
-          sherpa-onnx C API already bundled in the library XCFramework.
+          sherpa-onnx layer bundled in the library.
           {'\n'}
-          Model downloaded on first use (~63 MB, cached). iOS only.
+          Model downloaded on first use (~63 MB, cached).
         </Text>
       </SectionCard>
     </ScrollView>
