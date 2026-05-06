@@ -57,7 +57,7 @@ const mockPcmStream = {
   init: jest.fn(),
   start: jest.fn(),
   stop: jest.fn(),
-  addListener: jest.fn(() => mockPcmStreamSubscription),
+  on: jest.fn(() => mockPcmStreamSubscription),
 };
 
 jest.mock('@fugood/react-native-audio-pcm-stream', () => ({
@@ -367,7 +367,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
 
     // Simulate one PCM chunk arriving during recording
     let pcmCallback: ((data: string) => void) | undefined;
-    (mockPcmStream.addListener as jest.Mock).mockImplementationOnce(
+    (mockPcmStream.on as jest.Mock).mockImplementationOnce(
       (_event: string, callback: (data: string) => void) => {
         pcmCallback = callback;
         return mockPcmStreamSubscription;
@@ -375,7 +375,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     );
 
     const transcriptionPromise = adapter.transcribe();
-    await Promise.resolve(); // let addListener + start() register
+    await Promise.resolve(); // let on() + start() register
 
     // Emit a PCM chunk (valid base64 of some bytes)
     pcmCallback?.(btoa('\x00\x01\x02\x03'));

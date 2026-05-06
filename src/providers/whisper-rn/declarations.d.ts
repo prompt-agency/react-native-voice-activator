@@ -18,7 +18,7 @@ declare module '@fugood/react-native-audio-pcm-stream' {
     init(options: LiveAudioStreamInitOptions): void;
     start(): void;
     stop(): void;
-    addListener(
+    on(
       event: 'data',
       callback: (data: string) => void
     ): LiveAudioStreamSubscription;
