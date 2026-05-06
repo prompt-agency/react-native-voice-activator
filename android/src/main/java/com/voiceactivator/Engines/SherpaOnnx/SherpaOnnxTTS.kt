@@ -46,7 +46,7 @@ internal class SherpaOnnxTTS {
           debug = false,
           provider = "cpu",
         ),
-        maxNumSentences = 1,
+        maxNumSentences = 0, // 0 = no sentence limit; synthesize full input
       )
       tts = OfflineTts(null, config)
       loadedModelPath = modelPath
