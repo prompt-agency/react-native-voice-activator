@@ -276,7 +276,37 @@ See the [WhisperRN provider guide](docs/examples/whisper-stt-provider.md) for in
 
 ## Optional: Text-to-Speech
 
-`CustomTTSAdapter` runs Piper TTS ONNX models on-device via `onnxruntime-react-native`. You provide the ONNX model file and a phonemize callback.
+Two TTS adapters are available depending on your needs:
+
+### `SherpaOnnxTTSAdapter` (recommended — iOS and Android)
+
+Runs Piper VITS models entirely on-device via the sherpa-onnx native layer. No additional peer dependencies — the native layer is already bundled.
+
+**No extra install required.** The adapter is exported from the main package.
+
+**Android:** Model assets must be placed in the Android asset directory before building. Run the included setup script once:
+
+```sh
+bash node_modules/react-native-voice-activator/scripts/setup-sherpa-tts-android.sh
+```
+
+Then rebuild the Android app. See the [Android TTS Setup guide](docs/android-tts-setup.md) for details.
+
+**iOS:** Add the `en_US-ryan-low.onnx`, `tokens.txt`, and `espeak-ng-data/` to Xcode → Copy Bundle Resources, or let the Expo config plugin copy them automatically.
+
+```ts
+import { SherpaOnnxTTSAdapter } from 'react-native-voice-activator';
+
+const tts = new SherpaOnnxTTSAdapter({
+  modelPath:  `${RNFS.DocumentDirectoryPath}/sherpa-tts/en_US-ryan-low.onnx`,
+  tokensPath: `${RNFS.DocumentDirectoryPath}/sherpa-tts/tokens.txt`,
+  dataDir:    `${RNFS.DocumentDirectoryPath}/sherpa-tts/espeak-ng-data`,
+});
+```
+
+### `CustomTTSAdapter` (iOS and Android)
+
+Runs any Piper TTS ONNX model on-device via `onnxruntime-react-native`. You provide the ONNX model file and a phonemize callback.
 
 **Install peer dependency:**
 

@@ -120,39 +120,52 @@ describe('SherpaOnnxTTSAdapter', () => {
 
   describe('on Android', () => {
     beforeEach(() => {
-      jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       (Platform as Record<string, unknown>).OS = 'android';
     });
 
-    it('speak() rejects with tts_platform_unsupported code', async () => {
+    it('speak() calls synthesizeTTS on Android', async () => {
       const adapter = new SherpaOnnxTTSAdapter(makeConfig());
-      const rejection = await adapter.speak('test').catch((e: unknown) => e);
-      expect(rejection).toMatchObject({ code: 'tts_platform_unsupported' });
+      await adapter.speak('Hello world');
+      expect(getSynthMock()).toHaveBeenCalledTimes(1);
     });
 
-    it('speak() rejection has platform category', async () => {
+    it('speak() forwards correct parameters on Android', async () => {
       const adapter = new SherpaOnnxTTSAdapter(makeConfig());
-      const rejection = await adapter.speak('test').catch((e: unknown) => e);
-      expect(rejection).toMatchObject({ category: 'platform' });
+      await adapter.speak('Hello world');
+      expect(getSynthMock()).toHaveBeenCalledWith({
+        modelPath: '/data/en_US-ryan-low.onnx',
+        tokensPath: '/data/tokens.txt',
+        dataDir: '/data/espeak-ng-data',
+        text: 'Hello world',
+        speakerId: 0,
+        speed: 1.0,
+        noiseScale: 0.667,
+        noiseScaleW: 0.8,
+        lengthScale: 1.0,
+      });
     });
 
-    it('speak() rejection is not recoverable', async () => {
+    it('speak() resolves on Android when synthesizeTTS resolves', async () => {
       const adapter = new SherpaOnnxTTSAdapter(makeConfig());
-      const rejection = await adapter.speak('test').catch((e: unknown) => e);
-      expect(rejection).toMatchObject({ recoverable: false });
+      await expect(adapter.speak('test')).resolves.toBeUndefined();
     });
 
-    it('speak() does not call synthesizeTTS', async () => {
+    it('speak() propagates synthesizeTTS rejection on Android', async () => {
+      getSynthMock().mockRejectedValueOnce(new Error('jni error'));
       const adapter = new SherpaOnnxTTSAdapter(makeConfig());
-      await adapter.speak('test').catch(() => undefined);
-      expect(getSynthMock()).not.toHaveBeenCalled();
+      await expect(adapter.speak('test')).rejects.toThrow('jni error');
     });
 
-    it('constructor emits a platform warning', () => {
+    it('stop() calls stopPlayback on Android', async () => {
+      const adapter = new SherpaOnnxTTSAdapter(makeConfig());
+      await adapter.stop();
+      expect(getStopMock()).toHaveBeenCalledTimes(1);
+    });
+
+    it('constructor does not emit a platform warning on Android', () => {
+      jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       new SherpaOnnxTTSAdapter(makeConfig());
-      expect(console.warn).toHaveBeenCalledWith(
-        expect.stringContaining('iOS-only')
-      );
+      expect(console.warn).not.toHaveBeenCalled();
     });
   });
 
