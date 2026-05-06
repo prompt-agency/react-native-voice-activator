@@ -149,6 +149,30 @@ What to do:
 - reduce the flow to a minimal reproduction using the example app and the same lifecycle sequence
 - treat recurring internal failures as implementation bugs, not integration guidance problems
 
+## Android Build Issues
+
+### `onnxruntime-react-native` build failure on Android (fbjni conflict)
+
+If you use `onnxruntime-react-native` alongside this package and see a build error like `Could not resolve com.facebook.fbjni:fbjni`, it is caused by a legacy fbjni dependency block in `onnxruntime-react-native`'s `build.gradle` that targets React Native < 0.71.
+
+**Fix:** Apply a patch using [patch-package](https://github.com/ds300/patch-package):
+
+1. Install patch-package: `yarn add --dev patch-package`
+2. Add to `package.json` scripts: `"postinstall": "patch-package"`
+3. Create the patch at `patches/onnxruntime-react-native+<version>.patch` with this content:
+
+```diff
+--- a/node_modules/onnxruntime-react-native/android/build.gradle
++++ b/node_modules/onnxruntime-react-native/android/build.gradle
+@@ ... @@
+-  if (VersionNumber.parse(REACT_NATIVE_VERSION) < VersionNumber.parse("0.71")) {
+-    extractLibs "com.facebook.fbjni:fbjni:+:headers"
+-    extractLibs "com.facebook.fbjni:fbjni:+"
+-  }
+```
+
+The version block is unreachable on React Native 0.71+ and the fbjni dependency is already provided by React Native itself.
+
 ## Platform Notes
 
 - iOS:

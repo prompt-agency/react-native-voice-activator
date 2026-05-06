@@ -11,6 +11,7 @@ import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.bridge.Arguments
 import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxDenoiser
 import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxSpeakerEmbedding
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxTTS
 import com.voiceactivator.Runtime.AudioPlayback
 import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
@@ -24,6 +25,8 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   private val vadCapture = VADCapture()
   private val speakerEmbedding = SherpaOnnxSpeakerEmbedding(reactContext.assets)
   private val denoiser = SherpaOnnxDenoiser(reactContext.assets)
+  private val tts = SherpaOnnxTTS()
+  @Volatile private var isSynthesizing = false
   private var speakerModelPath: String? = null
   private var denoiserModelPath: String? = null
   private val runtimeCoordinator = WakeWordRuntimeCoordinator(
@@ -94,6 +97,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       runtimeCoordinator.dispose()
       speakerEmbedding.release()
       denoiser.release()
+      tts.release()
       promise.resolve(null)
     } catch (error: Throwable) {
       promise.reject("runtime_dispose_failed", error.message, error)
@@ -169,12 +173,46 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   }
 
   override fun synthesizeTTS(options: ReadableMap?, promise: Promise) {
-    // sherpa-onnx TTS is iOS-only in this release.
-    promise.reject(
-      "tts_platform_unsupported",
-      "SherpaOnnxTTSAdapter: native TTS synthesis is iOS-only. " +
-        "Use CustomTTSAdapter with onnxruntime-react-native on Android."
-    )
+    if (isSynthesizing) {
+      promise.reject("tts_busy", "TTS synthesis already in progress")
+      return
+    }
+    isSynthesizing = true
+
+    Thread {
+      try {
+        val modelPath   = options?.getString("modelPath")   ?: throw IllegalArgumentException("modelPath is required")
+        val tokensPath  = options?.getString("tokensPath")  ?: throw IllegalArgumentException("tokensPath is required")
+        val dataDir     = options?.getString("dataDir")     ?: throw IllegalArgumentException("dataDir is required")
+        val text        = options?.getString("text")        ?: throw IllegalArgumentException("text is required")
+        val speakerId   = options?.getInt("speakerId")      ?: 0
+        val speed       = options?.getDouble("speed")?.toFloat()       ?: 1.0f
+        val noiseScale  = options?.getDouble("noiseScale")?.toFloat()  ?: 0.667f
+        val noiseScaleW = options?.getDouble("noiseScaleW")?.toFloat() ?: 0.8f
+        val lengthScale = options?.getDouble("lengthScale")?.toFloat() ?: 1.0f
+
+        val wavPath = tts.synthesize(
+          text        = text,
+          modelPath   = modelPath,
+          tokensPath  = tokensPath,
+          dataDir     = dataDir,
+          speakerId   = speakerId,
+          speed       = speed,
+          noiseScale  = noiseScale,
+          noiseScaleW = noiseScaleW,
+          lengthScale = lengthScale,
+        )
+
+        audioPlayback.playWav(
+          filePath   = wavPath,
+          onComplete = { java.io.File(wavPath).delete(); isSynthesizing = false; promise.resolve(null) },
+          onError    = { msg -> java.io.File(wavPath).delete(); isSynthesizing = false; promise.reject("tts_playback_failed", msg) },
+        )
+      } catch (error: Throwable) {
+        isSynthesizing = false
+        promise.reject("tts_synthesis_failed", error.message, error)
+      }
+    }.start()
   }
 
   // ---------------------------------------------------------------------------
