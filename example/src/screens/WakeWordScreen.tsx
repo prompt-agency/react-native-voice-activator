@@ -15,6 +15,7 @@ import {
   initialize,
   startDetection,
   stopDetection,
+  SherpaOnnxSpeakerVerificationAdapter,
   WhisperRNSTTAdapter,
   type WakeWordDetectedEvent,
   type WakeWordError,
@@ -43,6 +44,12 @@ const KEYWORD_PRESETS = [
 ];
 
 let seq = 0;
+
+// Singleton: must outlive any single initialize() call so enrollment state
+// (in-memory speaker embeddings) survives preset switches and re-initialization.
+// Note: native speaker registrations may be cleared if the runtime is fully
+// disposed — call clearEnrollment() explicitly before dispose if persistence matters.
+const speakerVerificationProvider = new SherpaOnnxSpeakerVerificationAdapter();
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +120,7 @@ export function WakeWordScreen() {
           assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
         },
         sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        speakerVerificationProvider,
         autoSpeak: true,
       });
       setActivePresetId(selectedPresetId);
