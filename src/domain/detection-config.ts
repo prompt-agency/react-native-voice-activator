@@ -20,6 +20,7 @@ export interface WakeWordRuntimeConfiguration {
   sttProvider?: SpeechToTextProvider;
   ttsProvider?: TextToSpeechProvider;
   autoSpeak: boolean;
+  speakerModelPath?: string;
 }
 
 export function createRuntimeConfiguration(
@@ -39,6 +40,7 @@ export function createRuntimeConfiguration(
     autoSpeak: options.autoSpeak ?? false,
     ...(options.sttProvider ? { sttProvider: options.sttProvider } : {}),
     ...(options.ttsProvider ? { ttsProvider: options.ttsProvider } : {}),
+    ...(options.speakerModelPath ? { speakerModelPath: options.speakerModelPath } : {}),
   };
 }
 
@@ -71,5 +73,6 @@ export function createNativeRuntimeConfiguration(
     engine: configuration.engine,
     engineConfig: configuration.engineConfig,
     engineMetadata: configuration.engineMetadata,
+    ...(configuration.speakerModelPath ? { speakerModelPath: configuration.speakerModelPath } : {}),
   };
 }

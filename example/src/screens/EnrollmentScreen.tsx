@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
+  addWakeWordListener,
   getStatus,
   voiceActivator,
   type EnrollmentData,
@@ -14,9 +15,21 @@ export function EnrollmentScreen() {
   const [exportedData, setExportedData] = useState<string | null>(null);
   const [status, setStatus] = useState('No action taken yet.');
   const [isRecording, setIsRecording] = useState(false);
+  const [isReady, setIsReady] = useState(() => getStatus().isAvailable);
 
   const userId = 'demo-user';
-  const isReady = getStatus().isAvailable;
+
+  useEffect(() => {
+    const sub = addWakeWordListener('stateChanged', () => {
+      const available = getStatus().isAvailable;
+      setIsReady(available);
+      if (!available) {
+        setSampleCount(0);
+        setExportedData(null);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Enroll ───────────────────────────────────────────────────────────────────
 

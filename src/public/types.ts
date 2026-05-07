@@ -131,6 +131,8 @@ export interface WakeWordInitializationOptions {
   autoSpeak?: boolean;
   session?: VoiceSessionConfig;
   speakerVerificationProvider?: SpeakerVerificationProvider;
+  /** Android asset path to the Sherpa-ONNX speaker embedding ONNX model (e.g. 'SherpaOnnxSpeaker/model.onnx'). Required when using SherpaOnnxSpeakerVerificationAdapter on Android. */
+  speakerModelPath?: string;
   audioPreprocessingProvider?: AudioPreprocessingProvider;
   antiSpoofingProvider?: AntiSpoofingProvider;
   spoofingThreshold?: number;
