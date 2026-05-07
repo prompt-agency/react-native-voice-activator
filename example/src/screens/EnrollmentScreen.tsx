@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
+  addWakeWordListener,
+  getStatus,
   voiceActivator,
   type EnrollmentData,
 } from 'react-native-voice-activator';
@@ -13,8 +15,21 @@ export function EnrollmentScreen() {
   const [exportedData, setExportedData] = useState<string | null>(null);
   const [status, setStatus] = useState('No action taken yet.');
   const [isRecording, setIsRecording] = useState(false);
+  const [isReady, setIsReady] = useState(() => getStatus().isAvailable);
 
   const userId = 'demo-user';
+
+  useEffect(() => {
+    const sub = addWakeWordListener('stateChanged', () => {
+      const available = getStatus().isAvailable;
+      setIsReady(available);
+      if (!available) {
+        setSampleCount(0);
+        setExportedData(null);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Enroll ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +111,15 @@ export function EnrollmentScreen() {
         </Text>
       </View>
 
+      {/* Not-initialized warning */}
+      {!isReady && (
+        <View style={s.warning}>
+          <Text style={s.warningText}>
+            Runtime not initialized. Go to the Wake Word tab, press Initialize, then return here.
+          </Text>
+        </View>
+      )}
+
       {/* Section 1 — Enroll Speaker */}
       <SectionCard title="Enroll Speaker">
         <Text style={s.hint}>Samples: {sampleCount}/3</Text>
@@ -104,7 +128,7 @@ export function EnrollmentScreen() {
           label={isRecording ? 'Enrolling…' : 'Record Sample'}
           onPress={handleRecordSample}
           tone="primary"
-          disabled={isRecording || sampleCount >= 3}
+          disabled={!isReady || isRecording || sampleCount >= 3}
         />
         <Text style={s.note}>
           On real device: captures mic audio. In simulator: uses dummy data.
@@ -165,6 +189,14 @@ const s = StyleSheet.create({
   heroTitle: { fontSize: 24, fontWeight: '700', color: C.heroText },
   heroSub: { fontSize: 14, lineHeight: 20, color: C.heroSub },
   heroCode: { fontFamily: 'Menlo', fontSize: 12, color: '#a8d4be' },
+  warning: {
+    backgroundColor: '#3d2a00',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#7a5500',
+    padding: 14,
+  },
+  warningText: { fontSize: 13, color: '#ffc455', lineHeight: 19 },
   hint: { fontSize: 13, color: C.helper, lineHeight: 18 },
   note: {
     fontSize: 12,

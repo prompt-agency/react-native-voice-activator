@@ -91,6 +91,11 @@ internal class SherpaOnnxSpeakerEmbedding(private val assetManager: AssetManager
       ?: throw IllegalStateException("SherpaOnnxSpeakerEmbedding not initialized")
 
     val floats = decodeEmbedding(embeddingBase64)
+    // SpeakerEmbeddingManager.add() returns false if the speaker already exists.
+    // Remove first so re-enrollment can overwrite the stored embedding.
+    if (activeManager.contains(name)) {
+      activeManager.remove(name)
+    }
     return activeManager.add(name, floats)
   }
 
