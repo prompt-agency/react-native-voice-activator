@@ -121,6 +121,7 @@ export function WakeWordScreen() {
         },
         sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
         speakerVerificationProvider,
+        speakerModelPath: 'SherpaOnnxSpeaker/model.onnx',
         autoSpeak: true,
       });
       setActivePresetId(selectedPresetId);

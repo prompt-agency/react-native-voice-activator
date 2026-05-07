@@ -92,3 +92,6 @@ _bmad/
 _bmad-output/
 .npm-cache/
 .planning/
+
+# Downloaded model assets (run example/scripts/setup-sherpa-speaker.sh to populate)
+example/android/app/src/main/assets/SherpaOnnxSpeaker/

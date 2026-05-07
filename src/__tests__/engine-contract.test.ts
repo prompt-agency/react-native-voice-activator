@@ -307,4 +307,24 @@ describe('engine-agnostic runtime contract', () => {
       engineMetadata: defaultEngineMetadata,
     });
   });
+
+  it('propagates speakerModelPath to the native runtime configuration when set', () => {
+    const nativeConfiguration = createNativeRuntimeConfiguration(
+      createRuntimeConfiguration({
+        speakerModelPath: 'SherpaOnnxSpeaker/model.onnx',
+      })
+    );
+
+    expect(nativeConfiguration.speakerModelPath).toBe(
+      'SherpaOnnxSpeaker/model.onnx'
+    );
+  });
+
+  it('omits speakerModelPath from the native runtime configuration when not set', () => {
+    const nativeConfiguration = createNativeRuntimeConfiguration(
+      createRuntimeConfiguration({})
+    );
+
+    expect(nativeConfiguration).not.toHaveProperty('speakerModelPath');
+  });
 });

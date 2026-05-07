@@ -37,7 +37,7 @@ import type {
 } from './types';
 import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
 import { SileroVADEngine, VAD_NATIVE_PCM_FRAME_EVENT } from '../providers/vad/SileroVADEngine';
-import { NativeEventEmitter, NativeModules } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -763,6 +763,12 @@ const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
 
 export const voiceActivator: VoiceActivatorApi = {
   async initialize(options: WakeWordInitializationOptions = {}) {
+    if (__DEV__ && options.speakerModelPath && Platform.OS !== 'android') {
+      console.warn(
+        '[VoiceActivator] speakerModelPath is Android-only and is ignored on ' +
+          Platform.OS
+      );
+    }
     const activeRuntime = getVoiceActivatorRuntimeBridge();
     if (!activeRuntime?.initialize) {
       return rejectUnsupportedRuntime('initialize');
