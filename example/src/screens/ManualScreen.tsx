@@ -145,12 +145,13 @@ export function ManualScreen() {
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       {/* Header */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>STT · TTS Testing</Text>
+        <Text style={s.heroTitle}>④ Speech Engines</Text>
         <Text style={s.heroSub}>
-          Exercise{' '}
-          <Text style={s.heroCode}>WhisperRNSTTAdapter</Text> (STT) and{' '}
-          <Text style={s.heroCode}>SherpaOnnxTTSAdapter</Text> (Ryan voice)
-          without the wake-word engine. Models are downloaded on first use.
+          Test the speech adapters independently.{' '}
+          <Text style={s.heroCode}>WhisperRNSTTAdapter</Text> transcribes your voice
+          locally — no cloud. <Text style={s.heroCode}>SherpaOnnxTTSAdapter</Text>{' '}
+          (Ryan voice) synthesizes speech on-device. Both run fully offline.
+          Models download on first use.
         </Text>
       </View>
 

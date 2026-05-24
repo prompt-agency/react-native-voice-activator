@@ -113,12 +113,13 @@ export function SessionScreen() {
 
       {/* Header */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>Conversation Session</Text>
+        <Text style={s.heroTitle}>③ Conversation</Text>
         <Text style={s.heroSub}>
-          Say the wake word (<Text style={s.heroCode}>MERRY CHRISTMAS</Text>), then speak. The AI
-          handler echoes your words back via Piper TTS. In{' '}
-          <Text style={s.heroCode}>auto</Text> mode the session re-listens automatically; in{' '}
-          <Text style={s.heroCode}>manual</Text> mode tap Listen Again.
+          After wake word detection, the library manages the full listen{' '}
+          <Text style={s.heroCode}>→</Text> transcribe{' '}
+          <Text style={s.heroCode}>→</Text> respond{' '}
+          <Text style={s.heroCode}>→</Text> speak loop.
+          Say <Text style={s.heroCode}>MERRY CHRISTMAS</Text> to start a session.
         </Text>
         <View style={s.pillRow}>
           <StatusPill label={wakeStatus.state} active={wakeStatus.isListening} />
