@@ -44,9 +44,7 @@ function makeSpeakerVerificationProvider(
   return {
     enrollSpeaker: jest.fn().mockResolvedValue(undefined),
     verifySpeaker: jest.fn().mockResolvedValue({ matched: true, score: 0.9 }),
-    identifySpeaker: jest
-      .fn()
-      .mockResolvedValue({ name: 'alice', score: 0.9 }),
+    identifySpeaker: jest.fn().mockResolvedValue({ name: 'alice', score: 0.9 }),
     exportEnrollment: jest.fn().mockResolvedValue(makeEnrollmentData()),
     importEnrollment: jest.fn().mockResolvedValue(undefined),
     clearEnrollment: jest.fn().mockResolvedValue(undefined),
@@ -163,18 +161,22 @@ describe('speaker verification gate', () => {
 
   // ─── Helper to get fresh module and set up audio buffer ──────────────────
 
-  async function initializeWithSession(options: {
-    speakerVerificationProvider?: SpeakerVerificationProvider;
-    antiSpoofingProvider?: AntiSpoofingProvider;
-    audioPreprocessingProvider?: AudioPreprocessingProvider;
-    verificationThreshold?: number;
-    verificationFailureBehavior?: 'open' | 'closed' | 'emit';
-  } = {}) {
+  async function initializeWithSession(
+    options: {
+      speakerVerificationProvider?: SpeakerVerificationProvider;
+      antiSpoofingProvider?: AntiSpoofingProvider;
+      audioPreprocessingProvider?: AudioPreprocessingProvider;
+      verificationThreshold?: number;
+      verificationFailureBehavior?: 'open' | 'closed' | 'emit';
+    } = {}
+  ) {
     const mod = await import('../public/voice-activator');
 
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
     const tts = {
@@ -200,21 +202,32 @@ describe('speaker verification gate', () => {
   // ─── Test 1: sessionStarted emits BEFORE verification result ─────────────
 
   it('T1: sessionStarted emits before verification completes (concurrent start)', async () => {
-    let resolveVerification!: (v: { name: string | null; score: number }) => void;
-    const pendingVerification = new Promise<{ name: string | null; score: number }>(
-      (resolve) => { resolveVerification = resolve; }
-    );
+    let resolveVerification!: (v: {
+      name: string | null;
+      score: number;
+    }) => void;
+    const pendingVerification = new Promise<{
+      name: string | null;
+      score: number;
+    }>((resolve) => {
+      resolveVerification = resolve;
+    });
 
     const verificationProvider = makeSpeakerVerificationProvider({
       identifySpeaker: jest.fn().mockReturnValue(pendingVerification),
     });
 
-    const mod = await initializeWithSession({ speakerVerificationProvider: verificationProvider });
+    const mod = await initializeWithSession({
+      speakerVerificationProvider: verificationProvider,
+    });
 
     // Set a verification audio buffer so the gate runs
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(3);
@@ -235,22 +248,32 @@ describe('speaker verification gate', () => {
 
   it('T2: speakerVerificationPassed fires with score and speakerId when verification passes', async () => {
     const verificationProvider = makeSpeakerVerificationProvider({
-      identifySpeaker: jest.fn().mockResolvedValue({ name: 'alice', score: 0.92 }),
+      identifySpeaker: jest
+        .fn()
+        .mockResolvedValue({ name: 'alice', score: 0.92 }),
     });
 
-    const mod = await initializeWithSession({ speakerVerificationProvider: verificationProvider });
+    const mod = await initializeWithSession({
+      speakerVerificationProvider: verificationProvider,
+    });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
 
-    expect(mockEmitSessionEvent).toHaveBeenCalledWith('speakerVerificationPassed', {
-      score: 0.92,
-      speakerId: 'alice',
-    });
+    expect(mockEmitSessionEvent).toHaveBeenCalledWith(
+      'speakerVerificationPassed',
+      {
+        score: 0.92,
+        speakerId: 'alice',
+      }
+    );
   });
 
   // ─── Test 3: 'closed' behavior aborts orchestrator, no sessionEnded ──────
@@ -266,13 +289,19 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
 
-    expect(mockEmitSessionEvent).toHaveBeenCalledWith('speakerVerificationFailed', { score: 0.3 });
+    expect(mockEmitSessionEvent).toHaveBeenCalledWith(
+      'speakerVerificationFailed',
+      { score: 0.3 }
+    );
     expect(mockOrchestratorInstances[0]!.abort).toHaveBeenCalledTimes(1);
     // sessionEnded must NOT be emitted
     const sessionEndedCalls = mockEmitSessionEvent.mock.calls.filter(
@@ -294,13 +323,19 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
 
-    expect(mockEmitSessionEvent).toHaveBeenCalledWith('speakerVerificationFailed', { score: 0.2 });
+    expect(mockEmitSessionEvent).toHaveBeenCalledWith(
+      'speakerVerificationFailed',
+      { score: 0.2 }
+    );
     expect(mockOrchestratorInstances[0]!.abort).not.toHaveBeenCalled();
   });
 
@@ -317,13 +352,19 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
 
-    expect(mockEmitSessionEvent).toHaveBeenCalledWith('speakerVerificationFailed', { score: 0.1 });
+    expect(mockEmitSessionEvent).toHaveBeenCalledWith(
+      'speakerVerificationFailed',
+      { score: 0.1 }
+    );
     expect(mockOrchestratorInstances[0]!.abort).not.toHaveBeenCalled();
   });
 
@@ -340,8 +381,11 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
@@ -360,9 +404,12 @@ describe('speaker verification gate', () => {
 
   it('T7: Two wake words 60ms apart — first verification callback is discarded by generation-ID guard', async () => {
     let resolveFirst!: (v: { name: string | null; score: number }) => void;
-    const firstVerification = new Promise<{ name: string | null; score: number }>(
-      (resolve) => { resolveFirst = resolve; }
-    );
+    const firstVerification = new Promise<{
+      name: string | null;
+      score: number;
+    }>((resolve) => {
+      resolveFirst = resolve;
+    });
 
     let callCount = 0;
     const verificationProvider = makeSpeakerVerificationProvider({
@@ -379,8 +426,11 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (verificationMod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      verificationMod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     // First wake word — verification pending
     capturedWakeWordHandler!(makeWakeWordPayload('hey'));
@@ -426,7 +476,9 @@ describe('speaker verification gate', () => {
 
   it('T9: Anti-spoofing runs concurrently with verification and rejects if spoof score > threshold', async () => {
     const verificationProvider = makeSpeakerVerificationProvider({
-      identifySpeaker: jest.fn().mockResolvedValue({ name: 'alice', score: 0.9 }),
+      identifySpeaker: jest
+        .fn()
+        .mockResolvedValue({ name: 'alice', score: 0.9 }),
     });
 
     // Spoof score 0.8 > default spoofingThreshold 0.5 — should fail
@@ -439,8 +491,11 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
@@ -451,7 +506,10 @@ describe('speaker verification gate', () => {
 
     // Even though speaker identity matched, spoof detection failed → abort
     expect(mockOrchestratorInstances[0]!.abort).toHaveBeenCalledTimes(1);
-    expect(mockEmitSessionEvent).toHaveBeenCalledWith('speakerVerificationFailed', expect.anything());
+    expect(mockEmitSessionEvent).toHaveBeenCalledWith(
+      'speakerVerificationFailed',
+      expect.anything()
+    );
   });
 
   // ─── Test 10: enrollSpeaker throws when provider is null ─────────────────
@@ -479,7 +537,11 @@ describe('speaker verification gate', () => {
     const audioBuffer = new ArrayBuffer(32);
     await mod.voiceActivator.enrollSpeaker('bob', audioBuffer);
 
-    expect(verificationProvider.enrollSpeaker).toHaveBeenCalledWith('bob', audioBuffer, 16000);
+    expect(verificationProvider.enrollSpeaker).toHaveBeenCalledWith(
+      'bob',
+      audioBuffer,
+      16000
+    );
   });
 
   // ─── Test 12: exportEnrollment, importEnrollment, clearEnrollment ─────────
@@ -493,7 +555,9 @@ describe('speaker verification gate', () => {
     );
     await expect(
       mod.voiceActivator.importEnrollment(makeEnrollmentData())
-    ).rejects.toThrow('importEnrollment() requires a speakerVerificationProvider');
+    ).rejects.toThrow(
+      'importEnrollment() requires a speakerVerificationProvider'
+    );
     await expect(mod.voiceActivator.clearEnrollment()).rejects.toThrow(
       'clearEnrollment() requires a speakerVerificationProvider'
     );
@@ -515,14 +579,17 @@ describe('speaker verification gate', () => {
   // ─── Test 13: audioPreprocessingProvider passed as 4th constructor param ──
 
   it('T13: audioPreprocessingProvider is passed as 4th constructor param to VoiceSessionOrchestrator', async () => {
-    const { VoiceSessionOrchestrator } = await import('../runtime/session-orchestrator');
+    const { VoiceSessionOrchestrator } =
+      await import('../runtime/session-orchestrator');
     const audioPreprocessingProvider = makeAudioPreprocessingProvider();
 
     const mod = await import('../public/voice-activator');
 
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
     const tts = {
@@ -557,14 +624,18 @@ describe('speaker verification gate', () => {
 
   it('T14: When no session config is set, verification runs silently (no event emission)', async () => {
     const verificationProvider = makeSpeakerVerificationProvider({
-      identifySpeaker: jest.fn().mockResolvedValue({ name: 'alice', score: 0.9 }),
+      identifySpeaker: jest
+        .fn()
+        .mockResolvedValue({ name: 'alice', score: 0.9 }),
     });
 
     const mod = await import('../public/voice-activator');
 
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hi', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -576,8 +647,11 @@ describe('speaker verification gate', () => {
     await mod.startDetection();
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);
@@ -604,8 +678,11 @@ describe('speaker verification gate', () => {
     });
 
     const dummyBuffer = new ArrayBuffer(16);
-    (mod as unknown as { setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void })
-      .setVerificationAudioBuffer?.(dummyBuffer);
+    (
+      mod as unknown as {
+        setVerificationAudioBuffer?: (b: ArrayBuffer | null) => void;
+      }
+    ).setVerificationAudioBuffer?.(dummyBuffer);
 
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync(10);

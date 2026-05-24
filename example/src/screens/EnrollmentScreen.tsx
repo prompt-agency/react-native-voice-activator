@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import {
   addWakeWordListener,
   getStatus,
@@ -7,6 +8,10 @@ import {
   type EnrollmentData,
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard } from '../shared';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const BAR_MULTIPLIERS = [0.5, 0.9, 0.7, 1.0, 0.8, 1.0, 0.6, 0.85];
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -17,7 +22,11 @@ export function EnrollmentScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isReady, setIsReady] = useState(() => getStatus().isAvailable);
 
-  const userId = 'demo-user';
+  const [userId, setUserId] = useState('demo-user');
+  const [meterDb, setMeterDb] = useState(-60);
+
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const sub = addWakeWordListener('stateChanged', () => {
@@ -31,21 +40,74 @@ export function EnrollmentScreen() {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (recordingTimer.current) {
+        clearTimeout(recordingTimer.current);
+        recordingTimer.current = null;
+      }
+      audioRecorderPlayer.stopRecorder().catch(() => {});
+      audioRecorderPlayer.removeRecordBackListener();
+    };
+  }, []);
+
   // ── Enroll ───────────────────────────────────────────────────────────────────
 
-  async function handleRecordSample() {
-    setIsRecording(true);
+  async function ensureMicPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: 'Microphone',
+        message: 'Required to capture voice samples.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Cancel',
+      }
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
+
+  async function stopRecording() {
+    if (recordingTimer.current) {
+      clearTimeout(recordingTimer.current);
+      recordingTimer.current = null;
+    }
     try {
-      // Create a dummy ArrayBuffer (512 bytes of zeros) for the demo.
-      // On a real device this would be replaced with mic-captured PCM audio.
-      const dummyBuffer = new ArrayBuffer(512);
-      await voiceActivator.enrollSpeaker(userId, dummyBuffer);
-      const next = sampleCount + 1;
-      setSampleCount(next);
-      setStatus(`Sample ${next} enrolled`);
+      const uri = await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+      setMeterDb(-60);
+      const response = await fetch(uri);
+      const buffer = await response.arrayBuffer();
+      await voiceActivator.enrollSpeaker(userId.trim(), buffer);
+      setSampleCount((prev) => {
+        setStatus(`Sample ${prev + 1} recorded`);
+        return prev + 1;
+      });
     } catch (err) {
-      setStatus(`Error enrolling sample: ${String(err)}`);
+      setStatus(`Error recording sample: ${String(err)}`);
     } finally {
+      setIsRecording(false);
+    }
+  }
+
+  async function handleRecordSample() {
+    if (!(await ensureMicPermission())) {
+      setStatus('Microphone permission denied.');
+      return;
+    }
+    setIsRecording(true);
+    setStatus('Recording — say a short phrase…');
+    try {
+      await audioRecorderPlayer.startRecorder(undefined, undefined, true);
+      audioRecorderPlayer.addRecordBackListener((e) => {
+        setMeterDb(e.currentMetering ?? -60);
+      });
+      // Auto-stop after 2 seconds
+      recordingTimer.current = setTimeout(() => {
+        stopRecording();
+      }, 2000);
+    } catch (err) {
+      setStatus(`Error starting recording: ${String(err)}`);
       setIsRecording(false);
     }
   }
@@ -98,17 +160,19 @@ export function EnrollmentScreen() {
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
 
-      {/* Header */}
+      {/* Hero */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>Speaker Enrollment</Text>
+        <Text style={s.heroLabel}>① SPEAKER ID</Text>
+        <Text style={s.heroTitle}>Voice enrollment & verification</Text>
         <Text style={s.heroSub}>
-          Demonstrates the full enrollment round-trip:{' '}
-          <Text style={s.heroCode}>enrollSpeaker</Text> →{' '}
-          <Text style={s.heroCode}>exportEnrollment</Text> →{' '}
-          <Text style={s.heroCode}>clearEnrollment</Text> +{' '}
-          <Text style={s.heroCode}>importEnrollment</Text>.
-          Copy this pattern for real app integration.
+          Enroll a user's voice with 3 short recordings. The library creates a
+          compact voice embedding — your app can verify this person's identity
+          on any future interaction. Use for: personalized assistants, access
+          control, multi-user devices.
         </Text>
+        <View style={s.startHint}>
+          <Text style={s.startHintText}>✦ New here? This is the recommended first tab.</Text>
+        </View>
       </View>
 
       {/* Not-initialized warning */}
@@ -122,21 +186,59 @@ export function EnrollmentScreen() {
 
       {/* Section 1 — Enroll Speaker */}
       <SectionCard title="Enroll Speaker">
-        <Text style={s.hint}>Samples: {sampleCount}/3</Text>
-        <Text style={s.hint}>User ID: {userId}</Text>
+        <View style={s.userIdRow}>
+          <Text style={s.hint}>User ID</Text>
+          <TextInput
+            style={s.userIdInput}
+            value={userId}
+            onChangeText={setUserId}
+            placeholder="e.g. alice"
+            placeholderTextColor={C.meta}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+        <View style={s.dotsRow}>
+          {[1, 2, 3].map((n) => (
+            <View key={n} style={[s.dot, sampleCount >= n && s.dotFilled]}>
+              <Text style={[s.dotNum, sampleCount >= n && s.dotNumFilled]}>{n}</Text>
+            </View>
+          ))}
+          <Text style={s.hint}>{sampleCount} of 3 samples recorded</Text>
+        </View>
+        {isRecording ? (
+          <View style={s.waveform}>
+            {BAR_MULTIPLIERS.map((mult, i) => {
+              const normalized = Math.max(0, Math.min(1, (meterDb + 60) / 60));
+              const height = 4 + normalized * mult * 28;
+              return <View key={i} style={[s.waveBar, { height }]} />;
+            })}
+          </View>
+        ) : null}
         <Btn
-          label={isRecording ? 'Enrolling…' : 'Record Sample'}
+          label={isRecording ? 'Recording…' : sampleCount < 3 ? `Record Sample ${sampleCount + 1}` : 'All Samples Recorded'}
           onPress={handleRecordSample}
           tone="primary"
-          disabled={!isReady || isRecording || sampleCount >= 3}
+          disabled={!isReady || isRecording || sampleCount >= 3 || userId.trim() === ''}
         />
+        {isRecording ? (
+          <Btn
+            label="Stop recording"
+            onPress={stopRecording}
+            tone="quiet"
+          />
+        ) : null}
         <Text style={s.note}>
-          On real device: captures mic audio. In simulator: uses dummy data.
+          Say a short phrase — any sentence works. About 2 seconds each.
         </Text>
       </SectionCard>
 
-      {/* Section 2 — Export & Import */}
-      <SectionCard title="Export &amp; Import">
+      {/* Section 2 — Persist Enrollment */}
+      <SectionCard title="Persist Enrollment">
+        <Text style={s.hint}>
+          Export your enrollment data to JSON so it survives app restarts.
+          Import it back to restore without re-recording.
+        </Text>
         <Btn
           label="Export Enrollment"
           onPress={handleExport}
@@ -186,9 +288,31 @@ const s = StyleSheet.create({
     padding: 18,
     gap: 10,
   },
-  heroTitle: { fontSize: 24, fontWeight: '700', color: C.heroText },
-  heroSub: { fontSize: 14, lineHeight: 20, color: C.heroSub },
-  heroCode: { fontFamily: 'Menlo', fontSize: 12, color: '#a8d4be' },
+  heroLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.heroSub,
+    letterSpacing: 1,
+  },
+  heroTitle: { fontSize: 22, fontWeight: '700', color: C.heroText },
+  heroSub: { fontSize: 13, lineHeight: 20, color: C.heroSub },
+  startHint: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    padding: 8,
+  },
+  startHintText: { fontSize: 12, color: C.heroText },
+  userIdRow: { gap: 4 },
+  userIdInput: {
+    backgroundColor: C.bg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: C.heading,
+  },
   warning: {
     backgroundColor: '#3d2a00',
     borderRadius: 12,
@@ -224,5 +348,37 @@ const s = StyleSheet.create({
     fontFamily: 'Menlo',
     color: C.heading,
     lineHeight: 18,
+  },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.bg,
+    borderWidth: 2,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotFilled: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
+  },
+  dotNum: { fontSize: 13, fontWeight: '700', color: C.meta },
+  dotNumFilled: { color: C.primaryText },
+  waveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    height: 36,
+    backgroundColor: C.bg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  waveBar: {
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: C.primary,
   },
 });

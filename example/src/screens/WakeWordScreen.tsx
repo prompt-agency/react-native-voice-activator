@@ -160,11 +160,11 @@ export function WakeWordScreen() {
 
       {/* Header */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>Wake Word Detection</Text>
+        <Text style={s.heroTitle}>② Wake Word</Text>
         <Text style={s.heroSub}>
-          Select a keyword preset, initialize, then say the phrase. The runtime
-          uses built-in Whisper STT and Piper TTS to transcribe and speak back
-          each detection via <Text style={s.heroCode}>autoSpeak: true</Text>.
+          The engine listens continuously in the background for a trigger phrase.
+          When detected, your app wakes up — no cloud, no streaming audio.
+          Pick a keyword below, initialize, and say it aloud.
         </Text>
         <View style={s.pillRow}>
           <StatusPill label={status.state} active={status.isListening} />

@@ -70,11 +70,7 @@ export const withModelAssets: ConfigPlugin<ModelAssetsProps> = (
       const rawPath = props[field];
       if (!rawPath) continue;
 
-      const relativePath = path.join(
-        appName,
-        subdir,
-        path.basename(rawPath)
-      );
+      const relativePath = path.join(appName, subdir, path.basename(rawPath));
       xcodeProject.addResourceFile(relativePath, {
         target: xcodeProject.getFirstTarget().uuid,
       });

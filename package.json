@@ -26,6 +26,7 @@
     "*.podspec",
     "react-native.config.js",
     "!ios/build",
+    "!ios/Vendor",
     "!android/build",
     "!android/gradle",
     "!android/gradlew",
@@ -54,9 +55,16 @@
   "keywords": [
     "react-native",
     "ios",
-    "android"
+    "android",
+    "expo",
+    "wake-word",
+    "voice",
+    "speech",
+    "keyword-detection",
+    "sherpa-onnx",
+    "voice-activity-detection"
   ],
-  "author": "ih",
+  "author": "Prompt Agency",
   "homepage": "https://github.com/prompt-agency/react-native-voice-activator",
   "license": "MIT",
   "repository": {
@@ -164,7 +172,20 @@
       "publish": true
     },
     "github": {
-      "release": true
+      "release": true,
+      "assets": [
+        "sherpa-onnx.xcframework.zip",
+        "sherpa-onnxruntime.xcframework.zip"
+      ]
+    },
+    "hooks": {
+      "before:init": [
+        "(cd ios/Vendor/SherpaOnnx && zip -r ../../../sherpa-onnx.xcframework.zip sherpa-onnx.xcframework)",
+        "(cd ios/Vendor/SherpaOnnx && zip -r ../../../sherpa-onnxruntime.xcframework.zip sherpa-onnxruntime.xcframework)"
+      ],
+      "after:release": [
+        "rm -f sherpa-onnx.xcframework.zip sherpa-onnxruntime.xcframework.zip"
+      ]
     },
     "plugins": {
       "@release-it/conventional-changelog": {

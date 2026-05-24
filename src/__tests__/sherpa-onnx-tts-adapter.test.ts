@@ -164,7 +164,8 @@ describe('SherpaOnnxTTSAdapter', () => {
 
     it('constructor does not emit a platform warning on Android', () => {
       jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-      new SherpaOnnxTTSAdapter(makeConfig());
+      const _adapter = new SherpaOnnxTTSAdapter(makeConfig());
+      expect(_adapter).toBeDefined();
       expect(console.warn).not.toHaveBeenCalled();
     });
   });

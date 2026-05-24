@@ -15,7 +15,10 @@ import {
   addRuntimeListener,
   emitRuntimeEvent,
 } from '../internal/runtime-events';
-import { addSessionListener, emitSessionEvent } from '../internal/session-events';
+import {
+  addSessionListener,
+  emitSessionEvent,
+} from '../internal/session-events';
 import { createRuntimeStore } from '../internal/runtime-store';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
@@ -36,7 +39,10 @@ import type {
   WakeWordStatus,
 } from './types';
 import { VoiceSessionOrchestrator } from '../runtime/session-orchestrator';
-import { SileroVADEngine, VAD_NATIVE_PCM_FRAME_EVENT } from '../providers/vad/SileroVADEngine';
+import {
+  SileroVADEngine,
+  VAD_NATIVE_PCM_FRAME_EVENT,
+} from '../providers/vad/SileroVADEngine';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
@@ -287,11 +293,18 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
 
               if (verificationAudio) {
                 // Build concurrent checks: verification + optional anti-spoofing
-                const verificationPromise = activeSpeakerVerificationProvider!
-                  .identifySpeaker(verificationAudio, 16000, activeVerificationThreshold);
+                const verificationPromise =
+                  activeSpeakerVerificationProvider!.identifySpeaker(
+                    verificationAudio,
+                    16000,
+                    activeVerificationThreshold
+                  );
 
                 const spoofPromise = activeAntiSpoofingProvider
-                  ? activeAntiSpoofingProvider.detectSpoofing(verificationAudio, 16000)
+                  ? activeAntiSpoofingProvider.detectSpoofing(
+                      verificationAudio,
+                      16000
+                    )
                   : Promise.resolve(null as number | null);
 
                 const [verificationResult, rawSpoofScore] = await Promise.all([
@@ -303,9 +316,10 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
                 if (providerOrchestrationGeneration !== verGen) return;
 
                 const verificationPassed = verificationResult.name !== null;
-                const spoofPassed = rawSpoofScore !== null
-                  ? rawSpoofScore <= activeSpoofingThreshold
-                  : true; // No anti-spoofing = pass
+                const spoofPassed =
+                  rawSpoofScore !== null
+                    ? rawSpoofScore <= activeSpoofingThreshold
+                    : true; // No anti-spoofing = pass
 
                 const passed = verificationPassed && spoofPassed;
 
@@ -817,7 +831,8 @@ export const voiceActivator: VoiceActivatorApi = {
       activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
       activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
       activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
-      activeVerificationFailureBehavior = options?.verificationFailureBehavior ?? 'closed';
+      activeVerificationFailureBehavior =
+        options?.verificationFailureBehavior ?? 'closed';
 
       // VAD gate: dispose previous engine if re-initializing
       if (activeVadGateEngine) {
@@ -876,7 +891,9 @@ export const voiceActivator: VoiceActivatorApi = {
       // Start VAD gate engine if enabled
       if (activeVadGateEnabled) {
         if (!activeVadGateEngine) {
-          activeVadGateEngine = new SileroVADEngine({ threshold: activeVadGateThreshold });
+          activeVadGateEngine = new SileroVADEngine({
+            threshold: activeVadGateThreshold,
+          });
         }
         await activeVadGateEngine.loadModel();
         // Subscribe to speechStart/speechEnd for gate flag
@@ -888,13 +905,12 @@ export const voiceActivator: VoiceActivatorApi = {
         });
         // Subscribe to PCM frames for ring buffer (verification audio source)
         const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
-        vadPcmRingBufferSub = emitter.addListener(
-          VAD_NATIVE_PCM_FRAME_EVENT,
-          ((...args: readonly object[]) => {
-            const e = args[0] as { pcm: string };
-            pushVadPcmFrame(e.pcm);
-          }) as (...args: readonly object[]) => unknown
-        );
+        vadPcmRingBufferSub = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((
+          ...args: readonly object[]
+        ) => {
+          const e = args[0] as { pcm: string };
+          pushVadPcmFrame(e.pcm);
+        }) as (...args: readonly object[]) => unknown);
         await activeVadGateEngine.start();
       }
 
@@ -1042,7 +1058,11 @@ export const voiceActivator: VoiceActivatorApi = {
         'enrollSpeaker() requires a speakerVerificationProvider to be configured in initialize()'
       );
     }
-    await activeSpeakerVerificationProvider.enrollSpeaker(userId, audioBuffer, 16000);
+    await activeSpeakerVerificationProvider.enrollSpeaker(
+      userId,
+      audioBuffer,
+      16000
+    );
   },
 
   async exportEnrollment(): Promise<EnrollmentData> {

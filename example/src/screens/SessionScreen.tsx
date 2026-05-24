@@ -113,12 +113,13 @@ export function SessionScreen() {
 
       {/* Header */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>Conversation Session</Text>
+        <Text style={s.heroTitle}>③ Conversation</Text>
         <Text style={s.heroSub}>
-          Say the wake word (<Text style={s.heroCode}>MERRY CHRISTMAS</Text>), then speak. The AI
-          handler echoes your words back via Piper TTS. In{' '}
-          <Text style={s.heroCode}>auto</Text> mode the session re-listens automatically; in{' '}
-          <Text style={s.heroCode}>manual</Text> mode tap Listen Again.
+          After wake word detection, the library manages the full listen{' '}
+          <Text style={s.heroCode}>→</Text> transcribe{' '}
+          <Text style={s.heroCode}>→</Text> respond{' '}
+          <Text style={s.heroCode}>→</Text> speak loop.
+          Say <Text style={s.heroCode}>MERRY CHRISTMAS</Text> to start a session.
         </Text>
         <View style={s.pillRow}>
           <StatusPill label={wakeStatus.state} active={wakeStatus.isListening} />
@@ -135,6 +136,17 @@ export function SessionScreen() {
       ) : null}
 
       {progressText ? <Text style={s.progress}>{progressText}</Text> : null}
+
+      {/* Echo handler notice */}
+      <View style={s.echoNotice}>
+        <Text style={s.echoNoticeTitle}>Echo handler active (demo mode)</Text>
+        <Text style={s.echoNoticeBody}>
+          This demo echoes your words back. Replace the{' '}
+          <Text style={s.code}>mockAiHandler</Text> constant in{' '}
+          <Text style={s.code}>SessionScreen.tsx</Text> with a call to
+          your AI API to get a real conversation.
+        </Text>
+      </View>
 
       {/* Config */}
       <SectionCard title="Session configuration">
@@ -220,6 +232,24 @@ const s = StyleSheet.create({
   errorTitle: { fontSize: 14, fontWeight: '700', color: C.dangerText },
   errorBody: { fontSize: 13, color: '#7a3028' },
   progress: { fontSize: 13, color: C.meta, textAlign: 'center' },
+  echoNotice: {
+    backgroundColor: C.tileBg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    padding: 14,
+    gap: 6,
+  },
+  echoNoticeTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.heading,
+  },
+  echoNoticeBody: {
+    fontSize: 12,
+    color: C.helper,
+    lineHeight: 18,
+  },
   hint: { fontSize: 13, color: C.helper, lineHeight: 18 },
   code: { fontFamily: 'Menlo', fontSize: 12, color: C.meta },
   modeRow: { flexDirection: 'row', gap: 8 },

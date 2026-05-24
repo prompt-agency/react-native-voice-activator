@@ -36,9 +36,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
  * Requirements: NOISE-01, NOISE-02, NOISE-03, NOISE-04
  * Decisions: D-10 (sampleRate at call time, not constructor), D-11 (stateless, no init/dispose)
  */
-export class SherpaOnnxNoiseSuppressionAdapter
-  implements AudioPreprocessingProvider
-{
+export class SherpaOnnxNoiseSuppressionAdapter implements AudioPreprocessingProvider {
   private readonly _modelPath: string;
 
   constructor(options: { modelPath: string }) {
@@ -49,7 +47,10 @@ export class SherpaOnnxNoiseSuppressionAdapter
     return this._modelPath;
   }
 
-  async process(audioBuffer: ArrayBuffer, sampleRate: number): Promise<ArrayBuffer> {
+  async process(
+    audioBuffer: ArrayBuffer,
+    sampleRate: number
+  ): Promise<ArrayBuffer> {
     const pcmBase64 = arrayBufferToBase64(audioBuffer);
     const denoisedBase64 = await NativeVoiceActivator!.denoiseAudio(
       pcmBase64,

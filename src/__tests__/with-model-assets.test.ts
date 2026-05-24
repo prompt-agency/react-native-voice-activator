@@ -83,7 +83,6 @@ jest.mock('@expo/config-plugins', () => ({
   ),
 }));
 
-// eslint-disable-next-line import/first -- must come after jest.mock calls
 import { withModelAssets } from '../expo/withModelAssets';
 
 // ---------------------------------------------------------------------------
@@ -169,9 +168,7 @@ describe('withModelAssets', () => {
     await flushPromises();
 
     const calls = (copyFileSync as jest.Mock).mock.calls as [string, string][];
-    const androidCalls = calls.filter(([, dest]) =>
-      dest.includes('/android/')
-    );
+    const androidCalls = calls.filter(([, dest]) => dest.includes('/android/'));
 
     expect(androidCalls.length).toBeGreaterThanOrEqual(1);
     const [, dest] = androidCalls[0]!;

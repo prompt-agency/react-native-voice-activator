@@ -16,7 +16,10 @@ import type {
   VoiceSessionEventMap,
   WakeWordInitializationOptions,
 } from '../public/types';
-import { addSessionListener, emitSessionEvent } from '../internal/session-events';
+import {
+  addSessionListener,
+  emitSessionEvent,
+} from '../internal/session-events';
 
 // ─── Test 1: VoiceSessionEventMap has speakerVerificationPassed ───────────────
 
@@ -57,9 +60,15 @@ describe('WakeWordInitializationOptions — new optional fields', () => {
   });
 
   it('accepts all verificationFailureBehavior values', () => {
-    const open: WakeWordInitializationOptions = { verificationFailureBehavior: 'open' };
-    const closed: WakeWordInitializationOptions = { verificationFailureBehavior: 'closed' };
-    const emit: WakeWordInitializationOptions = { verificationFailureBehavior: 'emit' };
+    const open: WakeWordInitializationOptions = {
+      verificationFailureBehavior: 'open',
+    };
+    const closed: WakeWordInitializationOptions = {
+      verificationFailureBehavior: 'closed',
+    };
+    const emit: WakeWordInitializationOptions = {
+      verificationFailureBehavior: 'emit',
+    };
     expect(open.verificationFailureBehavior).toBe('open');
     expect(closed.verificationFailureBehavior).toBe('closed');
     expect(emit.verificationFailureBehavior).toBe('emit');
@@ -77,7 +86,10 @@ describe('VoiceActivatorApi — enrollment methods', () => {
   it('includes enrollSpeaker(userId: string, audioBuffer: ArrayBuffer): Promise<void>', () => {
     type EnrollSpeaker = VoiceActivatorApi['enrollSpeaker'];
     // Type-level check: the method signature must be assignable
-    const mockEnroll: EnrollSpeaker = async (_userId: string, _buf: ArrayBuffer) => undefined;
+    const mockEnroll: EnrollSpeaker = async (
+      _userId: string,
+      _buf: ArrayBuffer
+    ) => undefined;
     expect(typeof mockEnroll).toBe('function');
   });
 
@@ -90,7 +102,8 @@ describe('VoiceActivatorApi — enrollment methods', () => {
 
   it('includes importEnrollment(data: EnrollmentData): Promise<void>', () => {
     type ImportEnrollment = VoiceActivatorApi['importEnrollment'];
-    const mockImport: ImportEnrollment = async (_data: EnrollmentData) => undefined;
+    const mockImport: ImportEnrollment = async (_data: EnrollmentData) =>
+      undefined;
     expect(typeof mockImport).toBe('function');
   });
 
@@ -111,7 +124,10 @@ describe('session-events — listeners registry', () => {
       received.push(payload);
     });
 
-    emitSessionEvent('speakerVerificationPassed', { score: 0.9, speakerId: 'user-42' });
+    emitSessionEvent('speakerVerificationPassed', {
+      score: 0.9,
+      speakerId: 'user-42',
+    });
 
     sub.remove();
 
@@ -140,7 +156,10 @@ describe('session-events — listeners registry', () => {
     });
     sub.remove();
 
-    emitSessionEvent('speakerVerificationPassed', { score: 0.8, speakerId: 'user-99' });
+    emitSessionEvent('speakerVerificationPassed', {
+      score: 0.8,
+      speakerId: 'user-99',
+    });
 
     expect(received).toHaveLength(0);
   });

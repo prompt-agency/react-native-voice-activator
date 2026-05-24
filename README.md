@@ -447,6 +447,7 @@ Expo config and prebuild compatibility are validated through docs, contract chec
 
 | Document | Description |
 |---|---|
+| [LLM/AI Assistant Context](docs/llm-context.md) | One-stop orientation for AI assistants and developers |
 | [Getting Started](docs/getting-started.md) | Step-by-step setup walkthrough from zero to first detection |
 | [Bare React Native Setup](docs/bare-react-native-setup.md) | Native project configuration for bare React Native |
 | [Expo Setup](docs/expo-setup.md) | Config plugin and prebuild setup for Expo |
