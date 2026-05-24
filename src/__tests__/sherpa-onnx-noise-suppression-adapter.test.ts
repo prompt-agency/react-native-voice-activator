@@ -37,13 +37,10 @@ describe('SherpaOnnxNoiseSuppressionAdapter', () => {
 
     await adapter.process(new ArrayBuffer(16), 16000);
 
-    expect(mock['denoiseAudio']).toHaveBeenCalledTimes(1);
-    expect(mock['denoiseAudio']).toHaveBeenCalledWith(
-      expect.any(String),
-      16000
-    );
+    expect(mock.denoiseAudio).toHaveBeenCalledTimes(1);
+    expect(mock.denoiseAudio).toHaveBeenCalledWith(expect.any(String), 16000);
     // Verify the first argument is a valid base64 string
-    const [base64Arg] = mock['denoiseAudio']!.mock.calls[0]!;
+    const [base64Arg] = mock.denoiseAudio!.mock.calls[0]!;
     expect(typeof base64Arg).toBe('string');
     expect((base64Arg as string).length).toBeGreaterThan(0);
   });
@@ -75,6 +72,6 @@ describe('SherpaOnnxNoiseSuppressionAdapter', () => {
 
     await adapter.process(new ArrayBuffer(16), 48000);
 
-    expect(mock['denoiseAudio']).toHaveBeenCalledWith(expect.any(String), 48000);
+    expect(mock.denoiseAudio).toHaveBeenCalledWith(expect.any(String), 48000);
   });
 });

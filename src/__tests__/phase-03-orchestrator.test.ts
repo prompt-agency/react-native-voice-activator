@@ -60,7 +60,9 @@ function makeTtsProvider(): jest.Mocked<TextToSpeechProvider> {
   };
 }
 
-function makeConfig(overrides: Partial<VoiceSessionConfig> = {}): VoiceSessionConfig {
+function makeConfig(
+  overrides: Partial<VoiceSessionConfig> = {}
+): VoiceSessionConfig {
   return {
     aiHandler: jest.fn(async () => 'response'),
     reListenMode: 'manual',
@@ -146,7 +148,9 @@ describe('VoiceSessionOrchestrator NOISE-03 audio preprocessing', () => {
 
   function makePreprocessingProvider(): jest.Mocked<AudioPreprocessingProvider> {
     return {
-      process: jest.fn(async (buffer: ArrayBuffer, _sampleRate: number) => buffer),
+      process: jest.fn(
+        async (buffer: ArrayBuffer, _sampleRate: number) => buffer
+      ),
     };
   }
 
@@ -166,7 +170,12 @@ describe('VoiceSessionOrchestrator NOISE-03 audio preprocessing', () => {
       },
     });
 
-    const orchestrator = new VoiceSessionOrchestrator(config, stt, tts, preprocessor);
+    const orchestrator = new VoiceSessionOrchestrator(
+      config,
+      stt,
+      tts,
+      preprocessor
+    );
 
     // We'll test this indirectly via spying on _transcribeWithVad — since that method
     // is private, we test through the constructor accepting the parameter.
@@ -195,7 +204,12 @@ describe('VoiceSessionOrchestrator NOISE-03 audio preprocessing', () => {
     const preprocessor = makePreprocessingProvider();
 
     const config = makeConfig({ vad: { silenceTimeoutMs: 1500 } });
-    const orchestrator = new VoiceSessionOrchestrator(config, stt, tts, preprocessor);
+    const orchestrator = new VoiceSessionOrchestrator(
+      config,
+      stt,
+      tts,
+      preprocessor
+    );
 
     // Verify constructor signature accepts 4th param and exposes it (state still idle)
     expect(orchestrator.state).toBe('idle');

@@ -16,9 +16,7 @@ type RNFSModule = typeof import('react-native-fs');
 type LiveAudioStreamModule =
   typeof import('@fugood/react-native-audio-pcm-stream');
 type LiveAudioStreamType = LiveAudioStreamModule['default'];
-type LiveAudioStreamSubscription = ReturnType<
-  LiveAudioStreamType['on']
->;
+type LiveAudioStreamSubscription = ReturnType<LiveAudioStreamType['on']>;
 
 type ActiveTranscription = {
   cancelled: boolean;

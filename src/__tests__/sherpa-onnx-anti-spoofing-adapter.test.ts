@@ -33,13 +33,10 @@ describe('SherpaOnnxAntiSpoofingAdapter', () => {
 
     await adapter.detectSpoofing(new ArrayBuffer(16), 16000);
 
-    expect(mock['detectSpoofing']).toHaveBeenCalledTimes(1);
-    expect(mock['detectSpoofing']).toHaveBeenCalledWith(
-      expect.any(String),
-      16000
-    );
+    expect(mock.detectSpoofing).toHaveBeenCalledTimes(1);
+    expect(mock.detectSpoofing).toHaveBeenCalledWith(expect.any(String), 16000);
     // Verify the first argument is a valid base64 string
-    const [base64Arg] = mock['detectSpoofing']!.mock.calls[0]!;
+    const [base64Arg] = mock.detectSpoofing!.mock.calls[0]!;
     expect(typeof base64Arg).toBe('string');
     expect((base64Arg as string).length).toBeGreaterThan(0);
   });
@@ -64,7 +61,7 @@ describe('SherpaOnnxAntiSpoofingAdapter', () => {
   it('detectSpoofing passes through non-zero scores', async () => {
     const adapter = new SherpaOnnxAntiSpoofingAdapter();
     const mock = getNativeMock();
-    mock['detectSpoofing']?.mockResolvedValueOnce(0.75);
+    mock.detectSpoofing?.mockResolvedValueOnce(0.75);
 
     const result = await adapter.detectSpoofing(new ArrayBuffer(16), 16000);
 

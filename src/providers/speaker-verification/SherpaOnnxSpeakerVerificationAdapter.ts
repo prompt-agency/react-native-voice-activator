@@ -71,9 +71,7 @@ function averageEmbeddings(embeddings: string[]): string {
  *   - Exports/imports raw embeddings for app-side persistence (D-03, PRIV-01)
  *   - Never persists embeddings — app owns storage (GDPR/CCPA/BIPA)
  */
-export class SherpaOnnxSpeakerVerificationAdapter
-  implements SpeakerVerificationProvider
-{
+export class SherpaOnnxSpeakerVerificationAdapter implements SpeakerVerificationProvider {
   private readonly _speakers = new Map<string, string[]>();
 
   /**

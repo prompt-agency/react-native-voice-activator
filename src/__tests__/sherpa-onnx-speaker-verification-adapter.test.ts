@@ -63,7 +63,7 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     adapter = new SherpaOnnxSpeakerVerificationAdapter();
     // Set up a sequence of different fake embeddings for extractSpeakerEmbedding
     const mock = getNativeMock();
-    mock['extractSpeakerEmbedding']
+    mock.extractSpeakerEmbedding
       ?.mockResolvedValueOnce(fakeEmbeddingBase64([1, 2, 3, 4]))
       .mockResolvedValueOnce(fakeEmbeddingBase64([2, 3, 4, 5]))
       .mockResolvedValueOnce(fakeEmbeddingBase64([3, 4, 5, 6]))
@@ -81,8 +81,8 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     await adapter.enrollSpeaker('alice', audio, 16000);
     await adapter.enrollSpeaker('alice', audio, 16000);
 
-    expect(mock['extractSpeakerEmbedding']).toHaveBeenCalledTimes(3);
-    expect(mock['registerSpeaker']).toHaveBeenCalledTimes(3);
+    expect(mock.extractSpeakerEmbedding).toHaveBeenCalledTimes(3);
+    expect(mock.registerSpeaker).toHaveBeenCalledTimes(3);
   });
 
   // Test 2: enrollSpeaker throws at 5-sample cap (D-06)
@@ -97,15 +97,15 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     await adapter.enrollSpeaker('alice', audio, 16000);
     await adapter.enrollSpeaker('alice', audio, 16000);
 
-    expect(mock['extractSpeakerEmbedding']).toHaveBeenCalledTimes(5);
+    expect(mock.extractSpeakerEmbedding).toHaveBeenCalledTimes(5);
 
     // 6th should throw before calling extractSpeakerEmbedding
-    await expect(
-      adapter.enrollSpeaker('alice', audio, 16000)
-    ).rejects.toThrow(/already has 5 enrolled samples/);
+    await expect(adapter.enrollSpeaker('alice', audio, 16000)).rejects.toThrow(
+      /already has 5 enrolled samples/
+    );
 
     // extractSpeakerEmbedding should NOT have been called a 6th time
-    expect(mock['extractSpeakerEmbedding']).toHaveBeenCalledTimes(5);
+    expect(mock.extractSpeakerEmbedding).toHaveBeenCalledTimes(5);
   });
 
   // Test 3: verifySpeaker averages stored embeddings (D-05)
@@ -117,19 +117,22 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     await adapter.enrollSpeaker('alice', audio, 16000);
 
     // Reset registerSpeaker call count so we can check verify call separately
-    mock['registerSpeaker']?.mockClear();
+    mock.registerSpeaker?.mockClear();
 
     // Mock verifySpeaker to return a specific result
-    mock['verifySpeaker']?.mockResolvedValueOnce({ matched: true, score: 0.85 });
+    mock.verifySpeaker?.mockResolvedValueOnce({
+      matched: true,
+      score: 0.85,
+    });
     // Need another extractSpeakerEmbedding for the verify call
-    mock['extractSpeakerEmbedding']?.mockResolvedValueOnce(
+    mock.extractSpeakerEmbedding?.mockResolvedValueOnce(
       fakeEmbeddingBase64([1.5, 2.5, 3.5, 4.5])
     );
 
     const result = await adapter.verifySpeaker('alice', audio, 16000, 0.5);
 
     expect(result).toEqual({ matched: true, score: 0.85 });
-    expect(mock['verifySpeaker']).toHaveBeenCalledWith(
+    expect(mock.verifySpeaker).toHaveBeenCalledWith(
       'alice',
       expect.any(String),
       0.5
@@ -143,21 +146,18 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
 
     await adapter.enrollSpeaker('alice', audio, 16000);
 
-    mock['identifySpeaker']?.mockResolvedValueOnce({
+    mock.identifySpeaker?.mockResolvedValueOnce({
       name: 'alice',
       score: 0.9,
     });
-    mock['extractSpeakerEmbedding']?.mockResolvedValueOnce(
+    mock.extractSpeakerEmbedding?.mockResolvedValueOnce(
       fakeEmbeddingBase64([1, 2, 3, 4])
     );
 
     const result = await adapter.identifySpeaker(audio, 16000, 0.5);
 
     expect(result).toEqual({ name: 'alice', score: 0.9 });
-    expect(mock['identifySpeaker']).toHaveBeenCalledWith(
-      expect.any(String),
-      0.5
-    );
+    expect(mock.identifySpeaker).toHaveBeenCalledWith(expect.any(String), 0.5);
   });
 
   // Test 5: exportEnrollment returns raw embeddings (D-03, ENROLL-02)
@@ -171,10 +171,10 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
 
     expect(result.version).toBe(1);
     expect(result.speakers).toHaveProperty('alice');
-    expect(result.speakers['alice']?.embeddings).toHaveLength(2);
-    expect(result.speakers['alice']?.sampleCount).toBe(2);
+    expect(result.speakers.alice?.embeddings).toHaveLength(2);
+    expect(result.speakers.alice?.sampleCount).toBe(2);
     // Embeddings should be raw strings (not averaged)
-    expect(typeof result.speakers['alice']?.embeddings[0]).toBe('string');
+    expect(typeof result.speakers.alice?.embeddings[0]).toBe('string');
   });
 
   // Test 6: importEnrollment restores on fresh adapter (ENROLL-03)
@@ -192,9 +192,9 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     });
 
     // clearSpeakers should be called first
-    expect(mock['clearSpeakers']).toHaveBeenCalledTimes(1);
+    expect(mock.clearSpeakers).toHaveBeenCalledTimes(1);
     // registerSpeaker should be called for alice (with averaged embedding)
-    expect(mock['registerSpeaker']).toHaveBeenCalledWith(
+    expect(mock.registerSpeaker).toHaveBeenCalledWith(
       'alice',
       expect.any(String)
     );
@@ -210,7 +210,7 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     await adapter.clearEnrollment();
 
     // clearSpeakers should have been called
-    expect(mock['clearSpeakers']).toHaveBeenCalled();
+    expect(mock.clearSpeakers).toHaveBeenCalled();
 
     // exportEnrollment should return empty speakers
     const exported = await adapter.exportEnrollment();
@@ -223,7 +223,7 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     const audio = dummyAudioBuffer();
 
     // Need more fake embeddings for two speakers
-    mock['extractSpeakerEmbedding']
+    mock.extractSpeakerEmbedding
       ?.mockReset()
       .mockResolvedValueOnce(fakeEmbeddingBase64([1, 2, 3, 4]))
       .mockResolvedValueOnce(fakeEmbeddingBase64([5, 6, 7, 8]));
@@ -235,8 +235,8 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
 
     expect(exported.speakers).toHaveProperty('alice');
     expect(exported.speakers).toHaveProperty('bob');
-    expect(exported.speakers['alice']?.sampleCount).toBe(1);
-    expect(exported.speakers['bob']?.sampleCount).toBe(1);
+    expect(exported.speakers.alice?.sampleCount).toBe(1);
+    expect(exported.speakers.bob?.sampleCount).toBe(1);
   });
 
   // Test 9: custom provider without detectSpoofing satisfies interface (SPOOF-03)

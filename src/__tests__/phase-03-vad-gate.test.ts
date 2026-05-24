@@ -11,9 +11,7 @@
  * 7. verificationAudioBuffer cleared on stopDetection and dispose
  */
 
-import type {
-  WakeWordDetectedEvent,
-} from '../public/types';
+import type { WakeWordDetectedEvent } from '../public/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +29,9 @@ function makeWakeWordPayload(phrase = 'hey'): WakeWordDetectedEvent {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('VAD pre-wake gate', () => {
-  let capturedWakeWordHandler: ((payload: WakeWordDetectedEvent) => void) | null = null;
+  let capturedWakeWordHandler:
+    | ((payload: WakeWordDetectedEvent) => void)
+    | null = null;
   let mockVadEngineInstance: {
     loadModel: jest.Mock;
     start: jest.Mock;
@@ -58,12 +58,14 @@ describe('VAD pre-wake gate', () => {
 
     const MockSileroVADEngine = jest.fn(() => mockVadEngineInstance);
 
-    mockNativeEventEmitterAddListener = jest.fn((event: string, cb: (e: { pcm: string }) => void) => {
-      if (event === 'VoiceActivatorOnVADPCMFrame') {
-        capturedPcmFrameListener = cb;
+    mockNativeEventEmitterAddListener = jest.fn(
+      (event: string, cb: (e: { pcm: string }) => void) => {
+        if (event === 'VoiceActivatorOnVADPCMFrame') {
+          capturedPcmFrameListener = cb;
+        }
+        return { remove: jest.fn() };
       }
-      return { remove: jest.fn() };
-    });
+    );
 
     jest.doMock('../providers/vad/SileroVADEngine', () => ({
       SileroVADEngine: MockSileroVADEngine,
@@ -115,13 +117,11 @@ describe('VAD pre-wake gate', () => {
 
     jest.doMock('../internal/session-events', () => {
       return {
-        addSessionListener: jest.fn(
-          (event: string, cb: () => void) => {
-            if (event === 'speechStart') capturedSpeechStartListener = cb;
-            // speechEnd listener captured for completeness; VAD engine handles internally
-            return { remove: jest.fn() };
-          }
-        ),
+        addSessionListener: jest.fn((event: string, cb: () => void) => {
+          if (event === 'speechStart') capturedSpeechStartListener = cb;
+          // speechEnd listener captured for completeness; VAD engine handles internally
+          return { remove: jest.fn() };
+        }),
         emitSessionEvent: jest.fn(),
       };
     });
@@ -137,7 +137,8 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 1: vadGateEnabled false (default) ───────────────────────────────
 
   it('Test 1: when vadGateEnabled is false (default), wake words always proceed to orchestration', async () => {
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     // Initialize without vadGateEnabled — defaults to false
     await initialize({});
@@ -168,11 +169,14 @@ describe('VAD pre-wake gate', () => {
   it('Test 2: when vadGateEnabled is true and speech is NOT active, wake word is suppressed', async () => {
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ sttProvider: stt, vadGateEnabled: true });
     await startDetection();
@@ -190,11 +194,14 @@ describe('VAD pre-wake gate', () => {
   it('Test 3: when vadGateEnabled is true and speech IS active, wake word proceeds normally', async () => {
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ sttProvider: stt, vadGateEnabled: true });
     await startDetection();
@@ -212,9 +219,11 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 4: vadGateThreshold defaults to 0.5 ─────────────────────────────
 
   it('Test 4: vadGateThreshold defaults to 0.5 and is passed to SileroVADEngine', async () => {
-    const { SileroVADEngine: MockSileroVADEngine } = await import('../providers/vad/SileroVADEngine') as any;
+    const { SileroVADEngine: MockSileroVADEngine } =
+      (await import('../providers/vad/SileroVADEngine')) as any;
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -226,9 +235,11 @@ describe('VAD pre-wake gate', () => {
   });
 
   it('Test 4b: custom vadGateThreshold is passed to SileroVADEngine', async () => {
-    const { SileroVADEngine: MockSileroVADEngine } = await import('../providers/vad/SileroVADEngine') as any;
+    const { SileroVADEngine: MockSileroVADEngine } =
+      (await import('../providers/vad/SileroVADEngine')) as any;
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true, vadGateThreshold: 0.7 });
     await startDetection();
@@ -245,7 +256,9 @@ describe('VAD pre-wake gate', () => {
     // Even with vadGateEnabled: true and speech NOT active, barge-in must fire.
     const stt = {
       name: 'mock-stt',
-      transcribe: jest.fn().mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
+      transcribe: jest
+        .fn()
+        .mockResolvedValue({ text: 'hello', provider: 'mock-stt' }),
       cancel: jest.fn().mockResolvedValue(undefined),
     };
     const tts = {
@@ -275,7 +288,8 @@ describe('VAD pre-wake gate', () => {
       VoiceSessionOrchestrator: jest.fn(() => mockSession),
     }));
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({
       sttProvider: stt,
@@ -302,7 +316,8 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 6: VAD gate engine starts on startDetection ─────────────────────
 
   it('Test 6: VAD gate engine starts on startDetection() when vadGateEnabled is true', async () => {
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -312,7 +327,8 @@ describe('VAD pre-wake gate', () => {
   });
 
   it('Test 6b: VAD gate engine is NOT started when vadGateEnabled is false', async () => {
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({});
     await startDetection();
@@ -323,7 +339,8 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 7: VAD gate engine stops on stopDetection ───────────────────────
 
   it('Test 7: VAD gate engine stops on stopDetection()', async () => {
-    const { initialize, startDetection, stopDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection, stopDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -335,7 +352,8 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 8: VAD gate engine disposes on dispose() ────────────────────────
 
   it('Test 8: VAD gate engine disposes on dispose()', async () => {
-    const { initialize, startDetection, dispose } = await import('../public/voice-activator');
+    const { initialize, startDetection, dispose } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -421,7 +439,8 @@ describe('VAD pre-wake gate', () => {
       emitSessionEvent: jest.fn(),
     }));
 
-    const { initialize, startDetection } = await import('../public/voice-activator');
+    const { initialize, startDetection } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -446,7 +465,8 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 10: PCM ring buffer ─────────────────────────────────────────────
 
   it('Test 10: PCM ring buffer accumulates last 32 frames and feeds getVerificationAudioBuffer', async () => {
-    const { initialize, startDetection, setVerificationAudioBuffer } = await import('../public/voice-activator');
+    const { initialize, startDetection, setVerificationAudioBuffer } =
+      await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
@@ -469,7 +489,8 @@ describe('VAD pre-wake gate', () => {
     }
 
     // After 5 frames, verificationAudioBuffer should be set
-    const { getVerificationAudioBuffer } = await import('../public/voice-activator') as any;
+    const { getVerificationAudioBuffer } =
+      (await import('../public/voice-activator')) as any;
     if (typeof getVerificationAudioBuffer === 'function') {
       const buf = getVerificationAudioBuffer();
       expect(buf).not.toBeNull();
@@ -482,8 +503,12 @@ describe('VAD pre-wake gate', () => {
   // ─── Test 11: ring buffer cleared on stopDetection and dispose ────────────
 
   it('Test 11: verificationAudioBuffer is cleared on stopDetection', async () => {
-    const { initialize, startDetection, stopDetection, setVerificationAudioBuffer } =
-      await import('../public/voice-activator');
+    const {
+      initialize,
+      startDetection,
+      stopDetection,
+      setVerificationAudioBuffer,
+    } = await import('../public/voice-activator');
 
     await initialize({ vadGateEnabled: true });
     await startDetection();
