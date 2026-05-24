@@ -9,6 +9,10 @@ import {
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard } from '../shared';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const BAR_MULTIPLIERS = [0.5, 0.9, 0.7, 1.0, 0.8, 1.0, 0.6, 0.85];
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function EnrollmentScreen() {
@@ -19,6 +23,7 @@ export function EnrollmentScreen() {
   const [isReady, setIsReady] = useState(() => getStatus().isAvailable);
 
   const [userId, setUserId] = useState('demo-user');
+  const [meterDb, setMeterDb] = useState(-60);
 
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
   const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,6 +64,7 @@ export function EnrollmentScreen() {
     try {
       const uri = await audioRecorderPlayer.stopRecorder();
       audioRecorderPlayer.removeRecordBackListener();
+      setMeterDb(-60);
       const response = await fetch(uri);
       const buffer = await response.arrayBuffer();
       await voiceActivator.enrollSpeaker(userId.trim(), buffer);
@@ -81,6 +87,9 @@ export function EnrollmentScreen() {
     setStatus('Recording — say a short phrase…');
     try {
       await audioRecorderPlayer.startRecorder(undefined, undefined, true);
+      audioRecorderPlayer.addRecordBackListener((e) => {
+        setMeterDb(e.currentMetering ?? -60);
+      });
       // Auto-stop after 2 seconds
       recordingTimer.current = setTimeout(() => {
         stopRecording();
@@ -185,6 +194,15 @@ export function EnrollmentScreen() {
           ))}
           <Text style={s.hint}>{sampleCount} of 3 samples recorded</Text>
         </View>
+        {isRecording ? (
+          <View style={s.waveform}>
+            {BAR_MULTIPLIERS.map((mult, i) => {
+              const normalized = Math.max(0, Math.min(1, (meterDb + 60) / 60));
+              const height = 4 + normalized * mult * 28;
+              return <View key={i} style={[s.waveBar, { height }]} />;
+            })}
+          </View>
+        ) : null}
         <Btn
           label={isRecording ? 'Recording…' : `Record Sample ${sampleCount + 1}`}
           onPress={handleRecordSample}
@@ -337,4 +355,19 @@ const s = StyleSheet.create({
   },
   dotNum: { fontSize: 13, fontWeight: '700', color: C.meta },
   dotNumFilled: { color: C.primaryText },
+  waveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    height: 36,
+    backgroundColor: C.bg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  waveBar: {
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: C.primary,
+  },
 });
