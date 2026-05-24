@@ -28,7 +28,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 **Key design facts:**
 
 - **Singleton state.** `src/public/voice-activator.ts` uses module-level variables, not a class. One runtime per app process. `initialize()` / `dispose()` manage the lifecycle.
-- **Two event emitters.** `runtimeEvents` fires wake word lifecycle events (`wakeWordDetected`, `stateChanged`, `error`, `interruption`, `audioRouteChanged`). `sessionEvents` fires conversation turn events (`sessionStarted`, `listening`, `transcribed`, `speaking`, `turnComplete`, `sessionEnded`, `error`). Subscribe with `addWakeWordListener` and `addSessionListener` respectively.
+- **Two event emitters.** `runtimeEvents` fires wake word lifecycle events (`wakeWordDetected`, `stateChanged`, `error`, `interruption`, `audioRouteChanged`). `sessionEvents` fires conversation turn events (`sessionStarted`, `sessionListening`, `sessionTranscribed`, `sessionSpeaking`, `sessionTurnComplete`, `sessionEnded`, `sessionError`). Subscribe with `addWakeWordListener` and `addSessionListener` respectively.
 - **Provider injection.** STT and TTS are passed to `initialize()` via `sttProvider` / `ttsProvider`. The package never owns transcription or synthesis -- it calls your provider at the right moment in the loop.
 - **Generation IDs.** A counter increments on each new session. Async provider callbacks capture the generation at call time and no-op if it no longer matches. This prevents a slow STT response from a stale session completing into a new one.
 - **Barge-in fast-path.** If a wake word fires while TTS is speaking, a dedicated path calls `ttsProvider.stop()` and re-enters the listen stage without waiting for the normal orchestration queue. Interruption latency is under 300ms.
@@ -63,7 +63,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 | `dispose()` | Release all native resources. Call on unmount / app background. |
 | `getStatus()` | Returns `WakeWordStatus` snapshot: `state`, `lastError`, `isListening`, etc. |
 | `getSession()` | Returns the active `VoiceSession` object, or `null` if no session is running. |
-| `setAudioRoute(route)` | Switch output between `'speaker'` and `'earpiece'`. |
+| `setAudioRoute(route)` | Switch output between `'default'`, `'speaker'`, `'earpiece'`, and `'bluetooth'`. |
 
 ### Events
 
@@ -74,7 +74,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 
 **Runtime event names:** `'wakeWordDetected'` · `'stateChanged'` · `'error'` · `'interruption'` · `'audioRouteChanged'`
 
-**Session event names:** `'sessionStarted'` · `'listening'` · `'transcribed'` · `'speaking'` · `'turnComplete'` · `'sessionEnded'` · `'error'`
+**Session event names:** `'sessionStarted'` · `'sessionListening'` · `'sessionTranscribed'` · `'sessionSpeaking'` · `'sessionTurnComplete'` · `'sessionEnded'` · `'sessionError'`
 
 ### Speaker Enrollment
 
@@ -112,8 +112,7 @@ WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration
   sttProvider?: SpeechToTextProvider
   ttsProvider?: TextToSpeechProvider
-  sessionConfig?: VoiceSessionConfig
-  vadEngine?: SileroVADEngine
+  session?: VoiceSessionConfig
   speakerVerificationProvider?: SpeakerVerificationProvider
   audioPreprocessingProvider?: AudioPreprocessingProvider
   antiSpoofingProvider?: AntiSpoofingProvider
@@ -122,8 +121,9 @@ WakeWordInitializationOptions {
 // session loop config
 VoiceSessionConfig {
   aiHandler: AIHandler              // (transcript: string) => Promise<string>
-  reListenMode?: 'auto' | 'manual'  // default: 'auto'
-  language?: string
+  reListenMode: 'auto' | 'manual'
+  silenceTimeoutMs?: number
+  maxTurns?: number
 }
 
 // provider interfaces (implement these for custom providers)
@@ -140,9 +140,12 @@ TextToSpeechProvider {
 
 // status snapshot
 WakeWordStatus {
-  state: WakeWordState              // 'idle' | 'initializing' | 'detecting' | 'stopping' | 'disposed' | 'unsupported'
+  state: WakeWordState              // 'idle' | 'initializing' | 'ready' | 'starting' | 'running' | 'interrupted' | 'stopping' | 'stopped' | 'error' | 'unsupported'
+  isAvailable: boolean
   isListening: boolean
-  lastError: WakeWordError | null
+  canStart: boolean
+  reason?: string
+  lastError?: WakeWordError | null
 }
 
 // error shape
@@ -223,13 +226,13 @@ import { SherpaOnnxTTSAdapter } from 'react-native-voice-activator';
 
 // 1. Wire providers + AI handler
 await initialize({
-  sttProvider: new WhisperRNSTTAdapter({ model: 'base.en' }),
+  sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
   ttsProvider: new SherpaOnnxTTSAdapter({
     modelPath: `${RNFS.DocumentDirectoryPath}/sherpa-tts/en_US-ryan-low.onnx`,
     tokensPath: `${RNFS.DocumentDirectoryPath}/sherpa-tts/tokens.txt`,
     dataDir:    `${RNFS.DocumentDirectoryPath}/sherpa-tts/espeak-ng-data`,
   }),
-  sessionConfig: {
+  session: {
     aiHandler: async (transcript) => {
       // call your LLM or backend here
       return `You said: ${transcript}`;
@@ -280,7 +283,7 @@ class MySTTProvider implements SpeechToTextProvider {
 
   async transcribe(): Promise<TranscriptionResult> {
     // start recording, stop on silence, return transcript
-    return { text: 'hello world', confidence: 0.95 };
+    return { text: 'hello world', confidence: 0.95, provider: 'MySTT' };
   }
 
   async cancel(): Promise<void> {
@@ -291,7 +294,7 @@ class MySTTProvider implements SpeechToTextProvider {
 await initialize({
   sttProvider: new MySTTProvider(),
   ttsProvider: myTTSProvider,
-  sessionConfig: { aiHandler: myAIHandler },
+  session: { aiHandler: myAIHandler, reListenMode: 'auto' },
 });
 ```
 
@@ -301,7 +304,7 @@ await initialize({
 await initialize({
   sttProvider: stt,
   ttsProvider: tts,
-  sessionConfig: {
+  session: {
     reListenMode: 'manual',
     aiHandler: async (transcript) => {
       const response = await callMyBackend(transcript);
