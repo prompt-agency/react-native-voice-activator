@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import {
   addWakeWordListener,
   getStatus,
@@ -19,6 +20,9 @@ export function EnrollmentScreen() {
 
   const [userId, setUserId] = useState('demo-user');
 
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const sub = addWakeWordListener('stateChanged', () => {
       const available = getStatus().isAvailable;
@@ -33,19 +37,56 @@ export function EnrollmentScreen() {
 
   // ── Enroll ───────────────────────────────────────────────────────────────────
 
-  async function handleRecordSample() {
-    setIsRecording(true);
+  async function ensureMicPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: 'Microphone',
+        message: 'Required to capture voice samples.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Cancel',
+      }
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
+
+  async function stopRecording() {
+    if (recordingTimer.current) {
+      clearTimeout(recordingTimer.current);
+      recordingTimer.current = null;
+    }
     try {
-      // Create a dummy ArrayBuffer (512 bytes of zeros) for the demo.
-      // On a real device this would be replaced with mic-captured PCM audio.
-      const dummyBuffer = new ArrayBuffer(512);
-      await voiceActivator.enrollSpeaker(userId, dummyBuffer);
+      const uri = await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+      const response = await fetch(uri);
+      const buffer = await response.arrayBuffer();
+      await voiceActivator.enrollSpeaker(userId.trim(), buffer);
       const next = sampleCount + 1;
       setSampleCount(next);
-      setStatus(`Sample ${next} enrolled`);
+      setStatus(`Sample ${next} recorded`);
     } catch (err) {
-      setStatus(`Error enrolling sample: ${String(err)}`);
+      setStatus(`Error recording sample: ${String(err)}`);
     } finally {
+      setIsRecording(false);
+    }
+  }
+
+  async function handleRecordSample() {
+    if (!(await ensureMicPermission())) {
+      setStatus('Microphone permission denied.');
+      return;
+    }
+    setIsRecording(true);
+    setStatus('Recording — say a short phrase…');
+    try {
+      await audioRecorderPlayer.startRecorder(undefined, undefined, true);
+      // Auto-stop after 2 seconds
+      recordingTimer.current = setTimeout(() => {
+        stopRecording();
+      }, 2000);
+    } catch (err) {
+      setStatus(`Error starting recording: ${String(err)}`);
       setIsRecording(false);
     }
   }
@@ -143,6 +184,13 @@ export function EnrollmentScreen() {
           tone="primary"
           disabled={!isReady || isRecording || sampleCount >= 3 || userId.trim() === ''}
         />
+        {isRecording ? (
+          <Btn
+            label="Stop recording"
+            onPress={stopRecording}
+            tone="quiet"
+          />
+        ) : null}
         <Text style={s.note}>
           Say a short phrase — any sentence works. About 2 seconds each.
         </Text>
