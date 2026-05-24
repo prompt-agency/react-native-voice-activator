@@ -11,11 +11,11 @@ import { EnrollmentScreen } from './screens/EnrollmentScreen';
 
 type TabId = 'enroll' | 'wake-word' | 'session' | 'manual';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'enroll', label: '① Speaker ID' },
-  { id: 'wake-word', label: '② Wake Word' },
-  { id: 'session', label: '③ Conversation' },
-  { id: 'manual', label: '④ Speech Engines' },
+const TABS: { id: TabId; num: string; label: string }[] = [
+  { id: 'enroll', num: '①', label: 'Speaker ID' },
+  { id: 'wake-word', num: '②', label: 'Wake Word' },
+  { id: 'session', num: '③', label: 'Conversation' },
+  { id: 'manual', num: '④', label: 'Speech Engines' },
 ];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ export default function App() {
               style={[s.tab, active && s.tabActive]}
               onPress={() => setActiveTab(tab.id)}
             >
+              <Text style={[s.tabNum, active && s.tabTextActive]}>{tab.num}</Text>
               <Text style={[s.tabText, active && s.tabTextActive]}>{tab.label}</Text>
             </Pressable>
           );
@@ -68,15 +69,21 @@ const s = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 12,
     alignItems: 'center',
+    gap: 2,
   },
   tabActive: {
     backgroundColor: C.primary,
   },
+  tabNum: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: C.meta,
+  },
   tabText: {
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: '600',
     color: C.meta,
   },
