@@ -55,9 +55,16 @@
   "keywords": [
     "react-native",
     "ios",
-    "android"
+    "android",
+    "expo",
+    "wake-word",
+    "voice",
+    "speech",
+    "keyword-detection",
+    "sherpa-onnx",
+    "voice-activity-detection"
   ],
-  "author": "ih",
+  "author": "Prompt Agency",
   "homepage": "https://github.com/prompt-agency/react-native-voice-activator",
   "license": "MIT",
   "repository": {
