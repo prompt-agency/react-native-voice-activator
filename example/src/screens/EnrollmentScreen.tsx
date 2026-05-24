@@ -40,6 +40,17 @@ export function EnrollmentScreen() {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (recordingTimer.current) {
+        clearTimeout(recordingTimer.current);
+        recordingTimer.current = null;
+      }
+      audioRecorderPlayer.stopRecorder().catch(() => {});
+      audioRecorderPlayer.removeRecordBackListener();
+    };
+  }, []);
+
   // ── Enroll ───────────────────────────────────────────────────────────────────
 
   async function ensureMicPermission(): Promise<boolean> {
@@ -68,9 +79,10 @@ export function EnrollmentScreen() {
       const response = await fetch(uri);
       const buffer = await response.arrayBuffer();
       await voiceActivator.enrollSpeaker(userId.trim(), buffer);
-      const next = sampleCount + 1;
-      setSampleCount(next);
-      setStatus(`Sample ${next} recorded`);
+      setSampleCount((prev) => {
+        setStatus(`Sample ${prev + 1} recorded`);
+        return prev + 1;
+      });
     } catch (err) {
       setStatus(`Error recording sample: ${String(err)}`);
     } finally {
@@ -204,7 +216,7 @@ export function EnrollmentScreen() {
           </View>
         ) : null}
         <Btn
-          label={isRecording ? 'Recording…' : `Record Sample ${sampleCount + 1}`}
+          label={isRecording ? 'Recording…' : sampleCount < 3 ? `Record Sample ${sampleCount + 1}` : 'All Samples Recorded'}
           onPress={handleRecordSample}
           tone="primary"
           disabled={!isReady || isRecording || sampleCount >= 3 || userId.trim() === ''}
@@ -284,7 +296,6 @@ const s = StyleSheet.create({
   },
   heroTitle: { fontSize: 22, fontWeight: '700', color: C.heroText },
   heroSub: { fontSize: 13, lineHeight: 20, color: C.heroSub },
-  heroCode: { fontFamily: 'Menlo', fontSize: 12, color: '#a8d4be' },
   startHint: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 8,
