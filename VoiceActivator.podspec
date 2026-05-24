@@ -17,6 +17,28 @@ Pod::Spec.new do |s|
   s.private_header_files = "ios/**/*.h"
   s.resources = "ios/Assets/**/*"
 
+  s.prepare_command = <<-CMD
+    set -e
+    VENDOR_DIR="ios/Vendor/SherpaOnnx"
+    BASE_URL="https://github.com/prompt-agency/react-native-voice-activator/releases/download/v#{s.version}"
+
+    mkdir -p "$VENDOR_DIR"
+
+    if [ ! -d "$VENDOR_DIR/sherpa-onnx.xcframework" ]; then
+      echo "[VoiceActivator] Downloading sherpa-onnx.xcframework..."
+      curl -L "$BASE_URL/sherpa-onnx.xcframework.zip" -o /tmp/va-sherpa-onnx.zip
+      unzip -o /tmp/va-sherpa-onnx.zip -d "$VENDOR_DIR"
+      rm /tmp/va-sherpa-onnx.zip
+    fi
+
+    if [ ! -d "$VENDOR_DIR/sherpa-onnxruntime.xcframework" ]; then
+      echo "[VoiceActivator] Downloading sherpa-onnxruntime.xcframework..."
+      curl -L "$BASE_URL/sherpa-onnxruntime.xcframework.zip" -o /tmp/va-sherpa-onnxruntime.zip
+      unzip -o /tmp/va-sherpa-onnxruntime.zip -d "$VENDOR_DIR"
+      rm /tmp/va-sherpa-onnxruntime.zip
+    fi
+  CMD
+
   sherpa_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework/Headers\""
   onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Headers\""
 
