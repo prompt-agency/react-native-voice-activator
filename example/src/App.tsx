@@ -9,19 +9,19 @@ import { EnrollmentScreen } from './screens/EnrollmentScreen';
 
 // ─── Tab definition ───────────────────────────────────────────────────────────
 
-type TabId = 'wake-word' | 'session' | 'manual' | 'enroll';
+type TabId = 'enroll' | 'wake-word' | 'session' | 'manual';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'wake-word', label: 'Wake Word' },
-  { id: 'session', label: 'Session' },
-  { id: 'manual', label: 'STT · TTS' },
-  { id: 'enroll', label: 'Enroll' },
+  { id: 'enroll', label: '① Speaker ID' },
+  { id: 'wake-word', label: '② Wake Word' },
+  { id: 'session', label: '③ Conversation' },
+  { id: 'manual', label: '④ Speech Engines' },
 ];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('wake-word');
+  const [activeTab, setActiveTab] = useState<TabId>('enroll');
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
