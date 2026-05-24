@@ -26,14 +26,14 @@ Pod::Spec.new do |s|
 
     if [ ! -d "$VENDOR_DIR/sherpa-onnx.xcframework" ]; then
       echo "[VoiceActivator] Downloading sherpa-onnx.xcframework..."
-      curl -L "$BASE_URL/sherpa-onnx.xcframework.zip" -o /tmp/va-sherpa-onnx.zip
+      curl -fL "$BASE_URL/sherpa-onnx.xcframework.zip" -o /tmp/va-sherpa-onnx.zip
       unzip -o /tmp/va-sherpa-onnx.zip -d "$VENDOR_DIR"
       rm /tmp/va-sherpa-onnx.zip
     fi
 
     if [ ! -d "$VENDOR_DIR/sherpa-onnxruntime.xcframework" ]; then
       echo "[VoiceActivator] Downloading sherpa-onnxruntime.xcframework..."
-      curl -L "$BASE_URL/sherpa-onnxruntime.xcframework.zip" -o /tmp/va-sherpa-onnxruntime.zip
+      curl -fL "$BASE_URL/sherpa-onnxruntime.xcframework.zip" -o /tmp/va-sherpa-onnxruntime.zip
       unzip -o /tmp/va-sherpa-onnxruntime.zip -d "$VENDOR_DIR"
       rm /tmp/va-sherpa-onnxruntime.zip
     fi
