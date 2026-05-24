@@ -177,7 +177,14 @@ export function EnrollmentScreen() {
             autoCorrect={false}
           />
         </View>
-        <Text style={s.hint}>Samples: {sampleCount}/3</Text>
+        <View style={s.dotsRow}>
+          {[1, 2, 3].map((n) => (
+            <View key={n} style={[s.dot, sampleCount >= n && s.dotFilled]}>
+              <Text style={[s.dotNum, sampleCount >= n && s.dotNumFilled]}>{n}</Text>
+            </View>
+          ))}
+          <Text style={s.hint}>{sampleCount} of 3 samples recorded</Text>
+        </View>
         <Btn
           label={isRecording ? 'Recording…' : `Record Sample ${sampleCount + 1}`}
           onPress={handleRecordSample}
@@ -313,4 +320,21 @@ const s = StyleSheet.create({
     color: C.heading,
     lineHeight: 18,
   },
+  dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.bg,
+    borderWidth: 2,
+    borderColor: C.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotFilled: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
+  },
+  dotNum: { fontSize: 13, fontWeight: '700', color: C.meta },
+  dotNumFilled: { color: C.primaryText },
 });
