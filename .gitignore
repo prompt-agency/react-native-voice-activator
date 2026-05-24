@@ -98,3 +98,6 @@ example/android/app/src/main/assets/SherpaOnnxSpeaker/
 
 # XCFrameworks are excluded from the npm package; downloaded by CocoaPods at pod install
 ios/Vendor/SherpaOnnx/*.xcframework
+
+# Internal planning/spec files (not for public consumption)
+docs/superpowers/
