@@ -18,6 +18,12 @@ allprojects {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
+  // onnxruntime-react-native uses `latest.integration` which triggers a Maven metadata
+  // fetch that fails on Java 25 + Gradle 8.13 (SAXNotRecognizedException). Pin to the
+  // version matching onnxruntime-react-native so dynamic resolution is skipped entirely.
+  configurations.all {
+    resolutionStrategy.force 'com.microsoft.onnxruntime:onnxruntime-android:1.24.3'
+  }
 }
 
 apply plugin: "expo-root-project"
