@@ -20,12 +20,39 @@ Local prerequisite for the iOS gate:
 `yarn verify:release-readiness` currently covers:
 
 - lint
+- TypeScript typecheck, run both before and after `yarn prepare` (the
+  post-build run is the one that catches emitted `.d.ts` colliding with its
+  own source; the pre-build run alone passes on a tree with no `lib/`)
 - type-safe documentation and setup-contract checks
 - Expo config resolution and Expo prebuild generation
 - reliability evidence schema validation
+- iOS vendored-framework checksum manifest validation
 - unit/integration tests
 - package build output generation
 - `npm pack --dry-run` publish-surface verification
+
+## iOS Vendored Frameworks
+
+The sherpa xcframeworks are too large for the npm tarball and are downloaded by
+the podspec at `pod install` time. They are pinned by SHA-256 in
+`ios/vendor-checksums.json`, which ships inside the tarball, so the download is
+covered by npm's own integrity chain rather than trusting a mutable GitHub
+release asset.
+
+Because zip output is not byte-reproducible, the manifest only describes the
+exact zips that produced it. The release order is therefore fixed:
+
+1. `yarn package:ios-vendor` — builds both zips and rewrites the manifest
+2. commit `ios/vendor-checksums.json`
+3. release; `release-it`'s `before:init` hook re-runs
+   `verify-ios-vendor-checksums.mjs --require-assets` and aborts if the zips on
+   disk no longer match the committed manifest
+4. those same zips are uploaded as the `v<version>` release assets
+
+**A published npm version whose GitHub release assets are missing or do not
+match the manifest is unusable on iOS**: `pod install` fails closed rather than
+linking an unverified binary. Verify the release assets resolve before
+announcing a version.
 
 ## Manual Gates
 
