@@ -896,11 +896,16 @@ export const voiceActivator: VoiceActivatorApi = {
           });
         }
         await activeVadGateEngine.loadModel();
-        // Subscribe to speechStart/speechEnd for gate flag
-        vadGateSpeechSub = addSessionListener('speechStart', () => {
+        // Subscribe to speechStart/speechEnd for gate flag. Filter on the
+        // gate engine's own id: a session engine (session.vad) publishes to
+        // the same bus, and its utterance edges must not move the gate flag.
+        const gateEngineId = activeVadGateEngine.id;
+        vadGateSpeechSub = addSessionListener('speechStart', (payload) => {
+          if (payload?.sourceId !== gateEngineId) return;
           vadGateSpeechActive = true;
         });
-        vadGateSilenceSub = addSessionListener('speechEnd', () => {
+        vadGateSilenceSub = addSessionListener('speechEnd', (payload) => {
+          if (payload?.sourceId !== gateEngineId) return;
           vadGateSpeechActive = false;
         });
         // Subscribe to PCM frames for ring buffer (verification audio source)

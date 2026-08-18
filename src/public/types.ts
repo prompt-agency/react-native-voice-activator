@@ -355,11 +355,25 @@ export interface VoiceSessionEndedEvent {
 
 export interface VoiceSessionErrorEvent extends WakeWordError {}
 
+/**
+ * Identifies which `SileroVADEngine` instance emitted a speech event.
+ *
+ * More than one engine can be live at once — the pre-wake gate
+ * (`vadGateEnabled`) and the session utterance detector (`session.vad`) each
+ * own one, and both publish to the same session event bus. Subscribers that
+ * care about a specific engine MUST filter on this field; without it a gate
+ * event can be mistaken for an utterance boundary and truncate a turn.
+ */
+export interface VoiceSessionSpeechEventSource {
+  /** Stable per-engine id. Absent only on events from a pre-0.2 native path. */
+  sourceId?: string;
+}
+
 /** Fired when bundled Silero VAD detects speech onset during an active session. */
-export interface VoiceSessionSpeechStartEvent {}
+export interface VoiceSessionSpeechStartEvent extends VoiceSessionSpeechEventSource {}
 
 /** Fired when bundled Silero VAD detects speech offset during an active session. */
-export interface VoiceSessionSpeechEndEvent {
+export interface VoiceSessionSpeechEndEvent extends VoiceSessionSpeechEventSource {
   /** Duration of detected speech in milliseconds */
   durationMs: number;
   /** Speech-edge padding (ms) for STT after speechEnd. */

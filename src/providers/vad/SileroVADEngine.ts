@@ -27,6 +27,8 @@ type VoiceActivatorVADNative = {
 export const VAD_NATIVE_PCM_FRAME_EVENT = 'VoiceActivatorOnVADPCMFrame';
 const LSTM_STATE_SIZE = 128;
 const SAMPLE_RATE = 16000;
+/** ~1 s of 512-sample frames at 16 kHz. See {@link SileroVADEngine._enqueueFrame}. */
+const MAX_QUEUED_FRAMES = 32;
 
 function requireVADNativeModule(): VoiceActivatorVADNative {
   const mod =
@@ -39,6 +41,68 @@ function requireVADNativeModule(): VoiceActivatorVADNative {
   return mod as VoiceActivatorVADNative;
 }
 
+/**
+ * Native PCM capture is one shared hardware stream, but two engines can need
+ * it at the same time: the pre-wake gate (`vadGateEnabled`) and the session
+ * utterance detector (`session.vad`). Refcount it so the first start opens
+ * capture and only the last stop closes it. An unconditional stop used to
+ * silently starve every other live engine of frames, leaving the gate stuck
+ * on its last speech state.
+ *
+ * Transitions are serialised through a single promise chain so an overlapping
+ * start/stop pair cannot interleave into the wrong native call order.
+ */
+let nativeCaptureRefCount = 0;
+let nativeCaptureQueue: Promise<void> = Promise.resolve();
+
+function acquireNativeCapture(native: VoiceActivatorVADNative): Promise<void> {
+  nativeCaptureQueue = nativeCaptureQueue
+    .catch(() => undefined)
+    .then(async () => {
+      nativeCaptureRefCount += 1;
+      if (nativeCaptureRefCount !== 1) {
+        return;
+      }
+      try {
+        await native.startVADCapture(SAMPLE_RATE);
+      } catch (cause) {
+        nativeCaptureRefCount -= 1;
+        throw cause;
+      }
+    });
+  return nativeCaptureQueue;
+}
+
+function releaseNativeCapture(): Promise<void> {
+  nativeCaptureQueue = nativeCaptureQueue
+    .catch(() => undefined)
+    .then(async () => {
+      if (nativeCaptureRefCount === 0) {
+        return;
+      }
+      nativeCaptureRefCount -= 1;
+      if (nativeCaptureRefCount !== 0) {
+        return;
+      }
+      const mod =
+        NativeModules.VoiceActivator as Partial<VoiceActivatorVADNative> | null;
+      await mod?.stopVADCapture?.();
+    });
+  return nativeCaptureQueue;
+}
+
+/**
+ * @internal Test-only hook. Module-level capture refcount survives between
+ * tests, so a suite that starts an engine without stopping it would otherwise
+ * leak a reference into the next test and suppress its `stopVADCapture` call.
+ */
+export function __resetNativeCaptureRefCountForTests(): void {
+  nativeCaptureRefCount = 0;
+  nativeCaptureQueue = Promise.resolve();
+}
+
+let nextEngineInstanceId = 0;
+
 export class SileroVADEngine {
   private session: InferenceSession | null = null;
   private ort: OrtModule | null = null;
@@ -48,11 +112,23 @@ export class SileroVADEngine {
   /** LSTM cell state — [2, 1, 64] = 128 floats. Reset on start/stop. */
   private c = new Float32Array(LSTM_STATE_SIZE);
 
+  /**
+   * Identifies this engine on the shared session event bus. Subscribers filter
+   * on it so a gate engine's speech edge is never read as a session engine's
+   * utterance boundary.
+   */
+  readonly id: string;
+
   private _running = false;
   private _speechActive = false;
   private _speechStartTime = 0;
   private _nativeSub: { remove(): void } | null = null;
   private _silenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Frames awaiting inference. Bounded — see {@link _enqueueFrame}. */
+  private _frameQueue: string[] = [];
+  private _draining = false;
+  private _droppedFrameCount = 0;
 
   /** Speech probability threshold for rising-edge detection. Default: 0.5 */
   private readonly threshold: number;
@@ -68,10 +144,21 @@ export class SileroVADEngine {
     this.silenceThreshold = options?.silenceThreshold ?? 0.35;
     this.silenceTimeoutMs = options?.silenceTimeoutMs ?? 1500;
     this.speechPadMs = options?.speechPadMs ?? 300;
+    nextEngineInstanceId += 1;
+    this.id = `silero-vad-${nextEngineInstanceId}`;
   }
 
   get isRunning(): boolean {
     return this._running;
+  }
+
+  /**
+   * Frames discarded because inference could not keep up with the 32 ms
+   * capture cadence. Non-zero means the device is CPU-starved; exposed for
+   * diagnostics rather than control.
+   */
+  get droppedFrameCount(): number {
+    return this._droppedFrameCount;
   }
 
   /**
@@ -105,6 +192,8 @@ export class SileroVADEngine {
     this._clearSilenceTimer();
     this._resetHiddenState();
     this._speechActive = false;
+    this._frameQueue = [];
+    this._droppedFrameCount = 0;
     this._running = true;
 
     const native = requireVADNativeModule();
@@ -114,12 +203,19 @@ export class SileroVADEngine {
 
       ((event: VADPCMFrameEvent) => {
         if (this._running) {
-          this._processFrame(event.pcm);
+          this._enqueueFrame(event.pcm);
         }
       }) as (...args: readonly object[]) => unknown
     );
 
-    await native.startVADCapture(SAMPLE_RATE);
+    try {
+      await acquireNativeCapture(native);
+    } catch (cause) {
+      this._running = false;
+      this._nativeSub?.remove();
+      this._nativeSub = null;
+      throw cause;
+    }
   }
 
   /**
@@ -135,10 +231,49 @@ export class SileroVADEngine {
     this._nativeSub = null;
     this._resetHiddenState();
     this._speechActive = false;
+    this._frameQueue = [];
 
-    const mod =
-      NativeModules.VoiceActivator as Partial<VoiceActivatorVADNative> | null;
-    await mod?.stopVADCapture?.();
+    await releaseNativeCapture();
+  }
+
+  /**
+   * Silero is stateful: every frame reads the LSTM hidden/cell state and
+   * writes it back across an `await`. Two inferences in flight at once lose
+   * one of those updates and desynchronise the model, so frames are drained
+   * strictly one at a time.
+   *
+   * The queue is bounded. If inference cannot keep up with the 32 ms capture
+   * cadence, the oldest frames are dropped rather than growing an unbounded
+   * backlog: a queue that grows without limit reports speech edges further
+   * and further behind real time, which for a wake-word product is worse than
+   * losing audio outright.
+   */
+  private _enqueueFrame(pcmBase64: string): void {
+    this._frameQueue.push(pcmBase64);
+    while (this._frameQueue.length > MAX_QUEUED_FRAMES) {
+      this._frameQueue.shift();
+      this._droppedFrameCount += 1;
+    }
+    if (!this._draining) {
+      // Deliberately not awaited: the caller is a native event listener. Errors
+      // are reported per frame inside _processFrame.
+      this._drainFrameQueue().catch(() => undefined);
+    }
+  }
+
+  private async _drainFrameQueue(): Promise<void> {
+    this._draining = true;
+    try {
+      while (this._running) {
+        const frame = this._frameQueue.shift();
+        if (frame === undefined) {
+          return;
+        }
+        await this._processFrame(frame);
+      }
+    } finally {
+      this._draining = false;
+    }
   }
 
   /**
@@ -202,7 +337,7 @@ export class SileroVADEngine {
         this._speechActive = true;
         this._speechStartTime = Date.now();
         this._clearSilenceTimer();
-        emitSessionEvent('speechStart', {});
+        emitSessionEvent('speechStart', { sourceId: this.id });
       } else if (this._speechActive && probability < this.silenceThreshold) {
         if (this._silenceTimer === null) {
           this._silenceTimer = setTimeout(() => {
@@ -213,6 +348,7 @@ export class SileroVADEngine {
             emitSessionEvent('speechEnd', {
               durationMs,
               speechPadMs: this.speechPadMs,
+              sourceId: this.id,
             });
           }, this.silenceTimeoutMs);
         }
