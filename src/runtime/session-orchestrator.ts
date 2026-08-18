@@ -5,6 +5,7 @@ import {
   emitSessionEvent,
 } from '../internal/session-events';
 import { float32PcmBase64ChunksToWavBase64 } from '../internal/vad-float32-pcm-to-wav';
+import { base64ToUint8Array, uint8ArrayToBase64 } from '../internal/base64';
 import {
   SileroVADEngine,
   VAD_NATIVE_PCM_FRAME_EVENT,
@@ -98,7 +99,18 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       for (const listener of [
         ...set,
       ] as VoiceSessionEventListener<TEventName>[]) {
-        listener(payload);
+        // A throwing app listener must not abort the turn loop mid-flight, and
+        // must not stop the remaining listeners from being notified.
+        try {
+          listener(payload);
+        } catch (cause) {
+          if (__DEV__) {
+            console.warn(
+              `[VoiceActivator] session "${eventName}" listener threw:`,
+              cause
+            );
+          }
+        }
       }
     }
   }
@@ -282,23 +294,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       if (this.audioPreprocessingProvider) {
         // NOISE-03: denoise the speech segment before STT
         const rawWavBase64 = float32PcmBase64ChunksToWavBase64(slice);
-        // Decode base64 WAV to ArrayBuffer for the preprocessing provider
-        const binaryStr = atob(rawWavBase64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
+        const bytes = base64ToUint8Array(rawWavBase64);
         const denoised = await this.audioPreprocessingProvider.process(
-          bytes.buffer,
+          bytes.buffer as ArrayBuffer,
           VAD_SAMPLE_RATE
         );
-        // Re-encode denoised ArrayBuffer back to base64 for file write
-        const denoisedBytes = new Uint8Array(denoised);
-        let binaryResult = '';
-        for (let i = 0; i < denoisedBytes.length; i++) {
-          binaryResult += String.fromCharCode(denoisedBytes[i]!);
-        }
-        wavBase64 = btoa(binaryResult);
+        wavBase64 = uint8ArrayToBase64(new Uint8Array(denoised));
       } else {
         wavBase64 = float32PcmBase64ChunksToWavBase64(slice);
       }
