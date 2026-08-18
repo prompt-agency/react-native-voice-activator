@@ -4,10 +4,7 @@ layout: home
 hero:
   name: react-native-voice-activator
   text: On-device wake word detection for React Native and Expo
-  tagline: Say a trigger phrase, the package handles the rest, listening, transcription, AI processing, and speech output.
-  image:
-    src: /assets/banner.png
-    alt: react-native-voice-activator
+  tagline: Say a trigger phrase, the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
   actions:
     - theme: brand
       text: Get Started
@@ -56,3 +53,7 @@ Continue with [Getting Started](/getting-started) for platform setup (bare React
 
 > **Supports:** React Native `0.83+` &middot; Expo SDK `55+` &middot; iOS &middot; Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
+
+---
+
+Built by [Prompt Digital Agency](https://prompt-digital.agency/) &middot; [hello@prompt-digital.agency](mailto:hello@prompt-digital.agency)

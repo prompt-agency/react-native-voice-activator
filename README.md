@@ -4,7 +4,7 @@
 
 # react-native-voice-activator
 
-On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase — the package handles the rest: listening, transcription, AI processing, and speech output.
+On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase — the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
 
 No cloud required for wake word detection. Speech-to-text and text-to-speech run on-device through opt-in providers.
 
@@ -475,4 +475,4 @@ MIT
 
 ---
 
-<a href="https://prompt-digital.agency/" target="_blank">Prompt Digital Agency</a>
+<a href="https://prompt-digital.agency/" target="_blank">Prompt Digital Agency</a> &middot; <a href="mailto:hello@prompt-digital.agency">hello@prompt-digital.agency</a>

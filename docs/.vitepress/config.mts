@@ -14,10 +14,10 @@ export default withMermaid({
   // cannot be resolved as site pages. Anything else stays a hard failure.
   ignoreDeadLinks: [/\.\.\/README/, /\.\.\/example/, /\/discussions$/, /_bmad-output/],
 
-  head: [['link', { rel: 'icon', href: '/react-native-voice-activator/assets/banner.png' }]],
+  head: [['link', { rel: 'icon', href: '/react-native-voice-activator/assets/logo.svg', type: 'image/svg+xml' }]],
 
   themeConfig: {
-    logo: '/assets/banner.png',
+    logo: '/assets/logo.svg',
     nav: [
       { text: 'Guide', link: '/getting-started' },
       { text: 'Conversation Session', link: '/conversation-session' },

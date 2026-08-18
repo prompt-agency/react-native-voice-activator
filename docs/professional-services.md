@@ -20,6 +20,7 @@ Stuck on Expo prebuild asset bundling, iOS/Android native setup, or the session 
 | | |
 |---|---|
 | Website | [prompt-digital.agency](https://prompt-digital.agency/) |
+| Email | [hello@prompt-digital.agency](mailto:hello@prompt-digital.agency) |
 | GitHub Discussions | [Start a discussion](../../discussions) |
 
 Describe what you're building and what you need, and we'll get back to you.
