@@ -16,12 +16,17 @@ runs:
         path: |
           **/node_modules
           .yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json', '!node_modules/**') }}
+        key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-yarn-
 
+    # --immutable, not --no-immutable: the lockfile is the point. Installing
+    # mutably let yarn resolve anything matching the semver ranges, so a
+    # third-party patch release could turn CI red with no change on our side —
+    # which is exactly what happened when a newer prettier reformatted union
+    # types and failed lint on five consecutive unrelated commits.
     - name: Install dependencies
-      run: yarn install --no-immutable
+      run: yarn install --immutable
       shell: bash
 
     - name: Cache dependencies
