@@ -20,6 +20,7 @@ import {
   emitSessionEvent,
 } from '../internal/session-events';
 import { createRuntimeStore } from '../internal/runtime-store';
+import { base64ToFloat32Array } from '../internal/base64';
 import type { VoiceActivatorEngineRuntime } from '../internal/engine-runtime';
 import { createNativeManagedEngineRuntime } from '../engines';
 import type {
@@ -86,35 +87,43 @@ let vadGateSilenceSub: { remove(): void } | null = null;
 
 /** ~1 second of 512-sample frames at 16 kHz */
 const VAD_RING_BUFFER_SIZE = 32;
-let vadPcmRingBuffer: string[] = [];
+/**
+ * Decoded frames, not base64. Frames arrive every ~32 ms; decoding the whole
+ * ring on each arrival meant re-running ~87k character operations per frame on
+ * the JS thread for audio that had already been decoded once.
+ */
+let vadPcmRingBuffer: Float32Array[] = [];
 let vadPcmRingBufferSub: { remove(): void } | null = null;
+/** Set when the ring changes; the combined buffer is rebuilt only on read. */
+let verificationAudioDirty = false;
 
 function pushVadPcmFrame(pcmBase64: string): void {
-  vadPcmRingBuffer.push(pcmBase64);
+  const frame = base64ToFloat32Array(pcmBase64);
+  if (frame === null) {
+    // Malformed frame from native. Dropping one frame is preferable to letting
+    // the error escape into the native event emitter.
+    return;
+  }
+  vadPcmRingBuffer.push(frame);
   if (vadPcmRingBuffer.length > VAD_RING_BUFFER_SIZE) {
     vadPcmRingBuffer.shift();
   }
-  updateVerificationAudioFromRingBuffer();
+  verificationAudioDirty = true;
 }
 
 function updateVerificationAudioFromRingBuffer(): void {
+  verificationAudioDirty = false;
   if (vadPcmRingBuffer.length === 0) {
     verificationAudioBuffer = null;
     return;
   }
-  const chunks: Float32Array[] = [];
-  for (const b64 of vadPcmRingBuffer) {
-    const binaryStr = atob(b64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-    chunks.push(new Float32Array(bytes.buffer));
+  let totalLength = 0;
+  for (const chunk of vadPcmRingBuffer) {
+    totalLength += chunk.length;
   }
-  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
   const combined = new Float32Array(totalLength);
   let offset = 0;
-  for (const chunk of chunks) {
+  for (const chunk of vadPcmRingBuffer) {
     combined.set(chunk, offset);
     offset += chunk.length;
   }
@@ -123,14 +132,23 @@ function updateVerificationAudioFromRingBuffer(): void {
 
 function clearVadRingBuffer(): void {
   vadPcmRingBuffer = [];
+  verificationAudioDirty = false;
   verificationAudioBuffer = null;
 }
 
 export function setVerificationAudioBuffer(buffer: ArrayBuffer | null): void {
   verificationAudioBuffer = buffer;
+  // An explicit set wins over anything still queued in the ring, otherwise the
+  // next read would rebuild over it.
+  verificationAudioDirty = false;
 }
 
 function getVerificationAudioBuffer(): ArrayBuffer | null {
+  // Built lazily: verification reads this at most once per wake word, so the
+  // concatenation does not belong on the per-frame path.
+  if (verificationAudioDirty) {
+    updateVerificationAudioFromRingBuffer();
+  }
   return verificationAudioBuffer;
 }
 
@@ -913,8 +931,20 @@ export const voiceActivator: VoiceActivatorApi = {
         vadPcmRingBufferSub = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((
           ...args: readonly object[]
         ) => {
-          const e = args[0] as { pcm: string };
-          pushVadPcmFrame(e.pcm);
+          // Nothing upstream of a native event listener can handle a throw, so
+          // a bad frame must not be allowed to escape into the emitter.
+          try {
+            const e = args[0] as { pcm?: string } | undefined;
+            if (typeof e?.pcm !== 'string') return;
+            pushVadPcmFrame(e.pcm);
+          } catch (cause) {
+            if (__DEV__) {
+              console.warn(
+                '[VoiceActivator] dropped malformed VAD PCM frame:',
+                cause
+              );
+            }
+          }
         }) as (...args: readonly object[]) => unknown);
         await activeVadGateEngine.start();
       }
@@ -957,7 +987,7 @@ export const voiceActivator: VoiceActivatorApi = {
       // activeSessionConfig is intentionally kept — session config persists across
       // stopDetection()/startDetection() cycles until initialize() is called again.
       await closeActiveVoiceSession();
-      verificationAudioBuffer = null;
+      clearVadRingBuffer();
       await stopEngineRuntime();
 
       // Stop VAD gate engine
@@ -1011,7 +1041,7 @@ export const voiceActivator: VoiceActivatorApi = {
       activeSpoofingThreshold = 0.5;
       activeVerificationThreshold = 0.55;
       activeVerificationFailureBehavior = 'closed';
-      verificationAudioBuffer = null;
+      clearVadRingBuffer();
 
       // Dispose VAD gate engine
       activeVadGateEnabled = false;
