@@ -17,6 +17,7 @@
   "files": [
     "src",
     "lib",
+    "THIRD-PARTY-NOTICES.md",
     "scripts/fetch-silero-vad-model.mjs",
     "android",
     "ios",

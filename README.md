@@ -471,7 +471,13 @@ Expo config and prebuild compatibility are validated through docs, contract chec
 
 ## License
 
-MIT
+MIT.
+
+This package redistributes third-party native binaries and model weights
+(sherpa-onnx and its GigaSpeech keyword-spotting model under Apache-2.0, ONNX
+Runtime and Silero VAD under MIT). Apps that ship this package redistribute
+them too. See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) for the
+required attribution and full license texts.
 
 ---
 
