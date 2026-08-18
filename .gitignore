@@ -54,7 +54,9 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
-yarn.lock
+# yarn.lock is intentionally committed. It does not affect consumers of the
+# published package (npm ignores dependency lockfiles), but it is what makes
+# CI and contributor installs reproducible.
 
 # BUCK
 buck-out/
