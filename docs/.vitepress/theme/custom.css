@@ -1,0 +1,12 @@
+/* Widen the imageless home hero so the text fills the row instead of
+   leaving the default two-column (2/3 text, 1/3 image) gap empty. */
+.VPHero:not(.has-image) .main {
+  width: 100%;
+  max-width: 100%;
+}
+
+.VPHero:not(.has-image) .name,
+.VPHero:not(.has-image) .text,
+.VPHero:not(.has-image) .tagline {
+  max-width: 720px;
+}
