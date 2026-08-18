@@ -62,3 +62,9 @@ jobs:
 
       - name: Build package
         run: yarn prepare
+
+      # tsc over a tree that contains lib/ is a different compilation than the
+      # pre-build one: the emitted .d.ts files are in scope alongside their
+      # sources. A duplicate-declaration regression only shows up here.
+      - name: Typecheck against build output
+        run: yarn typecheck

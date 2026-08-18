@@ -1,4 +1,4 @@
 {
   "extends": "./tsconfig",
-  "exclude": ["example", "lib", "tests", "_bmad-output"]
+  "exclude": ["example", "lib", "plugin/build", "tests", "_bmad-output"]
 }

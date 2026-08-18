@@ -1,4 +1,9 @@
 {
+  // Build outputs only. `lib/` contains the emitted .d.ts for everything in
+  // `src/`, so compiling both puts each ambient `declare module` in scope
+  // twice and tsc reports duplicate identifiers. Everything else (example,
+  // docs, tests) stays in scope so this still typechecks what CI used to.
+  "exclude": ["lib", "plugin/build"],
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
