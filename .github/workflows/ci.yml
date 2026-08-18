@@ -68,3 +68,34 @@ jobs:
       # sources. A duplicate-declaration regression only shows up here.
       - name: Typecheck against build output
         run: yarn typecheck
+
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Install JDK
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      # The native module is the majority of this package by line count. Without
+      # this job a Kotlin compile error reaches main unnoticed, because the
+      # native build otherwise only runs in the manually-dispatched release
+      # workflow. Compile-only: the full example APK build stays in release.yml.
+      - name: Compile Android native module
+        env:
+          JAVA_OPTS: '-XX:MaxHeapSize=6g'
+        run: |
+          cd example/android
+          ./gradlew :react-native-voice-activator:compileDebugKotlin --no-daemon

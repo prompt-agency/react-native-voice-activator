@@ -36,7 +36,9 @@
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
-    "!**/.*"
+    "!**/.*",
+    "!**/test_wavs",
+    "!**/*-epoch-12-avg-2-chunk-16-left-64.onnx"
   ],
   "scripts": {
     "example": "yarn workspace react-native-voice-activator-example",
