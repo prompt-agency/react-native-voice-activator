@@ -11,6 +11,8 @@ No cloud required for wake word detection. Speech-to-text and text-to-speech run
 > **Supports:** React Native `0.83+` · Expo SDK `55+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
+📖 **[Full documentation site](https://prompt-agency.github.io/react-native-voice-activator/)**
+
 ## Table of Contents
 
 - [What It Does](#what-it-does)

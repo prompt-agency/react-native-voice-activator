@@ -1,0 +1,19 @@
+{
+  "name": "react-native-voice-activator-docs-site",
+  "private": true,
+  "description": "VitePress documentation site for react-native-voice-activator",
+  "scripts": {
+    "sync-assets": "node -e \"require('fs').mkdirSync('public/assets',{recursive:true});require('fs').copyFileSync('assets/banner.png','public/assets/banner.png')\"",
+    "predocs:dev": "npm run sync-assets",
+    "predocs:build": "npm run sync-assets",
+    "predocs:preview": "npm run sync-assets",
+    "docs:dev": "vitepress dev .",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "mermaid": "^11.4.1",
+    "vitepress": "^1.5.0",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  }
+}

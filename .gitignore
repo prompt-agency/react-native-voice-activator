@@ -102,3 +102,8 @@ ios/Vendor/SherpaOnnx/*.xcframework
 # Internal planning/spec files (not for public consumption)
 docs/superpowers/
 .envrc
+
+# Docs site (VitePress) build output and generated assets
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/public/
