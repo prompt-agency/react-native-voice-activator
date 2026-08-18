@@ -28,18 +28,24 @@ function makeWakeWordPayload(phrase = 'hey'): WakeWordDetectedEvent {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+/** Stands in for the gate engine's instance id on the shared session bus. */
+const GATE_ENGINE_ID = 'mock-gate-vad';
+
 describe('VAD pre-wake gate', () => {
   let capturedWakeWordHandler:
     | ((payload: WakeWordDetectedEvent) => void)
     | null = null;
   let mockVadEngineInstance: {
+    id: string;
     loadModel: jest.Mock;
     start: jest.Mock;
     stop: jest.Mock;
     dispose: jest.Mock;
     isRunning: boolean;
   };
-  let capturedSpeechStartListener: (() => void) | null;
+  let capturedSpeechStartListener:
+    | ((payload: { sourceId?: string }) => void)
+    | null;
   let capturedPcmFrameListener: ((e: { pcm: string }) => void) | null;
   let mockNativeEventEmitterAddListener: jest.Mock;
 
@@ -49,6 +55,7 @@ describe('VAD pre-wake gate', () => {
     capturedPcmFrameListener = null;
 
     mockVadEngineInstance = {
+      id: GATE_ENGINE_ID,
       loadModel: jest.fn().mockResolvedValue(undefined),
       start: jest.fn().mockResolvedValue(undefined),
       stop: jest.fn().mockResolvedValue(undefined),
@@ -207,7 +214,7 @@ describe('VAD pre-wake gate', () => {
     await startDetection();
 
     // Simulate speechStart event setting vadGateSpeechActive = true
-    capturedSpeechStartListener?.();
+    capturedSpeechStartListener?.({ sourceId: GATE_ENGINE_ID });
 
     // Fire wake word — speech is active, should proceed
     capturedWakeWordHandler!(makeWakeWordPayload());
@@ -300,7 +307,7 @@ describe('VAD pre-wake gate', () => {
     await startDetection();
 
     // First wake word starts a session
-    capturedSpeechStartListener?.(); // speech active for first wake
+    capturedSpeechStartListener?.({ sourceId: GATE_ENGINE_ID }); // speech active for first wake
     capturedWakeWordHandler!(makeWakeWordPayload());
     await flushAsync();
 
@@ -373,6 +380,7 @@ describe('VAD pre-wake gate', () => {
     capturedWakeWordHandler = null;
 
     mockVadEngineInstance = {
+      id: GATE_ENGINE_ID,
       loadModel: jest.fn().mockResolvedValue(undefined),
       start: jest.fn().mockResolvedValue(undefined),
       stop: jest.fn().mockResolvedValue(undefined),

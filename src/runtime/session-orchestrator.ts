@@ -215,7 +215,14 @@ export class VoiceSessionOrchestrator implements VoiceSession {
         }
       }) as (...args: readonly object[]) => unknown);
 
-      subs.speechStart = addSessionListener('speechStart', () => {
+      // Only this session's engine defines the utterance boundary. The
+      // pre-wake gate engine publishes to the same bus, and an unfiltered
+      // listener would let a gate speech edge cut the turn short.
+      const isOwnEngine = (payload: { sourceId?: string } | undefined) =>
+        payload?.sourceId === vad.id;
+
+      subs.speechStart = addSessionListener('speechStart', (payload) => {
+        if (!isOwnEngine(payload)) return;
         this._clearSilenceTimeout();
         speechStartChunkIndex = Math.max(0, pcmChunks.length - 1);
       });
@@ -226,7 +233,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       }>((resolve, reject) => {
         let settled = false;
         subs.speechEnd = addSessionListener('speechEnd', (payload) => {
-          if (settled) return;
+          if (settled || !isOwnEngine(payload)) return;
           settled = true;
           resolve(payload);
         });

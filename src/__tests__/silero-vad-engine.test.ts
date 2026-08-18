@@ -79,12 +79,19 @@ function makePCMBase64(): string {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 import type { VoiceSessionConfig } from '../public/types';
-import { SileroVADEngine } from '../providers/vad/SileroVADEngine';
+import {
+  SileroVADEngine,
+  __resetNativeCaptureRefCountForTests,
+} from '../providers/vad/SileroVADEngine';
 
 beforeEach(() => {
   jest.clearAllMocks();
   emittedEvents.length = 0;
   mockRun.mockResolvedValue(buildVADOutput(0.0));
+  // Native capture is refcounted at module scope. Most tests start an engine
+  // without stopping it, so without this reset a leaked reference would keep
+  // the refcount above zero and suppress stopVADCapture in later tests.
+  __resetNativeCaptureRefCountForTests();
 });
 
 describe('SileroVADEngine', () => {
@@ -151,7 +158,7 @@ describe('SileroVADEngine', () => {
 
       expect(emittedEvents).toContainEqual({
         name: 'speechStart',
-        payload: {},
+        payload: { sourceId: engine.id },
       });
     });
 
@@ -467,5 +474,156 @@ describe('SileroVADEngine', () => {
       expect(engine.silenceTimeoutMs).toBe(900);
       expect(engine.speechPadMs).toBe(111);
     });
+  });
+});
+
+// ─── Regression: concurrent engines and frame serialisation ──────────────────
+//
+// These cover the two failure modes that shipped unnoticed because every prior
+// test exercised a single engine processing one frame at a time.
+
+describe('SileroVADEngine — concurrent engine instances', () => {
+  function nativeMock() {
+    const { NativeModules } = require('react-native') as {
+      NativeModules: {
+        VoiceActivator: {
+          startVADCapture: jest.Mock;
+          stopVADCapture: jest.Mock;
+        };
+      };
+    };
+    return NativeModules.VoiceActivator;
+  }
+
+  async function startedEngine() {
+    const engine = new SileroVADEngine();
+    await engine.loadModel();
+    await engine.start();
+    return engine;
+  }
+
+  it('opens native capture once when two engines run concurrently', async () => {
+    const native = nativeMock();
+
+    await startedEngine();
+    await startedEngine();
+
+    expect(native.startVADCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps native capture open while another engine is still running', async () => {
+    const native = nativeMock();
+
+    const gate = await startedEngine();
+    const session = await startedEngine();
+
+    await session.stop();
+
+    // The pre-wake gate is still live — tearing down the shared stream here
+    // would starve it of frames and freeze its speech flag.
+    expect(native.stopVADCapture).not.toHaveBeenCalled();
+    expect(gate.isRunning).toBe(true);
+
+    await gate.stop();
+    expect(native.stopVADCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close capture again when a stopped engine is stopped twice', async () => {
+    const native = nativeMock();
+
+    const engine = await startedEngine();
+    await engine.stop();
+    await engine.stop();
+
+    expect(native.stopVADCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('tags speech events with the emitting engine so subscribers can filter', async () => {
+    const gate = new SileroVADEngine();
+    const session = new SileroVADEngine();
+    expect(gate.id).not.toBe(session.id);
+
+    await gate.loadModel();
+    await gate.start();
+
+    mockRun.mockResolvedValueOnce(buildVADOutput(0.9));
+    await gate._processFrame(makePCMBase64());
+
+    const speechStart = emittedEvents.find((e) => e.name === 'speechStart');
+    expect(speechStart?.payload).toEqual({ sourceId: gate.id });
+    expect(speechStart?.payload).not.toEqual({ sourceId: session.id });
+  });
+});
+
+describe('SileroVADEngine — frame serialisation', () => {
+  /** Grab the PCM frame callback the engine registered on the native emitter. */
+  function capturedFrameListener(): (event: { pcm: string }) => void {
+    const call = mockAddListener.mock.calls.at(-1);
+    return call![1] as (event: { pcm: string }) => void;
+  }
+
+  it('never runs two inferences at once when frames arrive faster than inference', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const gates: Array<() => void> = [];
+
+    mockRun.mockImplementation(() => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise((resolve) => {
+        gates.push(() => {
+          inFlight -= 1;
+          resolve(buildVADOutput(0.0));
+        });
+      });
+    });
+
+    const engine = new SileroVADEngine();
+    await engine.loadModel();
+    await engine.start();
+
+    const onFrame = capturedFrameListener();
+    // Three frames land before the first inference has resolved.
+    onFrame({ pcm: makePCMBase64() });
+    onFrame({ pcm: makePCMBase64() });
+    onFrame({ pcm: makePCMBase64() });
+    await Promise.resolve();
+
+    expect(maxInFlight).toBe(1);
+
+    // Drain: each release lets exactly one more frame start.
+    while (gates.length > 0) {
+      gates.shift()!();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+
+    expect(maxInFlight).toBe(1);
+    expect(mockRun).toHaveBeenCalledTimes(3);
+  });
+
+  it('drops the oldest frames instead of growing an unbounded backlog', async () => {
+    const gates: Array<() => void> = [];
+    mockRun.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          gates.push(() => resolve(buildVADOutput(0.0)));
+        })
+    );
+
+    const engine = new SileroVADEngine();
+    await engine.loadModel();
+    await engine.start();
+
+    const onFrame = capturedFrameListener();
+    // 32 is the queue bound; push well past it while inference is stalled.
+    for (let i = 0; i < 100; i++) {
+      onFrame({ pcm: makePCMBase64() });
+    }
+    await Promise.resolve();
+
+    expect(engine.droppedFrameCount).toBeGreaterThan(0);
+    // Bounded queue + the one frame already in flight.
+    expect(engine.droppedFrameCount).toBe(100 - 32 - 1);
   });
 });
