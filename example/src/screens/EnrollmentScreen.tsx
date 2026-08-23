@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import LiveAudioStream from '@fugood/react-native-audio-pcm-stream';
+import { ensureSpeakerRuntime } from '../providers';
 import {
   addWakeWordListener,
   getStatus,
@@ -12,6 +13,122 @@ import { Btn, C, SectionCard } from '../shared';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BAR_MULTIPLIERS = [0.5, 0.9, 0.7, 1.0, 0.8, 1.0, 0.6, 0.85];
+
+/**
+ * enrollSpeaker() hands the buffer straight to the Sherpa native bridge as raw
+ * PCM (the adapter names it `pcmBase64`) and voice-activator.ts hardcodes a
+ * 16 kHz sample rate, so the capture side must produce exactly that.
+ * AudioRecorderPlayer cannot: MediaRecorder only emits encoded containers
+ * (MPEG_4/AAC), whose compressed bytes are not valid PCM samples.
+ *
+ * Note: this is a contract fix, not a crash fix. The SIGABRT seen during
+ * enrollment came from the missing speaker model asset, not from the audio
+ * format. This path is still unverified end to end for that reason.
+ */
+const SAMPLE_RATE = 16_000;
+const RECORD_MS = 2000;
+
+/**
+ * Must run before every start(), not just once: stop() releases the underlying
+ * native recorder, and a subsequent start() without re-initializing produces a
+ * stream that emits no data at all (the second enrollment sample came back
+ * with zero bytes).
+ */
+function initPcmStream(): void {
+  LiveAudioStream.init({
+    sampleRate: SAMPLE_RATE,
+    channels: 1,
+    bitsPerSample: 16,
+    audioSource: 6, // VOICE_RECOGNITION — matches WhisperRNSTTAdapter
+    bufferSize: 4096,
+  });
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** Peak amplitude of a 16-bit LE PCM chunk, as dBFS, for the level meter. */
+function chunkPeakDb(bytes: Uint8Array): number {
+  const samples = new Int16Array(
+    bytes.buffer,
+    bytes.byteOffset,
+    Math.floor(bytes.byteLength / 2)
+  );
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.abs(samples[i]!);
+    if (v > peak) peak = v;
+  }
+  if (peak === 0) return -60;
+  return Math.max(-60, 20 * Math.log10(peak / 32768));
+}
+
+/** Capture raw 16 kHz mono 16-bit PCM for `ms`, reporting level as it goes. */
+function recordPcm(
+  ms: number,
+  onLevel: (db: number) => void,
+  registerStop?: (stop: () => void) => void
+): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    let subscription: { remove(): void } | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const chunks: Uint8Array[] = [];
+    let settled = false;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      try {
+        LiveAudioStream.stop();
+      } catch {
+        // stop() on an already-stopped stream is not fatal
+      }
+      subscription?.remove();
+    };
+
+    try {
+      initPcmStream();
+      subscription = LiveAudioStream.on('data', (b64) => {
+        const bytes = base64ToBytes(b64);
+        chunks.push(bytes);
+        onLevel(chunkPeakDb(bytes));
+      });
+      LiveAudioStream.start();
+    } catch (err) {
+      cleanup();
+      reject(err);
+      return;
+    }
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      if (total === 0) {
+        reject(new Error('No audio captured — is the microphone in use?'));
+        return;
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        out.set(c, offset);
+        offset += c.length;
+      }
+      resolve(out.buffer);
+    };
+
+    registerStop?.(finish);
+    timer = setTimeout(finish, ms);
+  });
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -25,8 +142,8 @@ export function EnrollmentScreen() {
   const [userId, setUserId] = useState('demo-user');
   const [meterDb, setMeterDb] = useState(-60);
 
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
-  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMounted = useRef(true);
+  const stopRecordingRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const sub = addWakeWordListener('stateChanged', () => {
@@ -41,13 +158,17 @@ export function EnrollmentScreen() {
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     return () => {
-      if (recordingTimer.current) {
-        clearTimeout(recordingTimer.current);
-        recordingTimer.current = null;
+      isMounted.current = false;
+      // Leaving mid-recording must release the mic, or the next capture
+      // silently returns zero bytes.
+      stopRecordingRef.current = null;
+      try {
+        LiveAudioStream.stop();
+      } catch {
+        // not recording — nothing to release
       }
-      audioRecorderPlayer.stopRecorder().catch(() => {});
-      audioRecorderPlayer.removeRecordBackListener();
     };
   }, []);
 
@@ -67,48 +188,58 @@ export function EnrollmentScreen() {
     return result === PermissionsAndroid.RESULTS.GRANTED;
   }
 
-  async function stopRecording() {
-    if (recordingTimer.current) {
-      clearTimeout(recordingTimer.current);
-      recordingTimer.current = null;
-    }
-    try {
-      const uri = await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
-      setMeterDb(-60);
-      const response = await fetch(uri);
-      const buffer = await response.arrayBuffer();
-      await voiceActivator.enrollSpeaker(userId.trim(), buffer);
-      setSampleCount((prev) => {
-        setStatus(`Sample ${prev + 1} recorded`);
-        return prev + 1;
-      });
-    } catch (err) {
-      setStatus(`Error recording sample: ${String(err)}`);
-    } finally {
-      setIsRecording(false);
-    }
-  }
-
   async function handleRecordSample() {
     if (!(await ensureMicPermission())) {
       setStatus('Microphone permission denied.');
       return;
     }
     setIsRecording(true);
+    try {
+      // The runtime is a shared singleton and this is the app's first tab, so
+      // on a cold launch nothing has initialized it yet and enrollSpeaker()
+      // would throw for a missing speakerVerificationProvider.
+      setStatus('Preparing speaker runtime…');
+      await ensureSpeakerRuntime(({ percent, receivedBytes, totalBytes }) => {
+        if (!isMounted.current) return;
+        const mb = (n: number) => (n / 1_000_000).toFixed(1);
+        setStatus(
+          percent === null
+            ? `Downloading speaker model — ${mb(receivedBytes)} MB…`
+            : `Downloading speaker model — ${percent}% (${mb(receivedBytes)} / ${mb(totalBytes)} MB). This happens once; please wait.`
+        );
+      });
+    } catch (err) {
+      setStatus(`Error preparing runtime: ${String(err)}`);
+      setIsRecording(false);
+      return;
+    }
     setStatus('Recording — say a short phrase…');
     try {
-      await audioRecorderPlayer.startRecorder(undefined, undefined, true);
-      audioRecorderPlayer.addRecordBackListener((e) => {
-        setMeterDb(e.currentMetering ?? -60);
+      const buffer = await recordPcm(
+        RECORD_MS,
+        (db) => {
+          if (isMounted.current) setMeterDb(db);
+        },
+        (stop) => {
+          stopRecordingRef.current = stop;
+        }
+      );
+      stopRecordingRef.current = null;
+      if (!isMounted.current) return;
+      setMeterDb(-60);
+      await voiceActivator.enrollSpeaker(userId.trim(), buffer);
+      if (!isMounted.current) return;
+      setSampleCount((prev) => {
+        setStatus(`Sample ${prev + 1} recorded`);
+        return prev + 1;
       });
-      // Auto-stop after 2 seconds
-      recordingTimer.current = setTimeout(() => {
-        stopRecording();
-      }, 2000);
     } catch (err) {
-      setStatus(`Error starting recording: ${String(err)}`);
-      setIsRecording(false);
+      if (isMounted.current) {
+        setMeterDb(-60);
+        setStatus(`Error recording sample: ${String(err)}`);
+      }
+    } finally {
+      if (isMounted.current) setIsRecording(false);
     }
   }
 
@@ -224,7 +355,7 @@ export function EnrollmentScreen() {
         {isRecording ? (
           <Btn
             label="Stop recording"
-            onPress={stopRecording}
+            onPress={() => stopRecordingRef.current?.()}
             tone="quiet"
           />
         ) : null}

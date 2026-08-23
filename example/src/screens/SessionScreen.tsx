@@ -16,6 +16,12 @@ import {
   WhisperRNSTTAdapter,
   type AIHandler,
 } from 'react-native-voice-activator';
+import {
+  markSpeakerRuntimeDisposed,
+  markSpeakerRuntimeReady,
+  getDownloadedSpeakerModelPath,
+  speakerVerificationProvider,
+} from '../providers';
 import { Btn, C, EventLog, SectionCard, StatusPill, type EventEntry } from '../shared';
 
 // ─── Mock AI Handler ──────────────────────────────────────────────────────────
@@ -59,15 +65,27 @@ export function SessionScreen() {
   async function handleInitialize() {
     if (!(await ensurePermission())) return;
     try {
+      const speakerModelPath = await getDownloadedSpeakerModelPath();
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
         sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        // Kept configured so the Enrollment tab stays usable no matter which
+        // screen initialized last. 'open' is required here: the default is
+        // 'closed', which aborts every session when no speaker is enrolled yet.
+        // Only wire speaker verification if the model is already on disk;
+        // enrollment is what downloads it.
+        ...(speakerModelPath
+          ? { speakerVerificationProvider, speakerModelPath }
+          : {}),
+        verificationFailureBehavior: 'open',
         session: {
           aiHandler: mockAiHandler,
           reListenMode,
           silenceTimeoutMs: 10_000,
         },
       });
+      if (speakerModelPath) markSpeakerRuntimeReady();
+      else markSpeakerRuntimeDisposed();
       setProgressText('');
       setWakeStatus(getStatus());
       pushEvent('initialize', `session mode, reListenMode: ${reListenMode}`);
@@ -101,6 +119,7 @@ export function SessionScreen() {
   async function handleDispose() {
     try {
       await dispose();
+      markSpeakerRuntimeDisposed();
       setWakeStatus(getStatus());
       pushEvent('dispose', 'runtime torn down');
     } catch { setWakeStatus(getStatus()); }
