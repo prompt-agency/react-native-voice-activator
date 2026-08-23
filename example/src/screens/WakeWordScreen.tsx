@@ -15,7 +15,6 @@ import {
   initialize,
   startDetection,
   stopDetection,
-  WhisperRNSTTAdapter,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordStatus,
@@ -23,6 +22,7 @@ import {
 import {
   markSpeakerRuntimeDisposed,
   markSpeakerRuntimeReady,
+  ensureSttProvider,
   getDownloadedSpeakerModelPath,
   speakerVerificationProvider,
 } from '../providers';
@@ -115,11 +115,18 @@ export function WakeWordScreen() {
     if (!(await ensurePermission())) return;
     try {
       const speakerModelPath = await getDownloadedSpeakerModelPath();
+      setProgressText('Preparing speech-to-text model...');
+      const sttProvider = await ensureSttProvider((u) =>
+        setProgressText(
+          u.progress != null ? `${u.message} (${u.progress}%)` : u.message
+        )
+      );
+      setProgressText('');
       await initialize({
         engineConfig: {
           assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
         },
-        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        sttProvider,
         // Only wire speaker verification if the model is already on disk;
         // enrollment is what downloads it.
         ...(speakerModelPath

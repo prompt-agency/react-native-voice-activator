@@ -8,17 +8,19 @@ import {
   View,
 } from 'react-native';
 import {
+  addWakeWordListener,
   dispose,
   getStatus,
   initialize,
   startDetection,
   useVoiceSession,
-  WhisperRNSTTAdapter,
   type AIHandler,
 } from 'react-native-voice-activator';
+import { ExpoSpeechTtsProvider } from '../expo-speech-tts-provider';
 import {
   markSpeakerRuntimeDisposed,
   markSpeakerRuntimeReady,
+  ensureSttProvider,
   getDownloadedSpeakerModelPath,
   speakerVerificationProvider,
 } from '../providers';
@@ -53,6 +55,33 @@ export function SessionScreen() {
     setWakeStatus(getStatus());
   }, [sessionState]);
 
+  // Trace the session state machine into the event log. Without this a session
+  // that never starts is indistinguishable from one that starts and stalls.
+  useEffect(() => {
+    pushEvent('sessionState', sessionState === null ? 'null (no session)' : sessionState);
+  }, [sessionState]);
+
+  // Surface wake word and runtime errors. Without this the screen is blind to
+  // detections: a wake word that fires but fails to start a session produces no
+  // visible change at all, which is indistinguishable from the mic not hearing.
+  useEffect(() => {
+    const subs = [
+      addWakeWordListener('wakeWordDetected', (e) => {
+        pushEvent('wakeWordDetected', `"${e.detectedPhrase}" at ${e.detectedAt}`);
+        setWakeStatus(getStatus());
+      }),
+      addWakeWordListener('error', (e) => {
+        pushEvent('error', `${e.category}:${e.code} ${e.message}`);
+        setWakeStatus(getStatus());
+      }),
+      addWakeWordListener('stateChanged', (e) => {
+        pushEvent('stateChanged', `→ ${e.state}`);
+        setWakeStatus(getStatus());
+      }),
+    ];
+    return () => subs.forEach((sub) => sub.remove());
+  }, []);
+
   async function ensurePermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return true;
     const result = await PermissionsAndroid.request(
@@ -66,9 +95,20 @@ export function SessionScreen() {
     if (!(await ensurePermission())) return;
     try {
       const speakerModelPath = await getDownloadedSpeakerModelPath();
+      // Must be initialized by the app before use — see ensureSttProvider().
+      setProgressText('Preparing speech-to-text model...');
+      const sttProvider = await ensureSttProvider((u) =>
+        setProgressText(
+          u.progress != null ? `${u.message} (${u.progress}%)` : u.message
+        )
+      );
+      setProgressText('');
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
-        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        sttProvider,
+        // Required: session mode only engages when BOTH stt and tts are set.
+        ttsProvider: new ExpoSpeechTtsProvider(),
+        autoSpeak: true,
         // Kept configured so the Enrollment tab stays usable no matter which
         // screen initialized last. 'open' is required here: the default is
         // 'closed', which aborts every session when no speaker is enrolled yet.
@@ -81,7 +121,19 @@ export function SessionScreen() {
         session: {
           aiHandler: mockAiHandler,
           reListenMode,
-          silenceTimeoutMs: 10_000,
+          // NOT a pure "silence" timeout in this configuration. With no
+          // session.vad configured, nothing clears the timer until
+          // sttProvider.transcribe() resolves, so this budget has to cover
+          // recording AND Whisper inference. At the documented 10s the session
+          // was being killed mid-utterance with sessionEnded{reason:'timeout'}
+          // and no visible error.
+          //
+          // The intended fix is `vad: {}` (speechStart clears the timer), but
+          // the VAD engine pulls in onnxruntime-react-native, whose JSI binding
+          // is currently null on this RN version: "Cannot read property
+          // 'install' of null" (binding.ts:14). Until that is resolved, size
+          // the budget for inference instead.
+          silenceTimeoutMs: 45_000,
         },
       });
       if (speakerModelPath) markSpeakerRuntimeReady();
@@ -182,7 +234,7 @@ export function SessionScreen() {
         </View>
         <Text style={s.hint}>
           Wake word: <Text style={s.code}>MERRY CHRISTMAS</Text>{'\n'}
-          silenceTimeoutMs: <Text style={s.code}>10 000</Text>
+          silenceTimeoutMs: <Text style={s.code}>45 000</Text>
         </Text>
       </SectionCard>
 

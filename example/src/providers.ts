@@ -2,6 +2,7 @@ import RNFS from 'react-native-fs';
 import {
   initialize,
   SherpaOnnxSpeakerVerificationAdapter,
+  WhisperRNSTTAdapter,
 } from 'react-native-voice-activator';
 
 // ─── Shared provider singletons ───────────────────────────────────────────────
@@ -188,4 +189,35 @@ export async function ensureSpeakerRuntime(
     verificationFailureBehavior: 'open',
   });
   speakerRuntimeReady = true;
+}
+
+// ─── Speech-to-text ───────────────────────────────────────────────────────────
+
+/**
+ * WhisperRNSTTAdapter.initialize() is NOT part of the SpeechToTextProvider
+ * interface, and voice-activator.ts only ever calls transcribe()/cancel() on a
+ * provider. The app therefore has to initialize the adapter itself; passing a
+ * fresh, uninitialized instance to initialize({ sttProvider }) makes every
+ * transcription fail with "WhisperRNSTTAdapter: call initialize() first".
+ *
+ * Shared across screens so the ~75 MB Whisper model is fetched once.
+ */
+let sttProviderInstance: WhisperRNSTTAdapter | null = null;
+let sttProviderInit: Promise<WhisperRNSTTAdapter> | null = null;
+
+export function ensureSttProvider(
+  onProgress?: (update: { message: string; progress?: number }) => void
+): Promise<WhisperRNSTTAdapter> {
+  if (sttProviderInstance) return Promise.resolve(sttProviderInstance);
+  sttProviderInit ??= (async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize(onProgress);
+    sttProviderInstance = adapter;
+    return adapter;
+  })().catch((err) => {
+    // Allow a later retry instead of caching the rejection forever.
+    sttProviderInit = null;
+    throw err;
+  });
+  return sttProviderInit;
 }
