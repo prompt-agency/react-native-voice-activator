@@ -6,6 +6,8 @@
  *   - iOS: NSMicrophoneUsageDescription, UIBackgroundModes: audio
  *   - Android: RECORD_AUDIO / FOREGROUND_SERVICE* / POST_NOTIFICATIONS
  *     permissions plus WakeWordForegroundService declaration
+ *   - Android: registers onnxruntime-react-native's ReactPackage, which Expo
+ *     autolinking silently omits (required for Silero VAD and ONNX providers)
  *
  * ⚠️  Expo Go is NOT supported. Generate native projects with Expo prebuild
  *     or run the Expo-generated native app directly.
@@ -20,6 +22,7 @@ import { withBackgroundModes } from './withBackgroundModes';
 import { withBundledAssets } from './withBundledAssets';
 import { withMicrophonePermissions } from './withMicrophonePermissions';
 import { withModelAssets } from './withModelAssets';
+import { withOnnxruntimeRegistration } from './withOnnxruntimeRegistration';
 
 // Re-exported so dependent with* modules can reference the type without
 // creating a circular dependency through config-plugin.ts.
@@ -47,6 +50,7 @@ const withVoiceActivator: ConfigPlugin<VoiceActivatorPluginProps | void> = (
   config = withAndroidForegroundService(config);
   config = withBundledAssets(config);
   config = withModelAssets(config, resolvedProps);
+  config = withOnnxruntimeRegistration(config);
 
   return config;
 };
