@@ -31,6 +31,32 @@ class VoiceSessionListenAbortedError extends Error {
   }
 }
 
+/**
+ * Renders a thrown cause into a human-readable message.
+ *
+ * Rejections crossing the React Native bridge are frequently plain objects or
+ * strings rather than Error instances, so an `instanceof Error` check alone
+ * discards the only diagnostic the caller had and reports a bare
+ * "Session <code>." — which is indistinguishable between a missing model, a
+ * failed native install, and a permissions problem.
+ */
+function describeCause(code: string, cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (typeof cause === 'string' && cause.trim()) return cause;
+  if (cause && typeof cause === 'object') {
+    const record = cause as Record<string, unknown>;
+    const message = record.message ?? record.error ?? record.reason;
+    if (typeof message === 'string' && message.trim()) return message;
+    try {
+      const json = JSON.stringify(cause);
+      if (json && json !== '{}') return `Session ${code}: ${json}`;
+    } catch {
+      // circular or otherwise non-serialisable — fall through
+    }
+  }
+  return `Session ${code}.`;
+}
+
 export class VoiceSessionOrchestrator implements VoiceSession {
   private _state: VoiceSessionState = 'idle';
   /** 1-based turn counter. Incremented after each successful TTS playback. */
@@ -209,7 +235,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     let speechStartChunkIndex = 0;
 
     try {
-      await vad.loadModel();
+      await vad.loadModel(this.config.vad?.modelPath);
       if (this._closed || ac.signal.aborted) {
         throw new VoiceSessionListenAbortedError();
       }
@@ -467,7 +493,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
     return {
       code,
       category: 'internal',
-      message: cause instanceof Error ? cause.message : `Session ${code}.`,
+      message: describeCause(code, cause),
       recoverable: true,
     };
   }

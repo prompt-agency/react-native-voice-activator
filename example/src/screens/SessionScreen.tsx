@@ -21,6 +21,7 @@ import {
   markSpeakerRuntimeDisposed,
   markSpeakerRuntimeReady,
   ensureSttProvider,
+  ensureVadModelPath,
   getDownloadedSpeakerModelPath,
   speakerVerificationProvider,
 } from '../providers';
@@ -102,6 +103,7 @@ export function SessionScreen() {
           u.progress != null ? `${u.message} (${u.progress}%)` : u.message
         )
       );
+      const vadModelPath = await ensureVadModelPath();
       setProgressText('');
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
@@ -121,19 +123,14 @@ export function SessionScreen() {
         session: {
           aiHandler: mockAiHandler,
           reListenMode,
-          // NOT a pure "silence" timeout in this configuration. With no
-          // session.vad configured, nothing clears the timer until
-          // sttProvider.transcribe() resolves, so this budget has to cover
-          // recording AND Whisper inference. At the documented 10s the session
-          // was being killed mid-utterance with sessionEnded{reason:'timeout'}
-          // and no visible error.
-          //
-          // The intended fix is `vad: {}` (speechStart clears the timer), but
-          // the VAD engine pulls in onnxruntime-react-native, whose JSI binding
-          // is currently null on this RN version: "Cannot read property
-          // 'install' of null" (binding.ts:14). Until that is resolved, size
-          // the budget for inference instead.
-          silenceTimeoutMs: 45_000,
+          // A real "user never started speaking" guard, as documented.
+          // This only holds because session.vad is set below: speechStart
+          // clears the timer. Without VAD nothing clears it until
+          // transcribe() resolves, so the budget would also have to cover
+          // Whisper inference and sessions get killed mid-utterance with
+          // sessionEnded{reason:'timeout'} and no error.
+          silenceTimeoutMs: 10_000,
+          vad: { modelPath: vadModelPath },
         },
       });
       if (speakerModelPath) markSpeakerRuntimeReady();
@@ -234,7 +231,7 @@ export function SessionScreen() {
         </View>
         <Text style={s.hint}>
           Wake word: <Text style={s.code}>MERRY CHRISTMAS</Text>{'\n'}
-          silenceTimeoutMs: <Text style={s.code}>45 000</Text>
+          silenceTimeoutMs: <Text style={s.code}>10 000</Text>
         </Text>
       </SectionCard>
 

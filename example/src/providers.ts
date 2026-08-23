@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import {
   initialize,
@@ -220,4 +221,41 @@ export function ensureSttProvider(
     throw err;
   });
   return sttProviderInit;
+}
+
+// ─── Silero VAD model ─────────────────────────────────────────────────────────
+
+/**
+ * The library bundles silero_vad.onnx as an APK asset, but
+ * onnxruntime-react-native can no longer load it in place: its Java module now
+ * only exposes install(), and the old bridge loadModel() that understood the
+ * `asset://` scheme is gone, so ORT treats the string as a plain filesystem
+ * path and fails with "File doesn't exist". Extract it once to disk and hand
+ * the absolute path to VADConfig.modelPath.
+ *
+ * iOS needs none of this — ORT resolves the bare filename from the bundle.
+ */
+const VAD_MODEL_ASSET = 'silero_vad.onnx';
+const VAD_MODEL_PATH = `${RNFS.DocumentDirectoryPath}/${VAD_MODEL_ASSET}`;
+
+let vadModelExtraction: Promise<string | undefined> | null = null;
+
+export function ensureVadModelPath(): Promise<string | undefined> {
+  vadModelExtraction ??= extractVadModel().catch((err) => {
+    vadModelExtraction = null;
+    throw err;
+  });
+  return vadModelExtraction;
+}
+
+async function extractVadModel(): Promise<string | undefined> {
+  if (Platform.OS !== 'android') return undefined;
+  const stat = await RNFS.exists(VAD_MODEL_PATH)
+    .then((exists) => (exists ? RNFS.stat(VAD_MODEL_PATH) : null))
+    .catch(() => null);
+  // A zero-length or partial copy would fail inside ORT with the same opaque
+  // "File doesn't exist", so re-extract anything that looks wrong.
+  if (stat && Number(stat.size) > 0) return VAD_MODEL_PATH;
+  await RNFS.copyFileAssets(VAD_MODEL_ASSET, VAD_MODEL_PATH);
+  return VAD_MODEL_PATH;
 }

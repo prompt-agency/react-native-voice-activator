@@ -57,11 +57,11 @@ jest.mock('../providers/vad/asset-path', () => ({
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildVADOutput(probability: number) {
-  const hiddenState = new Float32Array(128);
+  // Silero v5 returns a single combined `stateN` of [2, 1, 128].
+  const state = new Float32Array(256);
   return {
     output: { data: new Float32Array([probability]) },
-    hn: { data: new Float32Array(hiddenState) },
-    cn: { data: new Float32Array(hiddenState) },
+    stateN: { data: new Float32Array(state) },
   };
 }
 
@@ -222,12 +222,29 @@ describe('SileroVADEngine', () => {
       );
     });
 
-    it('updates LSTM hidden state from ORT output after each frame', async () => {
-      const nonZeroHidden = new Float32Array(128).fill(0.42);
+    it('feeds the Silero v5 tensor signature (input/sr/state, not v4 h/c)', async () => {
+      // The bundled silero_vad.onnx is v5: its graph declares inputs
+      // input/state/sr and outputs output/stateN. Feeding the v4 h/c pair
+      // makes ORT reject every frame with "input 'state' is missing in
+      // 'feeds'", which disables VAD entirely at runtime.
+      const engine = new SileroVADEngine();
+      await engine.loadModel();
+      await engine.start();
+      await engine._processFrame(makePCMBase64());
+
+      expect(mockRun).toHaveBeenCalledTimes(1);
+      const feeds = mockRun.mock.calls[0]![0] as Record<string, unknown>;
+      expect(Object.keys(feeds).sort()).toEqual(['input', 'sr', 'state']);
+      expect(feeds).not.toHaveProperty('h');
+      expect(feeds).not.toHaveProperty('c');
+      expect((feeds.state as { dims: number[] }).dims).toEqual([2, 1, 128]);
+    });
+
+    it('updates recurrent state from ORT output after each frame', async () => {
+      const nonZeroState = new Float32Array(256).fill(0.42);
       mockRun.mockResolvedValueOnce({
         output: { data: new Float32Array([0.0]) },
-        hn: { data: new Float32Array(nonZeroHidden) },
-        cn: { data: new Float32Array(nonZeroHidden) },
+        stateN: { data: new Float32Array(nonZeroState) },
       });
 
       const engine = new SileroVADEngine();
@@ -235,12 +252,15 @@ describe('SileroVADEngine', () => {
       await engine.start();
       await engine._processFrame(makePCMBase64());
 
-      // On the next frame the h/c tensors should carry the updated state.
-      // We verify by checking that run was called (state update happened without error).
+      // The next frame must carry the updated state forward.
       mockRun.mockResolvedValueOnce(buildVADOutput(0.0));
       await engine._processFrame(makePCMBase64());
 
       expect(mockRun).toHaveBeenCalledTimes(2);
+      const secondFeeds = mockRun.mock.calls[1]![0] as Record<string, unknown>;
+      const carried = (secondFeeds.state as { data: Float32Array }).data;
+      // float32 round-trip, so compare approximately
+      for (const v of carried.slice(0, 4)) expect(v).toBeCloseTo(0.42, 5);
     });
   });
 
