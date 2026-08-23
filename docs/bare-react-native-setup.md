@@ -102,6 +102,12 @@ if (!granted) {
 - Wake word engine wiring and lifecycle
 - Runtime state and event emission
 - Android foreground service management
+- `onnxruntime-react-native` registration, via standard React Native CLI
+  autolinking. No `MainApplication` edit is needed in a bare app. (Expo
+  projects do need help here, which the config plugin applies automatically —
+  see [Expo Setup](expo-setup.md). The cause is a stale `unimodule.json` in
+  `onnxruntime-react-native` that makes Expo autolinking claim the package
+  without registering it.)
 
 **Manual in your app:**
 
