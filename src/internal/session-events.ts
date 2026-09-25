@@ -48,6 +48,21 @@ export function emitSessionEvent<TEventName extends VoiceSessionEventName>(
   >;
 
   for (const listener of eventListeners) {
-    listener(payload);
+    // A throwing consumer listener must not abort the dispatch loop, and must
+    // not propagate back into the internal code that triggered the emit. An
+    // 'error' listener that throws would otherwise abort the very rollback
+    // path that emitted it. VoiceSessionOrchestrator._emitAll already guards
+    // its per-instance listeners this way; these are the buses that
+    // addWakeWordListener / addSessionListener actually use.
+    try {
+      listener(payload);
+    } catch (cause) {
+      if (__DEV__) {
+        console.warn(
+          `[VoiceActivator] session "${eventName}" listener threw:`,
+          cause
+        );
+      }
+    }
   }
 }
