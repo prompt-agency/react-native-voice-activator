@@ -313,6 +313,18 @@ export type AIHandler = (transcript: string) => Promise<string>;
 
 /** Voice-activity detection tuning for bundled Silero VAD. */
 export interface VADConfig {
+  /**
+   * Absolute filesystem path to silero_vad.onnx.
+   *
+   * Required on Android: onnxruntime-react-native no longer resolves the
+   * `asset://` scheme (its Java module only exposes install(); the old
+   * bridge loadModel() that parsed asset URIs is gone), so the bundled APK
+   * asset must be extracted to disk by the app first — e.g. with
+   * RNFS.copyFileAssets('silero_vad.onnx', dest).
+   *
+   * Omit on iOS, where ORT resolves the bare filename from the main bundle.
+   */
+  modelPath?: string;
   /** Silence duration (ms) after speech before speechEnd fires. Default: 1500 */
   silenceTimeoutMs?: number;
   /** Speech-edge padding (ms) on speechEnd for STT. Default: 300 */

@@ -92,6 +92,51 @@ interface VoiceSessionConfig {
 | `maxTurns` | `number` | No | Maximum number of turns before the session ends with `sessionEnded { reason: 'explicit' }`. |
 | `vad` | `VADConfig` | No | When set, the session uses bundled Silero VAD for the `listening` phase: audio is captured once via the VAD native stream, and `speechEnd` (plus `speechPadMs`) triggers transcription from a temp WAV. Requires an STT provider that implements `transcribeFromWavPath` (e.g. `WhisperRNSTTAdapter`). When omitted, `transcribe()` runs immediately as before (mic recording inside the STT provider). |
 
+### VAD on Android: supply `modelPath`
+
+`VADConfig.modelPath` is **required on Android**. The bundled
+`silero_vad.onnx` lives inside the APK, and `onnxruntime-react-native` can no
+longer read it in place: its Java module only exposes `install()`, and the
+older bridge `loadModel()` that understood the `asset://` scheme is gone. An
+`asset://` string now reaches native as a plain filesystem path and fails with
+`File doesn't exist`.
+
+Extract the asset once and pass the absolute path. Omit it on iOS, where ORT
+resolves the bare filename from the main bundle.
+
+```ts
+import { Platform } from 'react-native';
+import RNFS from 'react-native-fs';
+
+async function resolveVadModelPath(): Promise<string | undefined> {
+  if (Platform.OS !== 'android') return undefined;
+  const dest = `${RNFS.DocumentDirectoryPath}/silero_vad.onnx`;
+  if (!(await RNFS.exists(dest))) {
+    await RNFS.copyFileAssets('silero_vad.onnx', dest);
+  }
+  return dest;
+}
+
+await initialize({
+  sttProvider,
+  ttsProvider,
+  session: {
+    aiHandler,
+    reListenMode: 'auto',
+    silenceTimeoutMs: 10_000,
+    vad: { modelPath: await resolveVadModelPath() },
+  },
+});
+```
+
+::: warning silenceTimeoutMs depends on VAD
+`silenceTimeoutMs` only behaves as a "user never spoke" guard when `vad` is
+configured, because `speechStart` is what clears the timer. Without `vad`,
+nothing clears it until `transcribe()` resolves, so the budget must also cover
+STT inference — otherwise the session is cancelled mid-utterance with
+`sessionEnded { reason: 'timeout' }`.
+:::
+
 ### Passing the Session Config
 
 Pass `session` inside `WakeWordInitializationOptions`:

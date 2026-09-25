@@ -59,5 +59,29 @@ target 'VoiceActivatorExample' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # CocoaPods exposes VoiceActivator's vendored Sherpa ONNX headers under
+    # Pods/Headers/Private/VoiceActivator/. Without this, the
+    # onnxruntime-react-native target resolves onnxruntime_cxx_api.h to
+    # Sherpa's older bundled copy (ORT 1.17.x) instead of the onnxruntime-c
+    # pod's, and fails to compile with "no member named
+    # 'AddExternalInitializersFromFilesInMemory' in 'Ort::SessionOptions'".
+    #
+    # See docs/ios-onnx-conflict-resolution.md.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'onnxruntime-react-native'
+
+      target.build_configurations.each do |config|
+        # $(inherited) MUST be kept: dropping it loses the pod's own xcconfig
+        # paths (React-jsi, ReactCommon, ...) and breaks `jsi/jsi.h` not found.
+        config.build_settings['HEADER_SEARCH_PATHS'] = [
+          "\"${PODS_ROOT}/onnxruntime-c/Headers\"",
+          '$(inherited)',
+        ]
+        # Required as well: CocoaPods' header map would otherwise still
+        # resolve onnxruntime_cxx_api.h back to Sherpa's copy.
+        config.build_settings['USE_HEADERMAP'] = 'NO'
+      end
+    end
   end
 end

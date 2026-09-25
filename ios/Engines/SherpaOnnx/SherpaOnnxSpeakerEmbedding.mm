@@ -246,7 +246,9 @@
   const float *floats = (const float *)[data bytes];
 
   // Get the boolean match result.
-  int32_t matched = SherpaOnnxSpeakerEmbeddingManagerVerify(_manager, [name UTF8String], threshold, floats);
+  // Signature is (manager, name, const float *v, float threshold) — the
+  // embedding comes before the threshold, matching GetBestMatches below.
+  int32_t matched = SherpaOnnxSpeakerEmbeddingManagerVerify(_manager, [name UTF8String], floats, threshold);
 
   // Attempt to get a similarity score using GetBestMatches (returns score field).
   float score = 0.0f;

@@ -25,7 +25,12 @@ type VoiceActivatorVADNative = {
 
 /** Native event name for 16 kHz float32 PCM frames (shared with session orchestrator buffering). */
 export const VAD_NATIVE_PCM_FRAME_EVENT = 'VoiceActivatorOnVADPCMFrame';
-const LSTM_STATE_SIZE = 128;
+/**
+ * Silero v5 carries a single combined recurrent state of shape [2, 1, 128].
+ * (v4 used two separate [2, 1, 64] h/c tensors; the bundled model is v5, whose
+ * graph declares inputs input/state/sr and outputs output/stateN.)
+ */
+const VAD_STATE_SIZE = 2 * 1 * 128;
 const SAMPLE_RATE = 16000;
 /** ~1 s of 512-sample frames at 16 kHz. See {@link SileroVADEngine._enqueueFrame}. */
 const MAX_QUEUED_FRAMES = 32;
@@ -107,10 +112,8 @@ export class SileroVADEngine {
   private session: InferenceSession | null = null;
   private ort: OrtModule | null = null;
 
-  /** LSTM hidden state — [2, 1, 64] = 128 floats. Reset on start/stop. */
-  private h = new Float32Array(LSTM_STATE_SIZE);
-  /** LSTM cell state — [2, 1, 64] = 128 floats. Reset on start/stop. */
-  private c = new Float32Array(LSTM_STATE_SIZE);
+  /** Recurrent state — [2, 1, 128] = 256 floats. Reset on start/stop. */
+  private state = new Float32Array(VAD_STATE_SIZE);
 
   /**
    * Identifies this engine on the shared session event bus. Subscribers filter
@@ -301,33 +304,23 @@ export class SileroVADEngine {
         BigInt64Array.from([BigInt(SAMPLE_RATE)]),
         [1]
       );
-      const hTensor = new Tensor(
+      const stateTensor = new Tensor(
         'float32',
-        new Float32Array(this.h),
-        [2, 1, 64]
-      );
-      const cTensor = new Tensor(
-        'float32',
-        new Float32Array(this.c),
-        [2, 1, 64]
+        new Float32Array(this.state),
+        [2, 1, 128]
       );
 
       const output = await this.session.run({
         input: inputTensor as InstanceType<typeof Tensor>,
         sr: srTensor as InstanceType<typeof Tensor>,
-        h: hTensor as InstanceType<typeof Tensor>,
-        c: cTensor as InstanceType<typeof Tensor>,
+        state: stateTensor as InstanceType<typeof Tensor>,
       } as Parameters<InferenceSession['run']>[0]);
 
       if (!this._running) return;
 
-      const hn = output.hn;
-      const cn = output.cn;
-      if (hn?.data instanceof Float32Array) {
-        this.h = new Float32Array(hn.data);
-      }
-      if (cn?.data instanceof Float32Array) {
-        this.c = new Float32Array(cn.data);
+      const stateN = output.stateN;
+      if (stateN?.data instanceof Float32Array) {
+        this.state = new Float32Array(stateN.data);
       }
 
       const probability =
@@ -380,8 +373,7 @@ export class SileroVADEngine {
   }
 
   private _resetHiddenState(): void {
-    this.h = new Float32Array(LSTM_STATE_SIZE);
-    this.c = new Float32Array(LSTM_STATE_SIZE);
+    this.state = new Float32Array(VAD_STATE_SIZE);
   }
 
   private _reportFrameError(e: unknown): void {

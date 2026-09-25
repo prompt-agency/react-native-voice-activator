@@ -15,12 +15,17 @@ import {
   initialize,
   startDetection,
   stopDetection,
-  SherpaOnnxSpeakerVerificationAdapter,
-  WhisperRNSTTAdapter,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordStatus,
 } from 'react-native-voice-activator';
+import {
+  markSpeakerRuntimeDisposed,
+  markSpeakerRuntimeReady,
+  ensureSttProvider,
+  getDownloadedSpeakerModelPath,
+  speakerVerificationProvider,
+} from '../providers';
 import { Btn, C, EventLog, SectionCard, StatusPill, type EventEntry } from '../shared';
 
 // ─── Keyword presets ──────────────────────────────────────────────────────────
@@ -44,12 +49,6 @@ const KEYWORD_PRESETS = [
 ];
 
 let seq = 0;
-
-// Singleton: must outlive any single initialize() call so enrollment state
-// (in-memory speaker embeddings) survives preset switches and re-initialization.
-// Note: native speaker registrations may be cleared if the runtime is fully
-// disposed — call clearEnrollment() explicitly before dispose if persistence matters.
-const speakerVerificationProvider = new SherpaOnnxSpeakerVerificationAdapter();
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -115,15 +114,28 @@ export function WakeWordScreen() {
   async function handleInitialize() {
     if (!(await ensurePermission())) return;
     try {
+      const speakerModelPath = await getDownloadedSpeakerModelPath();
+      setProgressText('Preparing speech-to-text model...');
+      const sttProvider = await ensureSttProvider((u) =>
+        setProgressText(
+          u.progress != null ? `${u.message} (${u.progress}%)` : u.message
+        )
+      );
+      setProgressText('');
       await initialize({
         engineConfig: {
           assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
         },
-        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
-        speakerVerificationProvider,
-        speakerModelPath: 'SherpaOnnxSpeaker/model.onnx',
+        sttProvider,
+        // Only wire speaker verification if the model is already on disk;
+        // enrollment is what downloads it.
+        ...(speakerModelPath
+          ? { speakerVerificationProvider, speakerModelPath }
+          : {}),
         autoSpeak: true,
       });
+      if (speakerModelPath) markSpeakerRuntimeReady();
+      else markSpeakerRuntimeDisposed();
       setActivePresetId(selectedPresetId);
       setProgressText('');
       setLastDetection(null);
@@ -147,6 +159,7 @@ export function WakeWordScreen() {
   async function handleDispose() {
     try {
       await dispose();
+      markSpeakerRuntimeDisposed();
       setLastDetection(null);
       setActivePresetId(null);
       setProgressText('');

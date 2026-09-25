@@ -8,14 +8,23 @@ import {
   View,
 } from 'react-native';
 import {
+  addWakeWordListener,
   dispose,
   getStatus,
   initialize,
   startDetection,
   useVoiceSession,
-  WhisperRNSTTAdapter,
   type AIHandler,
 } from 'react-native-voice-activator';
+import { ExpoSpeechTtsProvider } from '../expo-speech-tts-provider';
+import {
+  markSpeakerRuntimeDisposed,
+  markSpeakerRuntimeReady,
+  ensureSttProvider,
+  ensureVadModelPath,
+  getDownloadedSpeakerModelPath,
+  speakerVerificationProvider,
+} from '../providers';
 import { Btn, C, EventLog, SectionCard, StatusPill, type EventEntry } from '../shared';
 
 // ─── Mock AI Handler ──────────────────────────────────────────────────────────
@@ -47,6 +56,33 @@ export function SessionScreen() {
     setWakeStatus(getStatus());
   }, [sessionState]);
 
+  // Trace the session state machine into the event log. Without this a session
+  // that never starts is indistinguishable from one that starts and stalls.
+  useEffect(() => {
+    pushEvent('sessionState', sessionState === null ? 'null (no session)' : sessionState);
+  }, [sessionState]);
+
+  // Surface wake word and runtime errors. Without this the screen is blind to
+  // detections: a wake word that fires but fails to start a session produces no
+  // visible change at all, which is indistinguishable from the mic not hearing.
+  useEffect(() => {
+    const subs = [
+      addWakeWordListener('wakeWordDetected', (e) => {
+        pushEvent('wakeWordDetected', `"${e.detectedPhrase}" at ${e.detectedAt}`);
+        setWakeStatus(getStatus());
+      }),
+      addWakeWordListener('error', (e) => {
+        pushEvent('error', `${e.category}:${e.code} ${e.message}`);
+        setWakeStatus(getStatus());
+      }),
+      addWakeWordListener('stateChanged', (e) => {
+        pushEvent('stateChanged', `→ ${e.state}`);
+        setWakeStatus(getStatus());
+      }),
+    ];
+    return () => subs.forEach((sub) => sub.remove());
+  }, []);
+
   async function ensurePermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return true;
     const result = await PermissionsAndroid.request(
@@ -59,15 +95,46 @@ export function SessionScreen() {
   async function handleInitialize() {
     if (!(await ensurePermission())) return;
     try {
+      const speakerModelPath = await getDownloadedSpeakerModelPath();
+      // Must be initialized by the app before use — see ensureSttProvider().
+      setProgressText('Preparing speech-to-text model...');
+      const sttProvider = await ensureSttProvider((u) =>
+        setProgressText(
+          u.progress != null ? `${u.message} (${u.progress}%)` : u.message
+        )
+      );
+      const vadModelPath = await ensureVadModelPath();
+      setProgressText('');
       await initialize({
         engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
-        sttProvider: new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' }),
+        sttProvider,
+        // Required: session mode only engages when BOTH stt and tts are set.
+        ttsProvider: new ExpoSpeechTtsProvider(),
+        autoSpeak: true,
+        // Kept configured so the Enrollment tab stays usable no matter which
+        // screen initialized last. 'open' is required here: the default is
+        // 'closed', which aborts every session when no speaker is enrolled yet.
+        // Only wire speaker verification if the model is already on disk;
+        // enrollment is what downloads it.
+        ...(speakerModelPath
+          ? { speakerVerificationProvider, speakerModelPath }
+          : {}),
+        verificationFailureBehavior: 'open',
         session: {
           aiHandler: mockAiHandler,
           reListenMode,
+          // A real "user never started speaking" guard, as documented.
+          // This only holds because session.vad is set below: speechStart
+          // clears the timer. Without VAD nothing clears it until
+          // transcribe() resolves, so the budget would also have to cover
+          // Whisper inference and sessions get killed mid-utterance with
+          // sessionEnded{reason:'timeout'} and no error.
           silenceTimeoutMs: 10_000,
+          vad: { modelPath: vadModelPath },
         },
       });
+      if (speakerModelPath) markSpeakerRuntimeReady();
+      else markSpeakerRuntimeDisposed();
       setProgressText('');
       setWakeStatus(getStatus());
       pushEvent('initialize', `session mode, reListenMode: ${reListenMode}`);
@@ -101,6 +168,7 @@ export function SessionScreen() {
   async function handleDispose() {
     try {
       await dispose();
+      markSpeakerRuntimeDisposed();
       setWakeStatus(getStatus());
       pushEvent('dispose', 'runtime torn down');
     } catch { setWakeStatus(getStatus()); }

@@ -31,23 +31,54 @@ internal class SherpaOnnxSpeakerEmbedding(private val assetManager: AssetManager
   /**
    * Initializes the extractor and manager with the given model path.
    * No-ops if already initialized with the same model path.
+   *
+   * An absolute [modelPath] is treated as an on-disk model (e.g. downloaded at
+   * runtime rather than bundled): the sherpa AAR constructor dispatches to
+   * newFromFile() when assetManager is null, and to newFromAsset() otherwise.
+   *
+   * The existence check matters because sherpa aborts the entire process with
+   * a fatal "Read binary file: Load '<path>' failed" when a model is missing,
+   * which no JS caller can catch. Failing here turns that into a normal
+   * exception that surfaces as a configuration error.
    */
   fun initialize(modelPath: String) {
     if (loadedModelPath == modelPath && extractor != null) {
       return
     }
     release()
+    val fromDisk = modelPath.startsWith("/")
+    if (fromDisk && !java.io.File(modelPath).isFile()) {
+      throw IllegalArgumentException(
+        "Speaker model not found at '$modelPath'. Download or bundle the model before enrolling."
+      )
+    }
+    if (!fromDisk && !assetExists(modelPath)) {
+      throw IllegalArgumentException(
+        "Speaker model asset '$modelPath' is not bundled in the app. " +
+          "Bundle it, or pass an absolute path to a downloaded model."
+      )
+    }
     val config = SpeakerEmbeddingExtractorConfig(
       model = modelPath,
       numThreads = 1,
       debug = false,
       provider = "cpu",
     )
-    val newExtractor = SpeakerEmbeddingExtractor(assetManager, config)
+    val newExtractor =
+      SpeakerEmbeddingExtractor(if (fromDisk) null else assetManager, config)
     extractor = newExtractor
     manager = SpeakerEmbeddingManager(dim = newExtractor.dim())
     loadedModelPath = modelPath
   }
+
+  /** True if [path] resolves to a readable entry in the APK assets. */
+  private fun assetExists(path: String): Boolean =
+    try {
+      assetManager.open(path).close()
+      true
+    } catch (e: java.io.IOException) {
+      false
+    }
 
   /**
    * Extracts a speaker embedding from PCM audio data encoded as base64.
