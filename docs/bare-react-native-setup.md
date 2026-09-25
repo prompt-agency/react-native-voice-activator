@@ -23,15 +23,7 @@ pnpm add react-native-voice-activator
 bun add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module interface uses [Nitro Modules](https://nitro.margelo.com). It is a hard requirement — the native bridge does not load without it.
-
-## Step 3 — iOS: Run CocoaPods
+## Step 2 — iOS: Run CocoaPods
 
 ```sh
 cd ios && pod install
@@ -39,7 +31,7 @@ cd ios && pod install
 
 This links the Sherpa-ONNX wake word engine and all required iOS native libraries. Re-run this command whenever you add or remove native peer dependencies.
 
-## Step 4 — iOS: Add Microphone Permission
+## Step 3 — iOS: Add Microphone Permission
 
 Add `NSMicrophoneUsageDescription` to `ios/<YourApp>/Info.plist`:
 
@@ -50,7 +42,7 @@ Add `NSMicrophoneUsageDescription` to `ios/<YourApp>/Info.plist`:
 
 Without this key, your app crashes on iOS 13+ when microphone access is requested.
 
-## Step 5 — iOS: Add Audio Background Mode (Recommended)
+## Step 4 — iOS: Add Audio Background Mode (Recommended)
 
 Required if you want wake word detection to continue after the app moves to the background:
 
@@ -63,7 +55,7 @@ Required if you want wake word detection to continue after the app moves to the 
 
 Without this, the runtime transitions to `unsupported` with a `platform` error when the app backgrounds. Detection resumes normally when the app returns to the foreground.
 
-## Step 6 — Android: Request Runtime Permission
+## Step 5 — Android: Request Runtime Permission
 
 Android requires `RECORD_AUDIO` to be requested at runtime before calling `startDetection()`. Add this to your app's startup flow:
 
@@ -130,7 +122,8 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 
 See [docs/examples/](examples/) for per-adapter setup guides.
 
-**Android New Architecture note:** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge (`RCTEventEmitter`). If your app uses New Architecture, set `newArchEnabled=false` in `android/gradle.properties`, or enable legacy interop mode.
+> [!WARNING]
+> **Android STT is currently blocked on supported versions.** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge (`RCTEventEmitter`). React Native 0.82 removed the ability to fall back to the Legacy Architecture, so `newArchEnabled=false` is not available on RN 0.83+. `WhisperRNSTTAdapter` works on iOS but not on Android right now.
 
 ## Built-In Sherpa Asset Model
 

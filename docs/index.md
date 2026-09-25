@@ -22,7 +22,7 @@ features:
   - title: Managed conversation sessions
     details: The package drives the full wake, listen, AI, speak, re-listen loop for you.
   - title: Barge-in
-    details: Say the wake word while the AI is speaking to interrupt and start a new turn immediately (~300ms).
+    details: Say the wake word while the AI is speaking to interrupt TTS and start a new turn.
   - title: React hooks
     details: useWakeWord() and useVoiceSession() for reactive component updates.
   - title: Expo config plugin
@@ -46,7 +46,7 @@ flowchart LR
 ## Quick Install
 
 ```sh
-npm install react-native-voice-activator react-native-nitro-modules
+npm install react-native-voice-activator
 ```
 
 Continue with [Getting Started](/getting-started) for platform setup (bare React Native or Expo), then [Conversation Session](/conversation-session) for the full session API.

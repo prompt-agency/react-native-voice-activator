@@ -34,8 +34,7 @@ These are optional peer dependencies or user-supplied assets. They are resolved
 from the consuming application, not shipped here, and carry their own licenses:
 
 - `whisper.rn`, `onnxruntime-react-native`, `react-native-fs`,
-  `react-native-audio-recorder-player`, `@fugood/react-native-audio-pcm-stream`,
-  `react-native-nitro-modules`
+  `react-native-audio-recorder-player`, `@fugood/react-native-audio-pcm-stream`
 - Piper / VITS TTS voices and `espeak-ng-data`, which the application supplies
   itself (see [`docs/android-tts-setup.md`](./docs/android-tts-setup.md)).
   **Note:** eSpeak NG is GPL-3.0. It is deliberately not bundled here; an

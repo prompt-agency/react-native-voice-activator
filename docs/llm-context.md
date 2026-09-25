@@ -22,7 +22,7 @@ Orchestration       src/runtime/         Session loop manager (wake→STT→AI�
 Engines             src/engines/         Native-managed engine runtime (Sherpa-ONNX)
 Providers           src/providers/       Opt-in STT / TTS / VAD / verification adapters
 Internal            src/internal/        Native bridge, event emitters, runtime store
-Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
+Native Interface    NativeVoiceActivator.ts  TurboModule codegen spec (RN Codegen)
 ```
 
 **Key design facts:**
@@ -31,7 +31,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 - **Two event emitters.** `runtimeEvents` fires wake word lifecycle events (`wakeWordDetected`, `stateChanged`, `error`, `interruption`, `audioRouteChanged`). `sessionEvents` fires conversation turn events (`sessionStarted`, `sessionListening`, `sessionTranscribed`, `sessionSpeaking`, `sessionTurnComplete`, `sessionEnded`, `sessionError`). Subscribe with `addWakeWordListener` and `addSessionListener` respectively.
 - **Provider injection.** STT and TTS are passed to `initialize()` via `sttProvider` / `ttsProvider`. The package never owns transcription or synthesis -- it calls your provider at the right moment in the loop.
 - **Generation IDs.** A counter increments on each new session. Async provider callbacks capture the generation at call time and no-op if it no longer matches. This prevents a slow STT response from a stale session completing into a new one.
-- **Barge-in fast-path.** If a wake word fires while TTS is speaking, a dedicated path calls `ttsProvider.stop()` and re-enters the listen stage without waiting for the normal orchestration queue. Interruption latency is under 300ms.
+- **Barge-in fast-path.** If a wake word fires while TTS is speaking, a dedicated path calls `ttsProvider.stop()` and re-enters the listen stage without waiting for the normal orchestration queue. A wake word arriving during the `listening` or `transcribing` stage is a no-op. Interruption latency is not yet measured on physical devices.
 
 ---
 

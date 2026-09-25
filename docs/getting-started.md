@@ -32,15 +32,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module interface runs on [Nitro Modules](https://nitro.margelo.com). Without it, the native bridge does not load and `getStatus()` will return no valid runtime state.
-
-## Step 3 — Configure Native Projects
+## Step 2 — Configure Native Projects
 
 **Bare React Native — iOS:**
 
@@ -76,7 +68,7 @@ npx expo prebuild
 cd ios && pod install
 ```
 
-## Step 4 — iOS: Add Microphone Permission
+## Step 3 — iOS: Add Microphone Permission
 
 `NSMicrophoneUsageDescription` must be present in `Info.plist`. The Expo plugin adds this automatically from `microphonePermissionText`. Bare React Native users add it manually:
 
@@ -85,9 +77,9 @@ cd ios && pod install
 <string>This app uses the microphone to detect wake words.</string>
 ```
 
-Android microphone permission is requested at runtime in the Step 5 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
+Android microphone permission is requested at runtime in the Step 4 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
 
-## Step 5 — Your First Detection
+## Step 4 — Your First Detection
 
 Copy this into your app and run it. Say **"Hello World"** — you should see the detection event in your console.
 
@@ -182,10 +174,6 @@ State changed to: idle
 
 - If you see "duplicate symbol" linker errors, you have two ONNX Runtime copies in your binary. See the [iOS ONNX Conflict Resolution guide](ios-onnx-conflict-resolution.md).
 - If pods fail to resolve, run `pod repo update` then `pod install` again.
-
-### `error: module 'react-native-nitro-modules' not found`
-
-Run `npm install react-native-nitro-modules` then `cd ios && pod install`.
 
 ### Android build failure
 
