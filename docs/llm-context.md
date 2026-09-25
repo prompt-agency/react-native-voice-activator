@@ -45,7 +45,7 @@ Native Interface    NativeVoiceActivator.ts  TurboModule codegen spec (RN Codege
 
 **Noise suppression.** The optional `SherpaOnnxNoiseSuppressionAdapter` preprocesses audio before transcription to improve STT accuracy in noisy environments.
 
-**Anti-spoofing.** The optional `SherpaOnnxAntiSpoofingAdapter` runs a liveness check to reject replay attacks before speaker verification.
+**Anti-spoofing.** The `antiSpoofingProvider` option gates detection on a liveness score: a score above `spoofingThreshold` fails the gate. No bundled implementation exists — the native `detectSpoofing` bridge is a stub returning a constant `0.0`, so `SherpaOnnxAntiSpoofingAdapter` throws on construction rather than passing every input. Supply your own provider to use this.
 
 **`reListenMode`.** Set to `'auto'` in `VoiceSessionConfig` and the loop re-enters the listen stage automatically after TTS finishes. Set to `'manual'` to wait for an explicit `session.listen()` call.
 
@@ -102,7 +102,7 @@ Native Interface    NativeVoiceActivator.ts  TurboModule codegen spec (RN Codege
 | `SileroVADEngine` | none (bundled) | VAD gate between wake word and STT. |
 | `SherpaOnnxSpeakerVerificationAdapter` | none (bundled) | Voiceprint-based speaker identity check. |
 | `SherpaOnnxNoiseSuppressionAdapter` | none (bundled) | Audio noise suppression preprocessing. |
-| `SherpaOnnxAntiSpoofingAdapter` | none (bundled) | Liveness check before speaker verification. |
+| `SherpaOnnxAntiSpoofingAdapter` | n/a | **Not implemented — throws on construction.** The native bridge is a stub. Supply your own `AntiSpoofingProvider` instead. |
 
 ### Key Types
 
