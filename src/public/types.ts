@@ -138,6 +138,23 @@ export interface WakeWordInitializationOptions {
    * response.
    */
   autoSpeak?: boolean;
+  /**
+   * Bound, in milliseconds, on a single `sttProvider.transcribe()` or
+   * `ttsProvider.speak()` call. Defaults to `30000`.
+   *
+   * Provider orchestration runs on one shared serial queue, so a provider call
+   * that never settles would otherwise block every subsequent wake word for the
+   * lifetime of the process. Neither provider interface can guarantee its own
+   * `cancel()`/`stop()` unblocks a pending call, so this bound is the backstop.
+   *
+   * On expiry the package emits `transcriptionError` with code `stt_timeout` or
+   * `speechError` with code `tts_timeout`, calls the provider's
+   * `cancel()`/`stop()`, and frees the queue.
+   *
+   * Set to `0` to disable the bound. Only do that if your providers guarantee
+   * they always settle.
+   */
+  providerTimeoutMs?: number;
   session?: VoiceSessionConfig;
   speakerVerificationProvider?: SpeakerVerificationProvider;
   /** Android asset path to the Sherpa-ONNX speaker embedding ONNX model (e.g. 'SherpaOnnxSpeaker/model.onnx'). Required when using SherpaOnnxSpeakerVerificationAdapter on Android. */

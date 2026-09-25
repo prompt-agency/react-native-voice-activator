@@ -54,6 +54,76 @@ let activeRuntimeConfiguration: ReturnType<
 > | null = null;
 let providerOrchestrationQueue: Promise<void> = Promise.resolve();
 let providerOrchestrationGeneration = 0;
+
+/**
+ * Default bound on a single `transcribe()` or `speak()` call.
+ *
+ * Generous on purpose: on-device Whisper transcription of a long utterance on
+ * an older phone is measured in seconds, not milliseconds, and cutting off a
+ * slow-but-working provider is worse than waiting. This exists to bound a
+ * genuinely wedged call, not to enforce latency.
+ */
+const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
+let activeProviderTimeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS;
+
+class ProviderTimeoutError extends Error {
+  constructor(
+    readonly providerName: string,
+    readonly operation: 'transcribe' | 'speak',
+    readonly timeoutMs: number
+  ) {
+    super(
+      `Provider '${providerName}' did not settle within ${timeoutMs}ms during ${operation}().`
+    );
+    this.name = 'ProviderTimeoutError';
+  }
+}
+
+function isProviderTimeoutError(cause: unknown): cause is ProviderTimeoutError {
+  return cause instanceof ProviderTimeoutError;
+}
+
+/**
+ * Race a provider call against a timer so the orchestration queue always
+ * settles.
+ *
+ * Neither provider interface can promise its own cancellation works:
+ * `WhisperRNSTTAdapter.cancel()` documents whisper.rn issue #183, where
+ * `stop()` may not unblock a pending transcription, and
+ * `CustomTTSAdapter.stop()` only sets a flag checked at await boundaries — the
+ * blocking ONNX `session.run()` keeps going. Without this bound, one such call
+ * wedges the shared queue permanently.
+ *
+ * A timeout of `0` or a non-finite value disables the bound.
+ */
+async function withProviderTimeout<T>(
+  operation: 'transcribe' | 'speak',
+  providerName: string,
+  run: () => Promise<T>
+): Promise<T> {
+  const timeoutMs = activeProviderTimeoutMs;
+
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return run();
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new ProviderTimeoutError(providerName, operation, timeoutMs));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
 type ActiveProviderFlow = {
   id: number;
   stage: 'transcribing' | 'speaking';
@@ -162,8 +232,36 @@ function emitWakeWordDetected(payload: WakeWordDetectedEvent) {
   emitRuntimeEvent('wakeWordDetected', payload);
 }
 
-function invalidateProviderOrchestration() {
+/**
+ * Bump the generation so queued and in-flight provider callbacks discard their
+ * results, without touching the queue itself.
+ *
+ * Use this from *inside* a queued callback. Resetting the queue from within it
+ * would let a concurrent wake word run in parallel with the work still running.
+ */
+function bumpProviderOrchestrationGeneration() {
   providerOrchestrationGeneration += 1;
+}
+
+/**
+ * Invalidate queued provider work and detach the queue.
+ *
+ * The generation bump alone is not sufficient. `providerOrchestrationQueue` is a
+ * single serially-chained promise, and each queued callback only reaches its
+ * generation check once it runs. If the callback currently holding the chain
+ * never settles — a `transcribe()` or `speak()` that hangs — every later wake
+ * word is chained behind it and never runs at all.
+ *
+ * A promise cannot be cancelled, so the wedged one is left to settle (or not)
+ * on its own; its generation check makes it a no-op either way. Replacing the
+ * queue reference means new work no longer waits behind it.
+ *
+ * Only call this from lifecycle paths (initialize, stopDetection, dispose,
+ * native status teardown), never from inside a queued callback.
+ */
+function invalidateProviderOrchestration() {
+  bumpProviderOrchestrationGeneration();
+  providerOrchestrationQueue = Promise.resolve();
 }
 
 function createProviderError(
@@ -290,7 +388,7 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
         // Invalidate the provider orchestration generation before closing the old session
         // so that any pending verification IIFEs from the previous session are discarded
         // by the generation-ID guard (VERIFY-02).
-        invalidateProviderOrchestration();
+        bumpProviderOrchestrationGeneration();
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,
@@ -403,7 +501,11 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
       });
 
       try {
-        const transcription = await sttProvider.transcribe();
+        const transcription = await withProviderTimeout(
+          'transcribe',
+          sttProvider.name,
+          () => sttProvider.transcribe()
+        );
 
         if (
           providerOrchestrationGeneration !== generation ||
@@ -431,7 +533,9 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           provider: ttsProvider.name,
         });
 
-        await ttsProvider.speak(transcription.text);
+        await withProviderTimeout('speak', ttsProvider.name, () =>
+          ttsProvider.speak(transcription.text)
+        );
 
         if (
           providerOrchestrationGeneration !== generation ||
@@ -451,23 +555,42 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           return;
         }
 
+        const timedOut = isProviderTimeoutError(cause);
+
         if (activeProviderFlow?.stage === 'speaking' && ttsProvider) {
+          // Ask the provider to stand down. It may not comply — that is exactly
+          // why the bound exists — so the result is not awaited on the queue.
+          if (timedOut) {
+            Promise.resolve(ttsProvider.stop()).catch(() => undefined);
+          }
+
           emitRuntimeEvent(
             'speechError',
             createProviderErrorFromCause(
               ttsProvider.name,
-              'tts_speak_failed',
+              timedOut ? 'tts_timeout' : 'tts_speak_failed',
               cause,
-              'Speech playback failed.'
+              timedOut
+                ? 'Speech playback timed out.'
+                : 'Speech playback failed.'
             )
           );
         } else {
-          const errorCode = isCancelledTranscriptionError(cause)
-            ? 'stt_cancelled'
-            : 'stt_transcribe_failed';
-          const fallbackMessage = isCancelledTranscriptionError(cause)
-            ? 'Transcription was cancelled.'
-            : 'Transcription failed.';
+          if (timedOut) {
+            Promise.resolve(sttProvider.cancel()).catch(() => undefined);
+          }
+
+          let errorCode = 'stt_transcribe_failed';
+          let fallbackMessage = 'Transcription failed.';
+
+          if (timedOut) {
+            errorCode = 'stt_timeout';
+            fallbackMessage = 'Transcription timed out.';
+          } else if (isCancelledTranscriptionError(cause)) {
+            errorCode = 'stt_cancelled';
+            fallbackMessage = 'Transcription was cancelled.';
+          }
+
           emitRuntimeEvent(
             'transcriptionError',
             createProviderErrorFromCause(
@@ -848,6 +971,8 @@ export const voiceActivator: VoiceActivatorApi = {
         options?.audioPreprocessingProvider ?? null;
       activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
       activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
+      activeProviderTimeoutMs =
+        options?.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
       activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
       activeVerificationFailureBehavior =
         options?.verificationFailureBehavior ?? 'closed';

@@ -356,6 +356,20 @@ If you pass an `sttProvider` to `initialize()`, the package takes over the flow 
 
 The provider *implementations* are yours (or one of the bundled adapters); the orchestration between them is the package's. See [docs/examples/](docs/examples/) for provider implementations you can copy.
 
+### Provider timeouts
+
+Orchestration runs on one shared serial queue, so a provider call that never settles would block every subsequent wake word. Each `transcribe()` and `speak()` call is therefore bounded by `providerTimeoutMs` (default `30000`):
+
+```typescript
+await initialize({
+  sttProvider,
+  ttsProvider,
+  providerTimeoutMs: 30_000, // 0 disables the bound
+});
+```
+
+On expiry the package emits `transcriptionError` with code `stt_timeout` (or `speechError` with `tts_timeout`), asks the provider to `cancel()`/`stop()`, and frees the queue for the next wake word. The default is deliberately generous: on-device transcription of a long utterance on an older phone takes seconds, and cutting off a slow-but-working provider is worse than waiting. This bounds a wedged call, it does not enforce latency.
+
 ## Privacy & Compliance
 
 This library provides on-device speaker verification using biometric voiceprint data. **Consuming apps have legal obligations** under multiple privacy frameworks.
