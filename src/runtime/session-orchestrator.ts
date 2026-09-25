@@ -7,6 +7,12 @@ import {
 import { float32PcmBase64ChunksToWavBase64 } from '../internal/vad-float32-pcm-to-wav';
 import { base64ToUint8Array, uint8ArrayToBase64 } from '../internal/base64';
 import {
+  DEFAULT_AI_HANDLER_TIMEOUT_MS,
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  isOperationTimeoutError,
+  withTimeout,
+} from '../internal/with-timeout';
+import {
   SileroVADEngine,
   VAD_NATIVE_PCM_FRAME_EVENT,
 } from '../providers/vad/SileroVADEngine';
@@ -382,10 +388,15 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
       let transcriptionText: string;
       try {
-        const result =
-          this.config.vad !== undefined
-            ? await this._transcribeWithVad()
-            : await this.sttProvider.transcribe();
+        const result = await withTimeout(
+          'transcribe',
+          this.sttProvider.name,
+          this.config.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+          () =>
+            this.config.vad !== undefined
+              ? this._transcribeWithVad()
+              : this.sttProvider.transcribe()
+        );
         this._clearSilenceTimeout();
         if (this._closed) return;
 
@@ -413,6 +424,11 @@ export class VoiceSessionOrchestrator implements VoiceSession {
           return;
         }
         this._state = 'idle';
+        if (isOperationTimeoutError(cause)) {
+          this.sttProvider.cancel().catch(() => undefined);
+          this._emitAll('sessionError', this._buildError('stt_timeout', cause));
+          return;
+        }
         this._emitAll('sessionError', this._buildError('stt_failed', cause));
         return;
       }
@@ -424,7 +440,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       this._state = 'waiting';
       let aiResponse: string;
       try {
-        aiResponse = await this.config.aiHandler(transcriptionText);
+        aiResponse = await withTimeout(
+          'aiHandler',
+          'aiHandler',
+          this.config.aiHandlerTimeoutMs ?? DEFAULT_AI_HANDLER_TIMEOUT_MS,
+          () => this.config.aiHandler(transcriptionText)
+        );
         if (this._closed) return;
         if (this._bargingIn) {
           this._bargingIn = false;
@@ -439,7 +460,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
         this._state = 'idle';
         this._emitAll(
           'sessionError',
-          this._buildError('ai_handler_failed', cause)
+          this._buildError(
+            isOperationTimeoutError(cause)
+              ? 'ai_handler_timeout'
+              : 'ai_handler_failed',
+            cause
+          )
         );
         return;
       }
@@ -448,7 +474,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       this._emitAll('sessionSpeaking', { text: aiResponse });
 
       try {
-        await this.ttsProvider.speak(aiResponse);
+        await withTimeout(
+          'speak',
+          this.ttsProvider.name,
+          this.config.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+          () => this.ttsProvider.speak(aiResponse)
+        );
         if (this._closed) return;
         if (this._bargingIn) {
           this._bargingIn = false;
@@ -461,6 +492,11 @@ export class VoiceSessionOrchestrator implements VoiceSession {
           continue;
         }
         this._state = 'idle';
+        if (isOperationTimeoutError(cause)) {
+          this.ttsProvider.stop().catch(() => undefined);
+          this._emitAll('sessionError', this._buildError('tts_timeout', cause));
+          return;
+        }
         this._emitAll('sessionError', this._buildError('tts_failed', cause));
         return;
       }

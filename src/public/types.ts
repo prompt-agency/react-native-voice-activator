@@ -368,6 +368,29 @@ export interface VoiceSessionConfig {
   silenceTimeoutMs?: number;
   maxTurns?: number;
   vad?: VADConfig;
+  /**
+   * Bound, in milliseconds, on a single `transcribe()` or `speak()` call inside
+   * a session turn. Defaults to `30000`.
+   *
+   * `silenceTimeoutMs` only arms during the listening stage and is cleared as
+   * soon as STT resolves, so it does not cover a provider that hangs. Without
+   * this bound a wedged provider strands the turn with no recovery path other
+   * than an external `close()`.
+   *
+   * Set to `0` to disable.
+   */
+  providerTimeoutMs?: number;
+  /**
+   * Bound, in milliseconds, on the `aiHandler` call. Defaults to `60000`.
+   *
+   * Usually a network round-trip to an LLM, so the likeliest of the three to
+   * hang. On expiry the turn emits `sessionError` with code
+   * `ai_handler_timeout` and the session closes rather than sitting in the
+   * `waiting` stage forever.
+   *
+   * Set to `0` to disable.
+   */
+  aiHandlerTimeoutMs?: number;
 }
 
 export interface VoiceSessionStartedEvent {}

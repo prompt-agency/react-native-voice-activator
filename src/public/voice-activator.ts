@@ -45,6 +45,11 @@ import {
   VAD_NATIVE_PCM_FRAME_EVENT,
 } from '../providers/vad/SileroVADEngine';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  isOperationTimeoutError,
+  withTimeout,
+} from '../internal/with-timeout';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -68,75 +73,8 @@ let activeRuntimeConfiguration: ReturnType<
 let providerOrchestrationQueue: Promise<void> = Promise.resolve();
 let providerOrchestrationGeneration = 0;
 
-/**
- * Default bound on a single `transcribe()` or `speak()` call.
- *
- * Generous on purpose: on-device Whisper transcription of a long utterance on
- * an older phone is measured in seconds, not milliseconds, and cutting off a
- * slow-but-working provider is worse than waiting. This exists to bound a
- * genuinely wedged call, not to enforce latency.
- */
-const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 let activeProviderTimeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS;
 
-class ProviderTimeoutError extends Error {
-  constructor(
-    readonly providerName: string,
-    readonly operation: 'transcribe' | 'speak',
-    readonly timeoutMs: number
-  ) {
-    super(
-      `Provider '${providerName}' did not settle within ${timeoutMs}ms during ${operation}().`
-    );
-    this.name = 'ProviderTimeoutError';
-  }
-}
-
-function isProviderTimeoutError(cause: unknown): cause is ProviderTimeoutError {
-  return cause instanceof ProviderTimeoutError;
-}
-
-/**
- * Race a provider call against a timer so the orchestration queue always
- * settles.
- *
- * Neither provider interface can promise its own cancellation works:
- * `WhisperRNSTTAdapter.cancel()` documents whisper.rn issue #183, where
- * `stop()` may not unblock a pending transcription, and
- * `CustomTTSAdapter.stop()` only sets a flag checked at await boundaries — the
- * blocking ONNX `session.run()` keeps going. Without this bound, one such call
- * wedges the shared queue permanently.
- *
- * A timeout of `0` or a non-finite value disables the bound.
- */
-async function withProviderTimeout<T>(
-  operation: 'transcribe' | 'speak',
-  providerName: string,
-  run: () => Promise<T>
-): Promise<T> {
-  const timeoutMs = activeProviderTimeoutMs;
-
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return run();
-  }
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await Promise.race([
-      run(),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          reject(new ProviderTimeoutError(providerName, operation, timeoutMs));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
-  }
-}
 type ActiveProviderFlow = {
   id: number;
   stage: 'transcribing' | 'speaking';
@@ -514,9 +452,10 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
       });
 
       try {
-        const transcription = await withProviderTimeout(
+        const transcription = await withTimeout(
           'transcribe',
           sttProvider.name,
+          activeProviderTimeoutMs,
           () => sttProvider.transcribe()
         );
 
@@ -546,8 +485,11 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           provider: ttsProvider.name,
         });
 
-        await withProviderTimeout('speak', ttsProvider.name, () =>
-          ttsProvider.speak(transcription.text)
+        await withTimeout(
+          'speak',
+          ttsProvider.name,
+          activeProviderTimeoutMs,
+          () => ttsProvider.speak(transcription.text)
         );
 
         if (
@@ -568,7 +510,7 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           return;
         }
 
-        const timedOut = isProviderTimeoutError(cause);
+        const timedOut = isOperationTimeoutError(cause);
 
         if (activeProviderFlow?.stage === 'speaking' && ttsProvider) {
           // Ask the provider to stand down. It may not comply — that is exactly
