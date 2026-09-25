@@ -155,7 +155,8 @@
     "preset": "react-native",
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
-      "<rootDir>/lib/"
+      "<rootDir>/lib/",
+      "<rootDir>/.claude/"
     ],
     "moduleNameMapper": {
       "^whisper\\.rn$": "<rootDir>/src/__mocks__/whisper.rn.js",
