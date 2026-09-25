@@ -112,18 +112,29 @@ WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration
   sttProvider?: SpeechToTextProvider
   ttsProvider?: TextToSpeechProvider
+  autoSpeak?: boolean                 // default false; single-shot flow only
+  providerTimeoutMs?: number          // default 30000; 0 disables
   session?: VoiceSessionConfig
   speakerVerificationProvider?: SpeakerVerificationProvider
+  speakerModelPath?: string           // Android-only, required for the Sherpa adapter
   audioPreprocessingProvider?: AudioPreprocessingProvider
-  antiSpoofingProvider?: AntiSpoofingProvider
+  antiSpoofingProvider?: AntiSpoofingProvider   // no bundled impl; supply your own
+  spoofingThreshold?: number          // default 0.5
+  verificationThreshold?: number      // default 0.55
+  verificationFailureBehavior?: 'open' | 'closed' | 'emit'   // default 'closed'
+  vadGateEnabled?: boolean            // default false
+  vadGateThreshold?: number           // default 0.5
 }
 
 // session loop config
 VoiceSessionConfig {
   aiHandler: AIHandler              // (transcript: string) => Promise<string>
   reListenMode: 'auto' | 'manual'
-  silenceTimeoutMs?: number
+  silenceTimeoutMs?: number         // user never speaks; does NOT cover a hung provider
   maxTurns?: number
+  vad?: VADConfig
+  providerTimeoutMs?: number        // default 30000; bounds transcribe() and speak()
+  aiHandlerTimeoutMs?: number       // default 60000; bounds aiHandler()
 }
 
 // provider interfaces (implement these for custom providers)
@@ -361,10 +372,13 @@ async function deleteEnrollment(userId: string) {
 | `lifecycle` | API called in wrong state (e.g. `startDetection` before `initialize`) | Check `getStatus().state` before calling lifecycle functions |
 | `configuration` | Invalid or missing initialization options | Review `WakeWordInitializationOptions` -- both `sttProvider` and `ttsProvider` are required for sessions |
 | `engine` | Native engine failed to load or crashed | Check that model assets are bundled correctly; see [Getting Started](getting-started.md) |
-| `platform` | OS-level constraint (background mode, foreground service) | See [Background Behavior](background-behavior.md) |
+| `platform` | OS-level constraint (background mode, foreground service), or the native module is absent (`runtime_unavailable`, not recoverable) | See [Background Behavior](background-behavior.md) |
 | `internal` | Unexpected runtime error | File a bug; include `getStatus().lastError.message` |
 
-All errors have `recoverable: boolean`. Non-recoverable errors require `dispose()` + `initialize()` to reset.
+All errors carry `recoverable: boolean`, answering only: can the same call with the same options succeed?
+
+- `recoverable: true` — retry may work. Transient provider failures and timeouts (`stt_timeout`, `tts_timeout`, `ai_handler_timeout`), most `permission` and `lifecycle` errors.
+- `recoverable: false` — retry cannot work. Every `configuration` error (fix the options, then call `initialize()` again) and `runtime_unavailable` (the native module is missing from the build; rebuild with `pod install` / `expo prebuild` — re-initialising will not help).
 
 ---
 

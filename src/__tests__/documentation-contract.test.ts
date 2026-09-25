@@ -358,6 +358,19 @@ describe('documentation and example contract', () => {
     expect(troubleshooting).toContain('current runtime status');
     expect(troubleshooting).toContain('latest structured error');
     expect(troubleshooting).toContain('recent runtime events');
+    // The page must describe the real ownership split and the timeout surface.
+    expect(troubleshooting).toContain(
+      'You supply the STT and TTS provider implementations; the package calls them.'
+    );
+    expect(troubleshooting).toContain('## Nothing Happens At All (Hangs)');
+    expect(troubleshooting).toContain('## Is This Error Worth Retrying?');
+    expect(troubleshooting).toContain('ai_handler_timeout');
+    expect(troubleshooting).toContain('runtime_unavailable');
+    // Guard against the stale framing returning.
+    expect(troubleshooting).not.toContain('simulated host implementations');
+    expect(troubleshooting).not.toContain(
+      'downstream application integrations only'
+    );
     expect(troubleshooting).toContain('normalized error categories');
     expect(troubleshooting).toContain('## Troubleshooting by Error Category');
     expect(troubleshooting).toContain('### `permission`');
@@ -369,18 +382,8 @@ describe('documentation and example contract', () => {
     expect(troubleshooting).toContain('Expo Go is unsupported');
     expect(troubleshooting).toContain('primary runtime validation path today');
     expect(troubleshooting).toContain(
-      'optional STT/TTS extension-point examples'
-    );
-    expect(troubleshooting).toContain(
-      'app-level handoff code separately from the package runtime itself'
-    );
-    expect(troubleshooting).toContain(
       'Troubleshoot the Provider Pattern Separately'
     );
-    expect(troubleshooting).toContain(
-      'The example app previews that provider pattern with simulated host implementations.'
-    );
-    expect(troubleshooting).toContain('optional STT/TTS provider adapters');
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {

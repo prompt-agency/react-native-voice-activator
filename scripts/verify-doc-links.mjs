@@ -203,10 +203,7 @@ if (existsSync(troubleshootingPath)) {
     '### `internal`',
     'Expo Go is unsupported',
     'primary runtime validation path today',
-    'optional STT/TTS extension-point examples',
-    'downstream application integrations only',
     'Troubleshoot the Provider Pattern Separately',
-    'The example app previews that provider pattern with simulated host implementations.',
     'docs/examples/',
   ];
 

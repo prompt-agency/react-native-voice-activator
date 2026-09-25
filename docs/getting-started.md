@@ -200,7 +200,8 @@ For diagnostics, `getStatus()` returns a snapshot of the runtime: `state`, `isAv
 |---|---|---|
 | `runtime_unavailable` (`platform`) | `false` | The native module is missing from the build. Rebuild with `pod install` / `expo prebuild`; retrying at runtime cannot help. |
 | any `configuration` error | `false` | A model asset, keyword path or bundle is missing or unreadable. Fix the options and call `initialize()` again. |
-| `stt_timeout`, `tts_timeout` | `true` | The provider hung and was abandoned. The next wake word will try again. |
+| `stt_timeout`, `tts_timeout` | `true` | The provider hung and was abandoned. The next wake word will try again. Raise `providerTimeoutMs` if the provider is merely slow. |
+| `ai_handler_timeout` (session) | `true` | Your `aiHandler` hung. Bounded by `aiHandlerTimeoutMs`. |
 | `stt_transcribe_failed`, `tts_speak_failed` | `true` | A transient provider failure. |
 
 A permission denial surfaces as `category: 'permission'` — request the permission, then retry.

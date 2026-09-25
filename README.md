@@ -368,7 +368,20 @@ await initialize({
 });
 ```
 
-On expiry the package emits `transcriptionError` with code `stt_timeout` (or `speechError` with `tts_timeout`), asks the provider to `cancel()`/`stop()`, and frees the queue for the next wake word. The default is deliberately generous: on-device transcription of a long utterance on an older phone takes seconds, and cutting off a slow-but-working provider is worse than waiting. This bounds a wedged call, it does not enforce latency.
+On expiry the package emits `transcriptionError` with code `stt_timeout` (or `speechError` with `tts_timeout`), asks the provider to `cancel()`/`stop()`, and frees the queue for the next wake word.
+
+A managed session takes its own bounds, because `silenceTimeoutMs` only guards a user who never speaks, not a provider that never returns:
+
+```typescript
+session: {
+  aiHandler,
+  reListenMode: 'auto',
+  providerTimeoutMs: 30_000,  // transcribe() and speak()
+  aiHandlerTimeoutMs: 60_000, // your AI handler
+}
+```
+
+The defaults are deliberately generous: on-device transcription of a long utterance on an older phone takes seconds, and cutting off a slow-but-working provider is worse than waiting. These bound a wedged call, they do not enforce latency. See [Conversation Session](docs/conversation-session.md#timeouts-what-silencetimeoutms-does-not-cover) for the full table.
 
 ## Privacy & Compliance
 

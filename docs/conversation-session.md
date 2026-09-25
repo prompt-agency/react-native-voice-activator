@@ -81,6 +81,8 @@ interface VoiceSessionConfig {
   silenceTimeoutMs?: number;
   maxTurns?: number;
   vad?: VADConfig;
+  providerTimeoutMs?: number;
+  aiHandlerTimeoutMs?: number;
 }
 ```
 
@@ -91,6 +93,30 @@ interface VoiceSessionConfig {
 | `silenceTimeoutMs` | `number` | No | Session-level timeout while in `listening`: if the user never finishes an utterance, the session ends with `sessionEnded { reason: 'timeout' }`. Separate from `vad.silenceTimeoutMs` (VAD debounce before `speechEnd`). |
 | `maxTurns` | `number` | No | Maximum number of turns before the session ends with `sessionEnded { reason: 'explicit' }`. |
 | `vad` | `VADConfig` | No | When set, the session uses bundled Silero VAD for the `listening` phase: audio is captured once via the VAD native stream, and `speechEnd` (plus `speechPadMs`) triggers transcription from a temp WAV. Requires an STT provider that implements `transcribeFromWavPath` (e.g. `WhisperRNSTTAdapter`). When omitted, `transcribe()` runs immediately as before (mic recording inside the STT provider). |
+| `providerTimeoutMs` | `number` | No | Bound on a single `transcribe()` or `speak()` call, default `30000`. On expiry the turn emits `sessionError` with `stt_timeout` or `tts_timeout`. `0` disables. |
+| `aiHandlerTimeoutMs` | `number` | No | Bound on the `aiHandler` call, default `60000`. On expiry the turn emits `sessionError` with `ai_handler_timeout`. `0` disables. |
+
+### Timeouts: what `silenceTimeoutMs` does not cover
+
+`silenceTimeoutMs` only arms during the `listening` stage and is cleared as soon as STT resolves. It guards a user who never finishes speaking — it does **not** guard a provider or handler that never returns.
+
+Those need their own bounds, because a hang would otherwise strand the turn in its stage with no recovery other than an external `close()`:
+
+| If this never returns | Code emitted | Bounded by | Default |
+|---|---|---|---|
+| `sttProvider.transcribe()` | `stt_timeout` | `providerTimeoutMs` | 30s |
+| `aiHandler()` | `ai_handler_timeout` | `aiHandlerTimeoutMs` | 60s |
+| `ttsProvider.speak()` | `tts_timeout` | `providerTimeoutMs` | 30s |
+
+`aiHandlerTimeoutMs` is the one most worth setting deliberately: it is usually a network round-trip to an LLM, so it is the likeliest of the three to hang, and the default 60s is generous.
+
+```typescript
+session: {
+  aiHandler,
+  reListenMode: 'auto',
+  aiHandlerTimeoutMs: 20_000, // fail fast on a slow LLM
+}
+```
 
 ### VAD on Android: supply `modelPath`
 
@@ -294,7 +320,7 @@ The package implements a Siri-style barge-in pattern. What happens depends on wh
 
 Interruption latency has not yet been measured on physical devices. See [Reliability Validation](/reliability-validation) for what is and is not proven.
 
-This is automatic — no configuration required. Barge-in fires any time the wake word fires while a session is in `speaking` or `waiting` state.
+This is automatic — no configuration required. Barge-in fires whenever the wake word fires while a session is active in any stage other than `idle` or `closed`.
 
 **Limitation (waiting state):** JavaScript Promises are not cancellable. If the AI handler is running and barge-in fires, the handler's promise is still awaited, but the response is discarded when it resolves. For low-latency barge-in, keep your AI handler fast-returning (streaming with early exit).
 
@@ -319,10 +345,23 @@ The session emits `sessionError` for STT, TTS, and AI handler failures and retur
 
 ```typescript
 addSessionListener('sessionError', (err) => {
-  console.error(err.code, err.message); // e.g., 'stt_failed', 'ai_handler_failed'
+  console.error(err.code, err.message);
   // session is now idle — user can say wake word again to restart
 });
 ```
+
+Session error codes:
+
+| Code | Meaning |
+|---|---|
+| `stt_failed` | `sttProvider.transcribe()` rejected. |
+| `stt_timeout` | `transcribe()` exceeded `providerTimeoutMs`. |
+| `ai_handler_failed` | Your `aiHandler` rejected. |
+| `ai_handler_timeout` | Your `aiHandler` exceeded `aiHandlerTimeoutMs`. |
+| `tts_failed` | `ttsProvider.speak()` rejected. |
+| `tts_timeout` | `speak()` exceeded `providerTimeoutMs`. |
+
+A `*_timeout` code means the call never settled and was abandoned, and the provider was asked to `cancel()`/`stop()`. A `*_failed` code means it rejected on its own.
 
 ## Full Example: Minimal Conversation App
 
