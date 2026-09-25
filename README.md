@@ -43,7 +43,7 @@ flowchart LR
 
 - **Wake word detection** — on-device, no cloud, no API key. real engine-backed local wake word detection is implemented through the built-in native-managed engine path (Sherpa-ONNX with bundled models).
 - **Managed conversation sessions** — the package drives the full wake → listen → AI → speak → re-listen loop.
-- **Barge-in** — say the wake word while the AI is speaking to interrupt and start a new turn immediately (~300ms).
+- **Barge-in** — say the wake word while the AI is speaking to interrupt TTS and start a new turn. (Interruption latency is not yet measured on physical devices; see [Reliability Validation](docs/reliability-validation.md).)
 - **React hooks** — `useWakeWord()` and `useVoiceSession()` for reactive component updates.
 - **Expo config plugin** — automatic native configuration (permissions, background modes, manifest entries).
 - **Extensible** — inject your own STT and TTS providers. The built-in adapters (`WhisperRNSTTAdapter`, `CustomTTSAdapter`) are opt-in.
@@ -69,15 +69,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-### Step 2 — Install the required native peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module surface uses [Nitro Modules](https://nitro.margelo.com). Without it, the native bridge will not load.
-
-### Step 3 — Platform setup
+### Step 2 — Platform setup
 
 **Bare React Native**
 
@@ -221,7 +213,9 @@ function VoiceAssistant() {
 }
 ```
 
-A session requires **both** an STT provider and a TTS provider. Without both, wake word detection works normally but no session starts.
+A session requires **both** an STT provider and a TTS provider.
+
+If you supply only one of them, no session starts — but detection does **not** fall back to plain wake-word-only behaviour. It falls through to the single-shot flow, which still calls your STT provider and emits transcription events on every wake word. Supply both, or neither.
 
 See the [Conversation Session guide](docs/conversation-session.md) for barge-in behavior, manual mode, `maxTurns`, VAD configuration, and the full event reference.
 
@@ -270,7 +264,10 @@ yarn add react-native-audio-recorder-player
 yarn add @fugood/react-native-audio-pcm-stream
 ```
 
-**Android architecture note:** `@fugood/react-native-audio-pcm-stream` requires the Old Architecture bridge. If your app uses New Architecture, set `newArchEnabled=false` in `android/gradle.properties` (or in `app.json` for Expo), or enable legacy interop mode.
+> [!WARNING]
+> **Android STT is currently blocked on supported versions.** `@fugood/react-native-audio-pcm-stream` (last released 2025-10) needs the Old Architecture `RCTEventEmitter` bridge. React Native 0.82 removed the ability to fall back to the Legacy Architecture, and Expo SDK 55 removed the `newArchEnabled` option entirely — so the usual workaround cannot be applied on this package's minimum supported versions (RN 0.83+ / Expo SDK 55+).
+>
+> `WhisperRNSTTAdapter` therefore works on iOS but not on Android right now. Tracking issue: replace the Android capture path with the package's own native `startVADCapture`, which removes this peer dependency entirely.
 
 After installing, re-run `cd ios && pod install`.
 
@@ -346,16 +343,18 @@ For the complete error category reference and background detection constraints, 
 
 ## Wake-to-Transcribe-to-Speak Flow
 
-The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned. the package itself does not own transcription or synthesis — it emits `wakeWordDetected` and your app handles what comes next.
+STT and TTS providers are **opt-in but package-driven**. You supply the provider; the package calls it.
 
-optional downstream STT/TTS extension examples in [docs/examples/](docs/examples/) show how to wire transcription and synthesis into the detection flow:
+If you pass no `sttProvider`, the package emits `wakeWordDetected` and stops there — your app handles everything after that.
+
+If you pass an `sttProvider` to `initialize()`, the package takes over the flow and drives it for you:
 
 1. Wake word fires → package emits `wakeWordDetected`
-2. Application-owned STT handoff — your STT provider transcribes the microphone audio
+2. Package calls `sttProvider.transcribe()` and emits `transcriptionStarted`, then `transcriptionResult`
 3. Your AI handler processes the transcript
-4. TTS response step can run after detection or transcript handling in your TTS provider
+4. If `autoSpeak: true`, the package calls `ttsProvider.speak()` and emits `speechStarted`, then `speechCompleted`
 
-downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals. STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features. those speech flows remain outside the package runtime and use public APIs only.
+The provider *implementations* are yours (or one of the bundled adapters); the orchestration between them is the package's. See [docs/examples/](docs/examples/) for provider implementations you can copy.
 
 ## Privacy & Compliance
 

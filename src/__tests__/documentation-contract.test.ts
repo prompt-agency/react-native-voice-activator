@@ -44,19 +44,25 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.'
     );
-    expect(readme).toContain('optional downstream STT/TTS extension examples');
     expect(readme).toContain('CustomTTSAdapter');
     expect(readme).toContain('onnxruntime-react-native');
     expect(readme).toContain('## Optional: Text-to-Speech');
     expect(readme).toContain('## Wake-to-Transcribe-to-Speak Flow');
     expect(readme).toContain(
-      'The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned.'
+      'STT and TTS providers are **opt-in but package-driven**. You supply the provider; the package calls it.'
     );
     expect(readme).toContain(
-      'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals'
+      'If you pass no `sttProvider`, the package emits `wakeWordDetected` and stops there'
     );
     expect(readme).toContain(
-      'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features'
+      'the package takes over the flow and drives it for you'
+    );
+    // Guard against the old, inaccurate framing coming back.
+    expect(readme).not.toContain(
+      'the package itself does not own transcription or synthesis'
+    );
+    expect(readme).not.toContain(
+      'those speech flows remain outside the package runtime'
     );
     expect(readme).toContain('## Built-In Model Configuration');
     expect(readme).toContain('The supported public override points remain');

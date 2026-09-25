@@ -128,6 +128,15 @@ export interface WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration;
   sttProvider?: SpeechToTextProvider;
   ttsProvider?: TextToSpeechProvider;
+  /**
+   * When `true`, the single-shot flow automatically calls `ttsProvider.speak()`
+   * with nothing but the transcript after `transcriptionResult` is emitted.
+   *
+   * Defaults to `false`, which means transcription runs but no speech is
+   * produced until you call the TTS provider yourself. This option has no
+   * effect on the managed `session` flow, which always speaks the AI handler's
+   * response.
+   */
   autoSpeak?: boolean;
   session?: VoiceSessionConfig;
   speakerVerificationProvider?: SpeakerVerificationProvider;

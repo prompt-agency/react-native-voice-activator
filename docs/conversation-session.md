@@ -284,11 +284,15 @@ Best for: push-to-talk style flows, or when your UI needs to interject before th
 
 ## Barge-In (Interruption)
 
-The package implements a Siri-style barge-in pattern: if the user says the wake word while the AI is speaking (or while the AI handler is running), the session:
+The package implements a Siri-style barge-in pattern. What happens depends on which stage the turn is in when the wake word fires:
 
-1. Stops TTS playback within ~300ms
-2. Discards any pending AI response
-3. Immediately starts a new listening turn
+| Turn stage | Behaviour |
+|---|---|
+| `speaking` (TTS playing) | Stops TTS playback, discards the rest of the response, starts a new listening turn. |
+| `waiting` (your AI handler is running) | The handler is **not** cancelled — it runs to completion, then its response is discarded and a new listening turn starts. |
+| `listening` / `transcribing` | **No-op.** The current utterance is transcribed and passed to your AI handler as normal. Barge-in does not interrupt a turn that has not reached the speaking stage yet. |
+
+Interruption latency has not yet been measured on physical devices. See [Reliability Validation](/reliability-validation) for what is and is not proven.
 
 This is automatic — no configuration required. Barge-in fires any time the wake word fires while a session is in `speaking` or `waiting` state.
 
