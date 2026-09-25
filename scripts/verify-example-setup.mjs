@@ -69,7 +69,7 @@ if (!existsSync(wakeWordScreenPath)) {
     'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
-    'WhisperRNSTTAdapter',
+    'ensureSttProvider',
     'sttProvider',
     'autoSpeak: true',
     'engineConfig',
@@ -104,7 +104,7 @@ if (!existsSync(sessionScreenPath)) {
     'useVoiceSession',
     'aiHandler',
     'reListenMode',
-    'WhisperRNSTTAdapter',
+    'ensureSttProvider',
     'sttProvider',
     'initialize',
     'startDetection',
@@ -135,6 +135,26 @@ if (!existsSync(manualScreenPath)) {
   for (const token of required) {
     if (!src.includes(token)) {
       errors.push(`ManualScreen.tsx does not reference: ${token}`);
+    }
+  }
+}
+
+// ─── Shared provider helper ───────────────────────────────────────────────────
+// WakeWordScreen and SessionScreen obtain their STT provider from this module
+// rather than constructing it inline, so the adapter wiring is asserted here.
+
+const providersPath = join(root, 'example/src/providers.ts');
+
+if (!existsSync(providersPath)) {
+  errors.push('Example provider helper does not exist at example/src/providers.ts.');
+} else {
+  const src = readFileSync(providersPath, 'utf8');
+
+  const required = ['WhisperRNSTTAdapter', 'ensureSttProvider'];
+
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`providers.ts does not reference: ${token}`);
     }
   }
 }
