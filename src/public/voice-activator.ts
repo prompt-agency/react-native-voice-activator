@@ -48,6 +48,19 @@ import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
+
+/**
+ * Incremented on every initialize() call so an overlapping pair cannot both
+ * claim ownership of the runtime.
+ *
+ * initialize() builds a fresh engine runtime, awaits native initialize(), and
+ * only then assigns activeEngineRuntime. Two concurrent calls used to both
+ * reach that assignment, so the last writer won and the loser's
+ * already-initialized native handle leaked — disposeEngineRuntime() only ever
+ * touches the current pointer. Reachable from React 19 StrictMode's
+ * double-invoke, a double-tap, or two screens initializing on mount.
+ */
+let initializeToken = 0;
 let nativeStatusUpdateQueue: Promise<void> = Promise.resolve();
 let activeRuntimeConfiguration: ReturnType<
   typeof createRuntimeConfiguration
@@ -930,6 +943,7 @@ export const voiceActivator: VoiceActivatorApi = {
     }
     const runtimeConfiguration = createRuntimeConfiguration(options);
     const nextEngineRuntime = resolveEngineRuntime();
+    const token = ++initializeToken;
     let resolvedSttProvider = runtimeConfiguration.sttProvider;
     let resolvedTtsProvider = runtimeConfiguration.ttsProvider;
 
@@ -963,6 +977,14 @@ export const voiceActivator: VoiceActivatorApi = {
           applyRuntimeError(error);
         },
       });
+      // A newer initialize() started while this one was awaiting native work.
+      // It owns the runtime now, so dispose what this call built rather than
+      // orphaning it, and leave every shared global to the newer call.
+      if (token !== initializeToken) {
+        await nextEngineRuntime.dispose().catch(() => undefined);
+        return;
+      }
+
       activeRuntimeConfiguration = resolvedRuntimeConfiguration;
       activeSessionConfig = options.session ?? null;
       activeSpeakerVerificationProvider =
