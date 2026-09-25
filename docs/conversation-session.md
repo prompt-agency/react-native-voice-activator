@@ -290,7 +290,7 @@ The package implements a Siri-style barge-in pattern. What happens depends on wh
 |---|---|
 | `speaking` (TTS playing) | Stops TTS playback, discards the rest of the response, starts a new listening turn. |
 | `waiting` (your AI handler is running) | The handler is **not** cancelled — it runs to completion, then its response is discarded and a new listening turn starts. |
-| `listening` / `transcribing` | **No-op.** The current utterance is transcribed and passed to your AI handler as normal. Barge-in does not interrupt a turn that has not reached the speaking stage yet. |
+| `listening` / `transcribing` | Abandons the utterance in progress and starts a fresh listening turn. The half-spoken phrase is never passed to your AI handler. |
 
 Interruption latency has not yet been measured on physical devices. See [Reliability Validation](/reliability-validation) for what is and is not proven.
 

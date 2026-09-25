@@ -185,24 +185,38 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
   /**
    * @internal Triggered by wake word detection while a session is active.
-   * Interrupts TTS playback (if speaking) or discards a pending AI response
-   * (if waiting), then restarts the turn from the listening state.
-   * No-op when the session is idle, listening, or closed.
+   *
+   * Per stage:
+   * - `listening` / `transcribing`: abandons the utterance in progress and
+   *   restarts the turn. The half-spoken phrase is never sent to the AI
+   *   handler — saying the wake word again mid-sentence means "forget that,
+   *   listen to me now".
+   * - `speaking`: stops TTS and restarts the turn.
+   * - `waiting`: the AI handler is not cancellable, so it runs to completion
+   *   and its response is discarded when it resolves.
+   *
+   * No-op when the session is idle or closed.
    */
   async bargeIn(): Promise<void> {
     if (this._closed) return;
-    if (
-      this._state === 'idle' ||
-      this._state === 'closed' ||
-      this._state === 'listening'
-    ) {
+    if (this._state === 'idle' || this._state === 'closed') {
       return;
     }
+
     this._bargingIn = true;
+
+    if (this._state === 'listening' || this._state === 'transcribing') {
+      // Two paths to unblock: the VAD listener waits on an AbortSignal, while
+      // the non-VAD path sits in sttProvider.transcribe() and only cancel()
+      // will release it. Both are safe to call when the other is in use.
+      this._abortActiveListen();
+      await this.sttProvider.cancel().catch(() => undefined);
+      return;
+    }
+
     if (this._state === 'speaking') {
       await this.ttsProvider.stop().catch(() => undefined);
     }
-    // If 'waiting': AI handler is not cancellable — _bargingIn causes discard on resolve
   }
 
   /**
@@ -374,11 +388,28 @@ export class VoiceSessionOrchestrator implements VoiceSession {
             : await this.sttProvider.transcribe();
         this._clearSilenceTimeout();
         if (this._closed) return;
+
+        // A barge-in may have arrived while transcribe() was in flight. Not
+        // every provider honours cancel() by rejecting — whisper.rn issue #183
+        // is the documented case — so the result is discarded here rather than
+        // relying on the abort path having thrown. Without this, the abandoned
+        // utterance still reaches the AI handler.
+        if (this._bargingIn) {
+          this._bargingIn = false;
+          continue;
+        }
+
         transcriptionText = result.text;
       } catch (cause) {
         this._clearSilenceTimeout();
         if (this._closed) return;
         if (cause instanceof VoiceSessionListenAbortedError) {
+          // A barge-in abort means "listen again", not "end the session". Any
+          // other abort (close/abort/silence timeout) still ends the loop.
+          if (this._bargingIn) {
+            this._bargingIn = false;
+            continue;
+          }
           return;
         }
         this._state = 'idle';
