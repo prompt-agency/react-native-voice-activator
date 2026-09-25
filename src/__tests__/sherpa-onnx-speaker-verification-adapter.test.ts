@@ -108,35 +108,72 @@ describe('SherpaOnnxSpeakerVerificationAdapter', () => {
     expect(mock.extractSpeakerEmbedding).toHaveBeenCalledTimes(5);
   });
 
-  // Test 3: verifySpeaker averages stored embeddings (D-05)
-  it('verifySpeaker averages stored embeddings (D-05)', async () => {
+  // Test 3: verifySpeaker sends the QUERY embedding, not the enrollment
+  //
+  // Native verifySpeaker(name, embedding, threshold) forwards to sherpa-onnx's
+  // SpeakerEmbeddingManager.verify(name, testEmbedding, threshold), which
+  // compares the supplied embedding against the registered speaker. Sending the
+  // stored enrollment average instead of the freshly extracted embedding would
+  // compare the enrollment against itself, making the result independent of who
+  // is actually speaking.
+  it('verifySpeaker passes the freshly extracted query embedding to the bridge', async () => {
     const mock = getNativeMock();
     const audio = dummyAudioBuffer();
 
     await adapter.enrollSpeaker('alice', audio, 16000);
     await adapter.enrollSpeaker('alice', audio, 16000);
 
-    // Reset registerSpeaker call count so we can check verify call separately
     mock.registerSpeaker?.mockClear();
 
-    // Mock verifySpeaker to return a specific result
     mock.verifySpeaker?.mockResolvedValueOnce({
       matched: true,
       score: 0.85,
     });
-    // Need another extractSpeakerEmbedding for the verify call
-    mock.extractSpeakerEmbedding?.mockResolvedValueOnce(
-      fakeEmbeddingBase64([1.5, 2.5, 3.5, 4.5])
-    );
+
+    // The live query embedding, deliberately unlike either enrolled sample.
+    // Drain the enrollment queue set up in beforeEach first.
+    const queryEmbedding = fakeEmbeddingBase64([9, 9, 9, 9]);
+    mock.extractSpeakerEmbedding?.mockReset();
+    mock.extractSpeakerEmbedding?.mockResolvedValue(queryEmbedding);
 
     const result = await adapter.verifySpeaker('alice', audio, 16000, 0.5);
 
     expect(result).toEqual({ matched: true, score: 0.85 });
     expect(mock.verifySpeaker).toHaveBeenCalledWith(
       'alice',
-      expect.any(String),
+      queryEmbedding,
       0.5
     );
+  });
+
+  it('verifySpeaker result changes with the audio it is given', async () => {
+    const mock = getNativeMock();
+    const audio = dummyAudioBuffer();
+
+    await adapter.enrollSpeaker('alice', audio, 16000);
+
+    const aliceEmbedding = fakeEmbeddingBase64([1, 1, 1, 1]);
+    const impostorEmbedding = fakeEmbeddingBase64([-9, -9, -9, -9]);
+
+    // Native answers based on whichever embedding it is handed.
+    mock.verifySpeaker?.mockImplementation(
+      async (_name: string, embedding: string) =>
+        embedding === aliceEmbedding
+          ? { matched: true, score: 1 }
+          : { matched: false, score: 0 }
+    );
+
+    mock.extractSpeakerEmbedding?.mockReset();
+
+    mock.extractSpeakerEmbedding?.mockResolvedValueOnce(aliceEmbedding);
+    await expect(
+      adapter.verifySpeaker('alice', audio, 16000, 0.5)
+    ).resolves.toEqual({ matched: true, score: 1 });
+
+    mock.extractSpeakerEmbedding?.mockResolvedValueOnce(impostorEmbedding);
+    await expect(
+      adapter.verifySpeaker('alice', audio, 16000, 0.5)
+    ).resolves.toEqual({ matched: false, score: 0 });
   });
 
   // Test 4: identifySpeaker calls bridge (ENROLL-05)
