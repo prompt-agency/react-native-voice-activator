@@ -91,6 +91,28 @@ The orchestrator is therefore defensible — but only for the offline/on-device 
 
 ---
 
+## Status: what has been fixed since this report
+
+Branch `fix/pre-publish-hardening`, 2026-09-25. Full gate green throughout: 39 suites / 429 tests, lint and typecheck clean (all three were red on `main`).
+
+| Defect | Status |
+|---|---|
+| D1 queue deadlock | Fixed — `providerTimeoutMs` bound plus queue reset on teardown. 5 regression tests. |
+| D2 `verifySpeaker` ignored its audio | Fixed. 2 regression tests. |
+| D3 anti-spoofing always passed | Adapter throws on construction; the `antiSpoofingProvider` option is unaffected. |
+| D4 spurious Nitro peer dep | Removed. Never used in any commit in the repo's history. |
+| D5 `recoverable` decorative | Fixed — configuration and `runtime_unavailable` are now non-recoverable, with a guard test. |
+| D6 barge-in no-op during listening | Fixed — aborts the capture and restarts the turn. 2 regression tests. |
+| D7 unproven "~300ms" claims | Removed from all four locations. |
+| D9 concurrent `initialize()` orphaning handles | Fixed via an init token. 2 regression tests. |
+| D9 global event buses not exception-safe | Fixed. 4 regression tests. |
+| D10 14 MB dead weight | Was not a real finding — see the correction below. |
+| Jest resolving from the in-repo worktree | Fixed. Was masking the suite as 40 failing suites out of 104. |
+
+Not yet addressed: D8 (no measured FA/hr for zero-shot phrases — needs devices), the `wakePhrase` API, the hook snapshot reset on remount, Android STT being blocked by `@fugood/react-native-audio-pcm-stream` needing the old architecture, and the native-layer audit.
+
+A pattern worth recording: three separate contract checks were **enforcing** false claims — the STT/TTS ownership framing in both the README and getting-started, and a claim that `getStatus()` returns an event history it has never carried. Each had to be updated before the docs could be corrected. Tests derived from a design cannot find errors in that design.
+
 ## Verified defects
 
 All confirmed by reading the code directly.
@@ -187,7 +209,7 @@ This is the crux: the differentiator is real, legally clean, and **unmeasured**.
 
 ### D10 — MEDIUM: packaging waste and inconsistency
 
-- **~14 MB of dead weight.** Both int8 (4.8 MB) and fp32 (12 MB) encoders ship, plus both decoders and joiners, in *both* platform asset dirs. Pick one per platform.
+- ~~**~14 MB of dead weight.**~~ **Corrected 2026-09-25:** the fp32 models are already excluded from the tarball by the `!**/*-epoch-12-avg-2-chunk-16-left-64.onnx` glob in `package.json`. `npm pack --dry-run` ships int8 only. Consumers never download them; they are repo weight alone. No action needed.
 - **Two different binary strategies.** iOS downloads XCFrameworks at `pod install` (checksum-pinned, 3 retries — good hygiene); Android commits a 28.1 MB AAR into the tarball. The precedent to weigh is ffmpeg-kit, which removed all binaries from Maven/CocoaPods/npm in 2025 and broke CI across the ecosystem. Your checksum pinning against your own release tag is meaningfully safer than onnxruntime-react-native's unpinned `latest.integration` (which shipped 1.30.0 to an app pinned at 1.24.3), so this is a real strength — just make the two platforms consistent.
 - **Optional peers are fragile by ecosystem default.** RN CLI autolinking does not pick up `optionalDependencies` ([cli#874](https://github.com/react-native-community/cli/issues/874), open since 2019), and `peerDependenciesMeta.optional` is inconsistently honored by yarn Berry and pnpm (six separate open pnpm issues). Seven optional peers is more than any comparable library the agent could find.
 - **A genuinely broken path.** `@fugood/react-native-audio-pcm-stream` needs the old `RCTEventEmitter` bridge; the repo's own docs (`README.md:273`, `docs/expo-setup.md:154`) suggest `newArchEnabled: false`, an option **Expo SDK 55 removed entirely**. The workaround cannot be followed on the minimum supported SDK.
