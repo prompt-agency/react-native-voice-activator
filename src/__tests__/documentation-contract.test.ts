@@ -322,23 +322,20 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain('error');
     expect(gettingStarted).toContain('wakeWordDetected');
     expect(gettingStarted).toContain('audioRouteChanged');
-    expect(gettingStarted).toContain('current `getStatus()` snapshot');
-    expect(gettingStarted).toContain('recent runtime events');
     expect(gettingStarted).toContain('normalized error categories');
-    expect(gettingStarted).toContain('application-owned STT handoff');
+    // getStatus() returns only state/isAvailable/isListening/canStart/reason/
+    // lastError. It never carried an event history, so the docs must not imply
+    // one — that surface belongs to the event listeners.
+    expect(gettingStarted).toContain('It does not carry an event history');
     expect(gettingStarted).toContain(
-      'TTS response step can run after detection or transcript handling'
+      'You supply the STT and TTS providers; the package calls them.'
     );
-    expect(gettingStarted).toContain(
-      'those speech flows remain outside the package runtime and use public APIs only'
+    expect(gettingStarted).toContain('### What `recoverable` means');
+    // Guard against the old, inaccurate framing returning to this page too.
+    expect(gettingStarted).not.toContain(
+      'those speech flows remain outside the package runtime'
     );
     expect(gettingStarted).toContain('Wake-to-Transcribe-to-Speak Guide');
-    expect(gettingStarted).toContain(
-      'That wake -> transcribe -> optional speak flow is the supported extension model.'
-    );
-    expect(gettingStarted).toContain(
-      'Your app can own steps 2 and 3 through custom providers'
-    );
     expect(gettingStarted).toContain('Built-In Engine Defaults');
     expect(gettingStarted).toContain('native-managed Sherpa-ONNX');
     expect(gettingStarted).toContain('engineConfig.assetKeys.modelAssetKey');

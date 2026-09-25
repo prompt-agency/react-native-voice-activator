@@ -791,10 +791,12 @@ function rejectUnsupportedRuntime(methodName: string): Promise<void> {
 
 function createRuntimeUnavailableError(methodName: string): WakeWordError {
   return {
-    category: 'internal',
+    // The native module is absent — a property of the build, not of package
+    // internals, and nothing the app can retry its way out of.
+    category: 'platform',
     code: 'runtime_unavailable',
     message: createUnsupportedRuntimeError(methodName).message,
-    recoverable: true,
+    recoverable: false,
   };
 }
 
@@ -855,10 +857,19 @@ function isWakeWordError(value: unknown): value is WakeWordError {
   );
 }
 
+/**
+ * Mark a configuration failure non-recoverable.
+ *
+ * This previously forced `recoverable: true`, discarding whatever the caller
+ * supplied. A configuration error is a missing or invalid model asset, a bad
+ * keyword path, an unreadable bundle — none of which a retry with the same
+ * options will fix. The app has to change the configuration and call
+ * initialize() again, which is exactly what `recoverable: false` is for.
+ */
 function createConfigurationFailure(error: WakeWordError): WakeWordError {
   return {
     ...error,
-    recoverable: true,
+    recoverable: false,
   };
 }
 
@@ -926,6 +937,16 @@ async function disposeEngineRuntime() {
   activeEngineRuntime = null;
   engineRuntimeRunning = false;
 }
+
+/**
+ * @internal Exposed for unit tests only. Not part of the public API and not
+ * re-exported from src/index.ts.
+ */
+export const __testables = {
+  createConfigurationFailure,
+  createRuntimeUnavailableError,
+  createProviderError,
+};
 
 const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
 

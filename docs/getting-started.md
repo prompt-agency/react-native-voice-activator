@@ -190,7 +190,20 @@ The package emits events you can observe with `addWakeWordListener`:
 - `audioRouteChanged` — fires when the audio route changes (headphones plugged in, etc.)
 - `interruption` — fires when the audio session is interrupted by a system event
 
-For diagnostics, `getStatus()` returns a current `getStatus()` snapshot of the runtime, including recent runtime events and normalized error categories. Error categories are `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal` — look for `permission`, `lifecycle`, etc. when debugging startup failures.
+For diagnostics, `getStatus()` returns a snapshot of the runtime: `state`, `isAvailable`, `isListening`, `canStart`, an optional `reason`, and `lastError`. Error categories are normalized error categories from the fixed set above. It does not carry an event history — subscribe to the events above if you need one (the example app's screens do exactly that). Error categories are `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`.
+
+### What `recoverable` means
+
+`recoverable: true` means retrying the same call with the same options may succeed. `recoverable: false` means it will not, and the app has to change something first:
+
+| Error | `recoverable` | What to do |
+|---|---|---|
+| `runtime_unavailable` (`platform`) | `false` | The native module is missing from the build. Rebuild with `pod install` / `expo prebuild`; retrying at runtime cannot help. |
+| any `configuration` error | `false` | A model asset, keyword path or bundle is missing or unreadable. Fix the options and call `initialize()` again. |
+| `stt_timeout`, `tts_timeout` | `true` | The provider hung and was abandoned. The next wake word will try again. |
+| `stt_transcribe_failed`, `tts_speak_failed` | `true` | A transient provider failure. |
+
+A permission denial surfaces as `category: 'permission'` — request the permission, then retry.
 
 ## Built-In Engine Defaults
 
@@ -213,13 +226,13 @@ Bundled keyword files include `HELLO WORLD`, `MERRY CHRISTMAS`, and more — see
 
 ## Wake-to-Transcribe-to-Speak Guide
 
-After detecting a wake word, your app can transcribe and speak — via application-owned STT handoff and TTS. TTS response step can run after detection or transcript handling. those speech flows remain outside the package runtime and use public APIs only.
-
-That wake -> transcribe -> optional speak flow is the supported extension model. Your app can own steps 2 and 3 through custom providers:
+You supply the STT and TTS providers; the package calls them. Pass an `sttProvider` to `initialize()` and the package drives the flow:
 
 1. `wakeWordDetected` fires
-2. Your STT provider transcribes audio (application-owned STT handoff)
-3. Your TTS provider speaks the response (TTS response step can run after detection or transcript handling)
+2. The package calls `sttProvider.transcribe()` and emits `transcriptionStarted`, then `transcriptionResult`
+3. If `autoSpeak: true`, the package calls `ttsProvider.speak()` and emits `speechStarted`, then `speechCompleted`
+
+Pass no `sttProvider` and the package stops after step 1, leaving everything after the event to your app. The provider *implementations* are yours; the orchestration between them is the package's.
 
 See [docs/examples/](examples/) for implementation patterns.
 
