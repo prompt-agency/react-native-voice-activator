@@ -1,6 +1,8 @@
 #import "VoiceActivator.h"
 
+#import "Engines/SherpaOnnx/SherpaOnnxAssetLoader.h"
 #import "Engines/SherpaOnnx/SherpaOnnxDenoiser.h"
+#import "Engines/SherpaOnnx/SherpaOnnxOfflineEvaluator.h"
 #import "Engines/SherpaOnnx/SherpaOnnxSpeakerEmbedding.h"
 #import "Engines/SherpaOnnx/SherpaOnnxTTS.h"
 #import "Runtime/AudioPlayback.h"
@@ -663,6 +665,69 @@ RCT_EXPORT_METHOD(denoiseAudio
     }
     resolve(result);
   }];
+}
+
+// ── WAKE-EVAL: offline evaluation against a WAV file ─────────────────────────
+
+RCT_EXPORT_METHOD(evaluateWavFile
+                  : (NSDictionary *)options resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  NSString *filePath = [options[@"filePath"] isKindOfClass:[NSString class]]
+                           ? options[@"filePath"]
+                           : nil;
+  if (filePath.length == 0) {
+    reject(@"wav_evaluation_failed", @"evaluateWavFile requires a filePath.", nil);
+    return;
+  }
+
+  NSString *modelPath = [options[@"modelPath"] isKindOfClass:[NSString class]]
+                            ? options[@"modelPath"]
+                            : nil;
+  NSString *keywordsPath = [options[@"keywordsPath"] isKindOfClass:[NSString class]]
+                               ? options[@"keywordsPath"]
+                               : nil;
+  NSNumber *rawText = [options[@"keywordsAreRawText"] isKindOfClass:[NSNumber class]]
+                          ? options[@"keywordsAreRawText"]
+                          : nil;
+  NSNumber *sensitivity = [options[@"sensitivity"] isKindOfClass:[NSNumber class]]
+                              ? options[@"sensitivity"]
+                              : nil;
+
+  // Off the main thread: a full corpus pass is seconds to minutes of decoding.
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSError *assetError = nil;
+    SherpaOnnxAssetLoader *loader = [[SherpaOnnxAssetLoader alloc] init];
+    SherpaOnnxAssetPaths *paths =
+        [loader loadAssetPathsWithModelAssetKey:modelPath
+                               keywordAssetKey:keywordsPath
+                               rawTextKeywords:(rawText != nil && rawText.boolValue)
+                                         error:&assetError];
+    if (paths == nil) {
+      reject(@"wav_evaluation_failed",
+             assetError.localizedDescription ?: @"Could not resolve model assets.",
+             assetError);
+      return;
+    }
+
+    NSError *evaluationError = nil;
+    SherpaOnnxOfflineEvaluator *evaluator = [[SherpaOnnxOfflineEvaluator alloc] init];
+    NSDictionary *result =
+        [evaluator evaluateWavAtPath:filePath
+                          assetPaths:paths
+                         sensitivity:(sensitivity != nil ? sensitivity.doubleValue : 0.5)
+                               error:&evaluationError];
+
+    if (result == nil) {
+      reject(@"wav_evaluation_failed",
+             evaluationError.localizedDescription ?: @"WAV evaluation failed.",
+             evaluationError);
+      return;
+    }
+
+    resolve(result);
+  });
 }
 
 // ── SPOOF-01: detectSpoofing (stub) ───────────────────────────────────────────

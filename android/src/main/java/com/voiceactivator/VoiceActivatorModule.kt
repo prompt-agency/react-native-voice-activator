@@ -3,6 +3,9 @@ package com.voiceactivator
 import android.Manifest
 import android.content.pm.PackageManager
 import com.facebook.react.bridge.Promise
+import com.k2fsa.sherpa.onnx.WaveReader
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxAssetRequest
+import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxDetector
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
@@ -318,6 +321,84 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     }
   }
 
+
+  // ─── Offline evaluation (WAKE-EVAL) ─────────────────────────────────────────
+
+  /**
+   * Run the detector over a WAV file and report every detection with its offset.
+   *
+   * Builds its own spotter rather than reusing the live one, so calling this
+   * never disturbs a running detection session — and so a sensitivity sweep can
+   * run many passes over the same corpus without restarting anything.
+   */
+  override fun evaluateWavFile(options: ReadableMap, promise: Promise) {
+    try {
+      val filePath = options.getString("filePath")
+        ?: throw IllegalArgumentException("evaluateWavFile requires a filePath.")
+
+      val wave = WaveReader.readWave(filePath)
+        ?: throw IllegalArgumentException("Could not read a WAV file at $filePath.")
+
+      val sensitivity =
+        if (options.hasKey("sensitivity")) options.getDouble("sensitivity") else 0.5
+
+      val detections = Arguments.createArray()
+      var cursorSamples = 0L
+
+      val detector = SherpaOnnxDetector(
+        context = reactApplicationContext.applicationContext,
+        onDetected = { keyword ->
+          detections.pushMap(
+            Arguments.createMap().apply {
+              putString("keyword", keyword)
+              // Offset of the END of the chunk that produced the detection: the
+              // spotter does not report where inside a chunk it fired, so this is
+              // an upper bound. CHUNK_SAMPLES keeps that bound tight.
+              putDouble("atMs", cursorSamples * 1000.0 / wave.sampleRate)
+            }
+          )
+        },
+      )
+
+      detector.initialize(
+        sensitivity = sensitivity,
+        configuration = SherpaOnnxAssetRequest(
+          modelAssetKey = options.getString("modelPath"),
+          keywordAssetKey = options.getString("keywordsPath"),
+          rawTextKeywords =
+            options.hasKey("keywordsAreRawText") &&
+              options.getBoolean("keywordsAreRawText"),
+        ),
+      )
+
+      // Feed in chunks so offsets are meaningful; one big buffer would report
+      // every detection at the end of the file.
+      val chunk = CHUNK_SAMPLES
+      var offset = 0
+      while (offset < wave.samples.size) {
+        val end = minOf(offset + chunk, wave.samples.size)
+        cursorSamples = end.toLong()
+        detector.processSamples(
+          wave.samples.copyOfRange(offset, end),
+          wave.sampleRate,
+        )
+        offset = end
+      }
+
+      detector.release()
+
+      promise.resolve(
+        Arguments.createMap().apply {
+          putArray("detections", detections)
+          putDouble("durationMs", wave.samples.size * 1000.0 / wave.sampleRate)
+          putInt("sampleRate", wave.sampleRate)
+        }
+      )
+    } catch (error: Throwable) {
+      promise.reject("wav_evaluation_failed", error.message, error)
+    }
+  }
+
   // SPOOF-01 (stub — no Sherpa-ONNX anti-spoofing API available in v1.12.29)
   override fun detectSpoofing(pcmBase64: String, sampleRate: Double, promise: Promise) {
     // Stub: returns 0.0 (not a spoof) until anti-spoofing model is available.
@@ -346,5 +427,8 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
     private const val NATIVE_RUNTIME_AUDIO_ROUTE_CHANGED_EVENT =
       "VoiceActivatorOnAudioRouteChanged"
     private const val NATIVE_VAD_PCM_FRAME_EVENT = "VoiceActivatorOnVADPCMFrame"
+
+    /** ~64 ms at 16 kHz: small enough for usable detection offsets. */
+    private const val CHUNK_SAMPLES = 1024
   }
 }

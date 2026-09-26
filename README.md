@@ -327,9 +327,14 @@ a keyword that never matches.
 
 > **Detection accuracy for arbitrary phrases is not yet measured on physical
 > devices.** Sherpa-ONNX publishes no false-accept rates for its open-vocabulary
-> path, and neither do we yet. Tune with `engineConfig.sensitivity` and measure
-> in your own acoustic conditions before shipping. See
-> [Reliability Validation](docs/reliability-validation.md).
+> path, and neither do we yet — so treat `sensitivity` as untuned.
+>
+> The package ships the tooling to measure it against your own corpus:
+> `sweepWakeWordSensitivity()` produces the detection-rate / false-accept curve
+> and `chooseOperatingPoint()` picks a threshold within a false-accept budget. See
+> [Measuring Detection Rate and False Accepts](docs/reliability-validation.md#measuring-detection-rate-and-false-accepts)
+> for the corpus requirements — a false-accept rate needs hours of negative audio
+> to mean anything.
 
 ### Pre-tokenized presets
 

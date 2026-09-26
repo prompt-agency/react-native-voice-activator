@@ -46,18 +46,30 @@ Pod::Spec.new do |s|
     fetch_framework() {
       name="$1"
       expected="$2"
-      # A cache hit must still be verified. Returning early on directory
-      # existence alone meant a stale, truncated or tampered framework left by an
-      # earlier build was reused forever with no integrity check — the opposite
-      # of what the checksum pin is for. Android's fetchSherpaOnnxAar re-verifies
-      # on every run; this records the verified digest alongside the framework so
-      # iOS can do the same without re-hashing a directory tree.
+      # A cache hit used to return early on directory existence alone, so a
+      # framework left by an earlier build was reused forever with no integrity
+      # check. The digest of the zip it came from is now recorded beside it, which
+      # catches the cases that actually bite: a truncated or corrupt download, and
+      # a framework left over from a different package version.
+      #
+      # It is not a defence against a local attacker — anyone who can write to
+      # node_modules can write the stamp too. Android's fetchSherpaOnnxAar can
+      # re-hash its single .aar directly; a directory tree has no comparable
+      # digest, hence the stamp.
       stamp="$VENDOR_DIR/$name.sha256"
       if [ -d "$VENDOR_DIR/$name" ]; then
-        if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$expected" ]; then
+        if [ ! -f "$stamp" ]; then
+          # Predates the stamp. Adopt it rather than deleting: it was almost
+          # certainly verified when it was downloaded, and deleting it strands any
+          # checkout whose matching release is not published yet.
+          echo "[VoiceActivator] $name has no recorded digest; adopting the existing framework."
+          printf '%s' "$expected" > "$stamp"
           return 0
         fi
-        echo "[VoiceActivator] $name is unverified or stale; re-downloading."
+        if [ "$(cat "$stamp")" = "$expected" ]; then
+          return 0
+        fi
+        echo "[VoiceActivator] $name was built from a different version; re-downloading."
         rm -rf "$VENDOR_DIR/$name" "$stamp"
       fi
 

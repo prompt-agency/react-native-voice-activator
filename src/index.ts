@@ -16,6 +16,22 @@ export {
   voiceActivator,
 } from './public/voice-activator';
 export { addSessionListener } from './internal/session-events';
+/**
+ * Accuracy measurement. Exported because the numbers that decide whether a wake
+ * phrase is usable — detection rate and false accepts per hour — can only be
+ * produced against your own corpus, in your own acoustic conditions.
+ * See docs/reliability-validation.md.
+ */
+export {
+  chooseOperatingPoint,
+  evaluateWakeWordCorpus,
+  sweepWakeWordSensitivity,
+} from './internal/wake-word-evaluation';
+export type {
+  WakeWordEvaluationCorpus,
+  WakeWordEvaluationResult,
+  WakeWordFileResult,
+} from './internal/wake-word-evaluation';
 export {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
