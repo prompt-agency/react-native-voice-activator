@@ -162,6 +162,12 @@ static NSDictionary *VoiceActivatorMakeError(
                                     keywordAssetKey:keywordAssetKey
                                     rawTextKeywords:rawTextKeywords
                                               error:&assetError];
+  // Stop the tap before reconfiguring. configureWithAssetPaths: drains the
+  // processing queue, but an installed tap would keep delivering buffers while
+  // the spotter is being torn down and rebuilt. The Android coordinator refuses
+  // the same situation rather than reconfiguring under a live reader.
+  [_detector stop:nil];
+
   if (assetPaths == nil || ![_detector configureWithAssetPaths:assetPaths
                                                    sensitivity:sensitivity
                                                          error:&assetError]) {

@@ -12,14 +12,19 @@ internal class AudioCaptureThread {
   private var audioRecord: AudioRecord? = null
   private var workerThread: Thread? = null
 
-  fun startCapture(onSamples: ((FloatArray, Int) -> Unit)? = null): Boolean {
+  /**
+   * Start capturing and deliver frames to [onSamples].
+   *
+   * [onSamples] is required. It used to be nullable with a default of null, and
+   * that path set capturing = true and returned true without creating an
+   * AudioRecord or starting a thread — so isCapturing() reported true with no
+   * capture running underneath and stopCapture() had nothing to stop. No call
+   * site used it, so making it required removes the trap rather than documenting
+   * it.
+   */
+  fun startCapture(onSamples: (FloatArray, Int) -> Unit): Boolean {
     if (capturing) {
       return false
-    }
-
-    if (onSamples == null) {
-      capturing = true
-      return true
     }
 
     val sampleRate = 16000

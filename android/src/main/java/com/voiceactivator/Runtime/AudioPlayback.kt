@@ -9,6 +9,9 @@ import android.media.MediaPlayer
 import android.util.Base64
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 /**
  * AudioPlayback — Streaming PCM ring-buffer playback + WAV file playback.
@@ -21,17 +24,38 @@ import java.nio.ByteOrder
  * when streaming starts or when WAV plays without streaming; abandons focus
  * when that playback ends or [stopStreaming] runs.
  *
- * Thread safety: writeChunk() is called from the JS bridge thread and blocks
- * until the internal AudioTrack buffer accepts the data. Callers should dispatch off the main
- * thread if write latency matters.
+ * Thread safety: the player state is reached from at least two threads — the RN
+ * bridge thread (playPCMChunk / playWav / stopPlayback) and the background thread
+ * synthesizeTTS spawns per call. Every field below was plain and unsynchronized,
+ * so a synthesizeTTS thread assigning `mediaPlayer` while a concurrent
+ * stopPlayback() released it produced a double-release, or orphaned a player
+ * mid-playback with nothing able to stop it. Worse, writeChunk() held a reference
+ * to an AudioTrack that stopStreaming() could release underneath its blocking
+ * write.
+ *
+ * State transitions take the write lock; writeChunk takes the read lock for the
+ * duration of its blocking write, so a track can never be released while a write
+ * is in flight. A read/write lock rather than a plain mutex because the write
+ * blocks: holding an exclusive lock across it would make stopPlayback() — and so
+ * barge-in — wait for a whole buffer. `stopping` plus an early pause() unblocks a
+ * waiting writer first so the exclusive section is short.
  */
 internal class AudioPlayback(private val context: Context) {
+
+  private val stateLock = ReentrantReadWriteLock()
 
   private var audioTrack: AudioTrack? = null
   private var mediaPlayer: MediaPlayer? = null
   private var isStreaming = false
   /** True when WAV requested audio focus (not streaming — streaming already holds focus). */
   private var wavOwnsAudioFocus = false
+
+  /**
+   * Set before teardown takes the exclusive lock, so a writer blocked inside
+   * AudioTrack.write() bails out instead of resuming against a doomed track.
+   */
+  @Volatile
+  private var stopping = false
 
   private fun requestPlaybackAudioFocus() {
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -49,7 +73,8 @@ internal class AudioPlayback(private val context: Context) {
     audioManager.abandonAudioFocus(null)
   }
 
-  private fun stopWavInternal(abandonFocusIfWavOwned: Boolean) {
+  /** Caller must hold the write lock. */
+  private fun stopWavLocked(abandonFocusIfWavOwned: Boolean) {
     mediaPlayer?.run {
       runCatching { stop() }
       // release() can throw on an already-released player; it was outside the
@@ -70,8 +95,9 @@ internal class AudioPlayback(private val context: Context) {
    * Start streaming at [sampleRate] Hz. Idempotent — safe to call again while
    * already streaming (returns without recreating the AudioTrack).
    */
-  fun startStreaming(sampleRate: Int) {
-    if (isStreaming) return
+  fun startStreaming(sampleRate: Int) = stateLock.write {
+    if (isStreaming) return@write
+    stopping = false
 
     val minBufSize = AudioTrack.getMinBufferSize(
       sampleRate,
@@ -108,12 +134,20 @@ internal class AudioPlayback(private val context: Context) {
    * AudioTrack. Blocks until the internal AudioTrack buffer accepts the data.
    */
   fun writeChunk(pcmBase64: String) {
-    val track = audioTrack ?: return
+    // Decode outside the lock: it is pure CPU work on caller-owned data and there
+    // is no reason to make teardown wait for it.
     val bytes = Base64.decode(pcmBase64, Base64.DEFAULT)
     val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
     val pcm = FloatArray(buf.remaining())
     buf.get(pcm)
-    track.write(pcm, 0, pcm.size, AudioTrack.WRITE_BLOCKING)
+
+    // The read lock is held across the blocking write, so stopStreaming() cannot
+    // release this track underneath it.
+    stateLock.read {
+      if (stopping) return@read
+      val track = audioTrack ?: return@read
+      runCatching { track.write(pcm, 0, pcm.size, AudioTrack.WRITE_BLOCKING) }
+    }
   }
 
   /**
@@ -121,17 +155,25 @@ internal class AudioPlayback(private val context: Context) {
    * it, then abandons audio focus when this layer owns it.
    */
   fun stopStreaming() {
-    stopWavInternal(abandonFocusIfWavOwned = true)
+    // Signal and pause before taking the exclusive lock: pause() makes a blocked
+    // WRITE_BLOCKING call return promptly, so the writer releases the read lock
+    // rather than holding it for a whole buffer. Without this, stopPlayback —
+    // and therefore barge-in — would wait on the buffer draining.
+    stopping = true
+    runCatching { stateLock.read { audioTrack?.pause() } }
 
-    if (!isStreaming) return
-    isStreaming = false
+    stateLock.write {
+      stopWavLocked(abandonFocusIfWavOwned = true)
 
-    runCatching { audioTrack?.pause() }
-    runCatching { audioTrack?.flush() }
-    runCatching { audioTrack?.release() }
-    audioTrack = null
+      if (!isStreaming) return@write
+      isStreaming = false
 
-    abandonPlaybackAudioFocus()
+      runCatching { audioTrack?.flush() }
+      runCatching { audioTrack?.release() }
+      audioTrack = null
+
+      abandonPlaybackAudioFocus()
+    }
   }
 
   // ─── WAV file playback ──────────────────────────────────────────────────
@@ -144,8 +186,8 @@ internal class AudioPlayback(private val context: Context) {
     filePath: String,
     onComplete: () -> Unit,
     onError: (String) -> Unit
-  ) {
-    stopWavInternal(abandonFocusIfWavOwned = true)
+  ) = stateLock.write {
+    stopWavLocked(abandonFocusIfWavOwned = true)
 
     val player = MediaPlayer()
     mediaPlayer = player
@@ -154,13 +196,29 @@ internal class AudioPlayback(private val context: Context) {
       player.setDataSource(filePath)
       player.prepare()
 
+      // MediaPlayer callbacks arrive on its own thread, so this must take the
+      // lock rather than touching mediaPlayer directly — and must check that it
+      // is still the current player, since a newer playWav() may have superseded
+      // it while this one was finishing.
       fun finishWav(success: Boolean, errorMsg: String?) {
-        player.release()
-        mediaPlayer = null
-        if (wavOwnsAudioFocus) {
-          abandonPlaybackAudioFocus()
-          wavOwnsAudioFocus = false
+        val shouldReport = stateLock.write {
+          if (mediaPlayer !== player) {
+            // Superseded: whoever replaced us already released this player.
+            return@write false
+          }
+          runCatching { player.release() }
+          mediaPlayer = null
+          if (wavOwnsAudioFocus) {
+            abandonPlaybackAudioFocus()
+            wavOwnsAudioFocus = false
+          }
+          true
         }
+
+        // Consumer callbacks run outside the lock: they re-enter this class via
+        // stopPlayback in practice, which would deadlock on a non-reentrant
+        // write lock held across them.
+        if (!shouldReport) return
         if (success) onComplete()
         else onError(errorMsg ?: "AudioPlayback: WAV playback failed")
       }
@@ -183,15 +241,20 @@ internal class AudioPlayback(private val context: Context) {
 
       player.start()
     }.onFailure { e ->
-      player.release()
-      mediaPlayer = null
-      if (wavOwnsAudioFocus) {
-        abandonPlaybackAudioFocus()
-        wavOwnsAudioFocus = false
+      if (mediaPlayer === player) {
+        runCatching { player.release() }
+        mediaPlayer = null
+        if (wavOwnsAudioFocus) {
+          abandonPlaybackAudioFocus()
+          wavOwnsAudioFocus = false
+        }
       }
       onError(e.message ?: "AudioPlayback: unknown error starting WAV playback")
     }
   }
 
-  fun isStreaming(): Boolean = isStreaming
+  /** Stop any WAV playback without touching a live stream. */
+  fun stopWav() = stateLock.write { stopWavLocked(abandonFocusIfWavOwned = true) }
+
+  fun isStreaming(): Boolean = stateLock.read { isStreaming }
 }

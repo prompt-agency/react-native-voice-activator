@@ -53,6 +53,14 @@
   BOOL _streaming;
   /** Matches last successful startStreamingWithSampleRate:earpieceOutput: category choice. */
   BOOL _streamingUsesEarpieceCategory;
+  /**
+   * Sample rate the current AVAudioPlayerNode was built for.
+   *
+   * The node's format is fixed at creation, so a later chunk at a different rate
+   * scheduled onto it plays pitch- and speed-shifted. The rate argument used to be
+   * ignored entirely once streaming had started, which made that silent.
+   */
+  double _streamingSampleRate;
   /** YES when this instance activated the audio session solely for WAV (no streaming). */
   /** True while the WAV player holds a playback intent on the shared session. */
   BOOL _wavOwnsSession;
@@ -84,7 +92,12 @@ static VoiceActivatorAudioSessionController *VoiceActivatorSessionOwner(void)
                               error:(NSError **)error
 {
   if (_streaming) {
-    if (_streamingUsesEarpieceCategory == earpieceOutput) {
+    // Reuse the live stream only when BOTH the route and the sample rate match.
+    // Comparing the route alone meant a chunk at a different rate was scheduled
+    // onto a node fixed at the old format, so the audio played at the wrong
+    // pitch and speed with no error anywhere — silent corruption.
+    if (_streamingUsesEarpieceCategory == earpieceOutput &&
+        _streamingSampleRate == sampleRate) {
       return YES;
     }
     [self stopStreaming];
@@ -126,6 +139,7 @@ static VoiceActivatorAudioSessionController *VoiceActivatorSessionOwner(void)
 
   _streaming = YES;
   _streamingUsesEarpieceCategory = earpieceOutput;
+  _streamingSampleRate = sampleRate;
   return YES;
 }
 
@@ -206,6 +220,7 @@ static VoiceActivatorAudioSessionController *VoiceActivatorSessionOwner(void)
   }
   _streaming = NO;
   _streamingUsesEarpieceCategory = NO;
+  _streamingSampleRate = 0;
 
   [_playerNode stop];
   [_engine stop];

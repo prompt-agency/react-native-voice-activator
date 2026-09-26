@@ -221,10 +221,14 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
 
 - (void)processBuffer:(AVAudioPCMBuffer *)buffer
 {
-  if (_spotter == nullptr || _stream == nullptr) {
-    return;
-  }
-
+  // _spotter and _stream are deliberately NOT read here.
+  //
+  // This runs on the AVAudioEngine tap thread, while configureWithAssetPaths:
+  // reassigns both on the caller's thread. Reading them here was a data race on
+  // non-atomic pointers, and a reconfigure landing between the check and the
+  // dispatch_async below would hand freed pointers to the block. Every access is
+  // now confined to _processingQueue, which configureWithAssetPaths: drains via
+  // flushPendingWork before releasing anything.
   AVAudioFrameCount frameLength = buffer.frameLength;
   if (frameLength == 0) {
     return;
@@ -250,6 +254,13 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
 
   const int32_t sampleRate = (int32_t)buffer.format.sampleRate;
   dispatch_async(_processingQueue, ^{
+    // Checked on the queue that owns these pointers, so a reconfigure cannot
+    // land between the check and the use.
+    if (self->_spotter == nullptr || self->_stream == nullptr) {
+      free(mono);
+      return;
+    }
+
     SherpaOnnxOnlineStreamAcceptWaveform(self->_stream, sampleRate, mono, (int32_t)frameLength);
     free(mono);
 

@@ -6,6 +6,7 @@
 @implementation AudioSessionManager {
   NSString *_desiredRoute;
   VoiceActivatorInterruptionObserver *_interruptionObserver;
+  void (^_interruptionHandler)(BOOL began, BOOL shouldResume);
 }
 
 @synthesize desiredRoute = _desiredRoute;
@@ -59,15 +60,29 @@
 - (void)startObservingInterruptionsWithHandler:(void (^)(BOOL began,
                                                          BOOL shouldResume))handler
 {
-  // Stop any previous observation before starting a new one
-  [_interruptionObserver stopObserving];
+  // The handler is stored separately from the observer so repeated calls swap it
+  // without touching the NSNotificationCenter registration.
+  //
+  // This used to stopObserving and re-register every time. playPCMChunk calls it
+  // per chunk, so during streaming that was dozens of deregister/register pairs a
+  // second, each with a window in which an interruption notification would be
+  // missed entirely.
+  _interruptionHandler = [handler copy];
+
+  if (_interruptionObserver != nil) {
+    return;
+  }
 
   __weak __typeof(self) weakSelf = self;
   _interruptionObserver = [[VoiceActivatorInterruptionObserver alloc]
       initWithHandler:^(BOOL began, BOOL shouldResume) {
-        (void)weakSelf; // capture to extend lifetime if needed
-        if (handler) {
-          handler(began, shouldResume);
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+          return;
+        }
+        void (^current)(BOOL, BOOL) = strongSelf->_interruptionHandler;
+        if (current) {
+          current(began, shouldResume);
         }
       }];
   [_interruptionObserver startObserving];
@@ -75,6 +90,7 @@
 
 - (void)stopObservingInterruptions
 {
+  _interruptionHandler = nil;
   [_interruptionObserver stopObserving];
   _interruptionObserver = nil;
 }

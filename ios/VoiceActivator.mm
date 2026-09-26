@@ -142,6 +142,52 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(getStatus)
   return [_sessionCoordinator currentStatus];
 }
 
+/**
+ * One interruption handler for every playback entry point.
+ *
+ * The three registration sites each had their own copy and had already diverged —
+ * one checked isStreaming, one did not, none handled the interruption ending.
+ *
+ * On `began` playback stops. On end, nothing resumes: streamed TTS samples were
+ * consumed as they arrived and nothing buffered them, so the utterance is simply
+ * gone. That is worth telling the app rather than leaving it to infer, because the
+ * wake-word coordinator *does* restart detection on resume — so without an event
+ * here the two halves behaved differently for the same system notification and an
+ * app had no way to know its reply had been cut off.
+ */
+- (void (^)(BOOL began, BOOL shouldResume))playbackInterruptionHandler
+{
+  __weak __typeof(self) weakSelf = self;
+  return ^(BOOL began, BOOL shouldResume) {
+    __strong __typeof(weakSelf) strongSelf = weakSelf;
+    if (strongSelf == nil) {
+      return;
+    }
+
+    if (began) {
+      if ([strongSelf->_audioPlayback isStreaming]) {
+        [strongSelf->_audioPlayback stopStreaming];
+      }
+      [strongSelf sendEventWithName:kRuntimeInterruptionEventName
+                               body:@{
+                                 @"reason" : @"audio_interruption",
+                                 @"recoverable" : @YES
+                               }];
+      return;
+    }
+
+    [strongSelf sendEventWithName:kRuntimeInterruptionEventName
+                             body:@{
+                               @"reason" : @"audio_interruption_ended",
+                               @"recoverable" : @YES,
+                               @"shouldResume" : @(shouldResume),
+                               // Explicitly false: the app must re-speak if it
+                               // wants the rest of the utterance.
+                               @"playbackResumed" : @NO
+                             }];
+  };
+}
+
 RCT_EXPORT_METHOD(dispose
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
@@ -154,6 +200,11 @@ RCT_EXPORT_METHOD(dispose
 
   [_speakerEmbedding dispose];
   [_denoiser dispose];
+  // Was omitted, so the native SherpaOnnxOfflineTts handle survived dispose() and
+  // was only replaced lazily on the next synthesizeText: with a different
+  // modelPath — contrary to what dispose() implies, and holding a TTS model in
+  // memory for the life of the process.
+  [_sherpaOnnxTTS dispose];
 
   resolve(nil);
 }
@@ -164,28 +215,10 @@ RCT_EXPORT_METHOD(playPCMChunk
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
-  // Register TTS interruption observer before starting playback
-  __weak __typeof(self) weakSelf = self;
-  [_audioSessionManager startObservingInterruptionsWithHandler:^(BOOL began,
-                                                                  BOOL shouldResume) {
-    if (began) {
-      __strong __typeof(weakSelf) strongSelf = weakSelf;
-      if (!strongSelf) {
-        return;
-      }
-      if ([strongSelf->_audioPlayback isStreaming]) {
-        [strongSelf->_audioPlayback stopStreaming];
-      }
-      [strongSelf->_audioSessionManager stopObservingInterruptions];
-      [strongSelf sendEventWithName:kRuntimeInterruptionEventName
-                               body:@{
-                                 @"reason" : @"audio_interruption",
-                                 @"recoverable" : @YES
-                               }];
-    }
-    // shouldResume=YES on interruption end is not acted upon here;
-    // resuming TTS synthesis requires the CustomTTSAdapter (Story 11-4).
-  }];
+  // The handler is idempotent and holds its own weak self, so re-registering per
+  // chunk no longer tears the notification observer down and back up.
+  [_audioSessionManager
+      startObservingInterruptionsWithHandler:[self playbackInterruptionHandler]];
 
   BOOL earpiece =
       [[_audioSessionManager desiredRoute] isEqualToString:@"earpiece"];
@@ -215,23 +248,8 @@ RCT_EXPORT_METHOD(playWav
                   : (RCTPromiseResolveBlock)resolve reject
                   : (RCTPromiseRejectBlock)reject)
 {
-  __weak __typeof(self) weakSelf = self;
-  [_audioSessionManager startObservingInterruptionsWithHandler:^(BOOL began,
-                                                                  BOOL shouldResume) {
-    if (began) {
-      __strong __typeof(weakSelf) strongSelf = weakSelf;
-      if (!strongSelf) {
-        return;
-      }
-      [strongSelf->_audioPlayback stopStreaming];
-      [strongSelf->_audioSessionManager stopObservingInterruptions];
-      [strongSelf sendEventWithName:kRuntimeInterruptionEventName
-                               body:@{
-                                 @"reason" : @"audio_interruption",
-                                 @"recoverable" : @YES
-                               }];
-    }
-  }];
+  [_audioSessionManager
+      startObservingInterruptionsWithHandler:[self playbackInterruptionHandler]];
 
   BOOL earpiece =
       [[_audioSessionManager desiredRoute] isEqualToString:@"earpiece"];
@@ -239,11 +257,6 @@ RCT_EXPORT_METHOD(playWav
   [_audioPlayback playWavFile:filePath
                earpieceOutput:earpiece
                    completion:^(NSError *_Nullable error) {
-                     __strong __typeof(weakSelf) strongSelf = weakSelf;
-                     if (strongSelf) {
-                       [strongSelf->_audioSessionManager
-                           stopObservingInterruptions];
-                     }
                      if (error) {
                        reject(@"wav_playback_failed", error.localizedDescription,
                               error);
@@ -348,16 +361,8 @@ RCT_EXPORT_METHOD(synthesizeTTS
 
       __weak __typeof(strongSelf) weakSelf2 = strongSelf;
       [strongSelf->_audioSessionManager
-          startObservingInterruptionsWithHandler:^(BOOL began, BOOL shouldResume) {
-        if (began) {
-          __strong __typeof(weakSelf2) s2 = weakSelf2;
-          if (!s2) return;
-          [s2->_audioPlayback stopStreaming];
-          [s2->_audioSessionManager stopObservingInterruptions];
-          [s2 sendEventWithName:kRuntimeInterruptionEventName
-                           body:@{@"reason" : @"audio_interruption", @"recoverable" : @YES}];
-        }
-      }];
+          startObservingInterruptionsWithHandler:[strongSelf
+                                                     playbackInterruptionHandler]];
 
       BOOL earpiece = [[strongSelf->_audioSessionManager desiredRoute]
                             isEqualToString:@"earpiece"];
@@ -368,8 +373,7 @@ RCT_EXPORT_METHOD(synthesizeTTS
            completion:^(NSError *_Nullable playError) {
              __strong __typeof(weakSelf2) s2 = weakSelf2;
              if (s2) {
-               [s2->_audioSessionManager stopObservingInterruptions];
-               s2->_pendingTTSWavPath = nil;
+                        s2->_pendingTTSWavPath = nil;
              }
              [[NSFileManager defaultManager] removeItemAtPath:wavPath error:nil];
              if (playError) {
