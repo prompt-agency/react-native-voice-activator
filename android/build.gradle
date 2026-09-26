@@ -60,6 +60,10 @@ android {
         "generated/java",
         "generated/jni"
       ]
+      // Normally matches nothing: the ONNX models are NOT shipped in the npm
+      // tarball (see "!android/src/main/assets" in package.json's files array) —
+      // prepareModels() downloads them at runtime. Kept so an app that vendors
+      // its own model bundle into the package directory still gets it packaged.
       assets.srcDirs += ["src/main/assets"]
     }
   }

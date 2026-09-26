@@ -52,7 +52,10 @@ internal class AudioPlayback(private val context: Context) {
   private fun stopWavInternal(abandonFocusIfWavOwned: Boolean) {
     mediaPlayer?.run {
       runCatching { stop() }
-      release()
+      // release() can throw on an already-released player; it was outside the
+      // guard, so a throw here escaped all the way to the unsettled bridge
+      // promise.
+      runCatching { release() }
     }
     mediaPlayer = null
     if (abandonFocusIfWavOwned && wavOwnsAudioFocus) {

@@ -170,9 +170,39 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
   [_playerNode scheduleBuffer:buffer completionHandler:nil];
 }
 
+/**
+ * Settle a pending WAV completion before tearing the player down.
+ *
+ * AVAudioPlayer's -stop does not call the delegate — only natural completion or
+ * a decode error does. Nulling the delegate on stopPlayback(), or on a second
+ * playWav(), therefore dropped the JS promise on the floor and `await playWav()`
+ * hung forever. Same failure class as an unsettled provider promise: an awaited
+ * call that can never resolve.
+ */
+- (void)settlePendingWavCompletionWithReason:(NSString *)reason
+{
+  _AudioPlaybackWavDelegate *delegate = _wavDelegate;
+  if (delegate == nil) {
+    return;
+  }
+
+  void (^pending)(NSError *_Nullable) = delegate.completion;
+  // Cleared first so the delegate cannot also fire it if a callback is already
+  // in flight.
+  delegate.completion = nil;
+
+  if (pending) {
+    pending([NSError errorWithDomain:@"AudioPlayback"
+                               code:-2
+                           userInfo:@{NSLocalizedDescriptionKey : reason}]);
+  }
+}
+
 - (void)stopStreaming
 {
   if (_wavPlayer) {
+    [self settlePendingWavCompletionWithReason:
+              @"WAV playback was stopped before it finished."];
     [_wavPlayer stop];
     _wavPlayer.delegate = nil;
     _wavPlayer = nil;
@@ -211,6 +241,8 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
          completion:(void (^)(NSError *_Nullable))completion
 {
   if (_wavPlayer) {
+    [self settlePendingWavCompletionWithReason:
+              @"WAV playback was superseded by another playWav call."];
     [_wavPlayer stop];
     _wavPlayer.delegate = nil;
     _wavPlayer = nil;

@@ -115,11 +115,18 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   }
 
   override fun playWav(filePath: String, promise: Promise) {
-    audioPlayback.playWav(
-      filePath,
-      onComplete = { promise.resolve(null) },
-      onError = { msg -> promise.reject("wav_playback_failed", msg) }
-    )
+    // Unguarded, a throw from inside playWav (MediaPlayer.release() can throw)
+    // propagated out of the bridge call and the promise never settled, so
+    // `await playWav()` hung forever.
+    try {
+      audioPlayback.playWav(
+        filePath,
+        onComplete = { promise.resolve(null) },
+        onError = { msg -> promise.reject("wav_playback_failed", msg) }
+      )
+    } catch (error: Throwable) {
+      promise.reject("wav_playback_failed", error.message, error)
+    }
   }
 
   override fun stopPlayback(promise: Promise) {

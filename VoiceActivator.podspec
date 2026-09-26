@@ -15,6 +15,11 @@ Pod::Spec.new do |s|
 
   s.source_files = "ios/**/*.{h,m,mm,cpp}"
   s.private_header_files = "ios/**/*.h"
+  # Normally matches nothing: the ONNX models are NOT shipped in the npm tarball
+  # (see the "!ios/Assets" entry in package.json's files array) — prepareModels()
+  # downloads them at runtime into the app's own storage. This glob is kept so an
+  # app that vendors its own model bundle into the package directory still gets it
+  # copied into the app bundle. CocoaPods does not fail on an empty glob.
   s.resources = "ios/Assets/**/*"
 
   # The xcframeworks are far too large for the npm tarball, so they are fetched
@@ -41,8 +46,19 @@ Pod::Spec.new do |s|
     fetch_framework() {
       name="$1"
       expected="$2"
+      # A cache hit must still be verified. Returning early on directory
+      # existence alone meant a stale, truncated or tampered framework left by an
+      # earlier build was reused forever with no integrity check — the opposite
+      # of what the checksum pin is for. Android's fetchSherpaOnnxAar re-verifies
+      # on every run; this records the verified digest alongside the framework so
+      # iOS can do the same without re-hashing a directory tree.
+      stamp="$VENDOR_DIR/$name.sha256"
       if [ -d "$VENDOR_DIR/$name" ]; then
-        return 0
+        if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$expected" ]; then
+          return 0
+        fi
+        echo "[VoiceActivator] $name is unverified or stale; re-downloading."
+        rm -rf "$VENDOR_DIR/$name" "$stamp"
       fi
 
       echo "[VoiceActivator] Downloading $name..."
@@ -64,6 +80,7 @@ Pod::Spec.new do |s|
       unzip -q "$WORK_DIR/$name.zip" -d "$WORK_DIR/extract"
       rm -rf "$VENDOR_DIR/$name"
       mv "$WORK_DIR/extract/$name" "$VENDOR_DIR/$name"
+      printf '%s' "$expected" > "$stamp"
     }
 
     fetch_framework "sherpa-onnx.xcframework" "#{sherpa_onnx_sha}"

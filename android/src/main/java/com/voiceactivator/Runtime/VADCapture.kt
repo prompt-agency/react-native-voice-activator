@@ -8,6 +8,8 @@ import android.os.HandlerThread
 import android.util.Base64
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * VADCapture — Captures real-time 16kHz mono PCM frames using AudioRecord and
@@ -27,9 +29,14 @@ class VADCapture {
   private var captureThread: HandlerThread? = null
   private var captureHandler: Handler? = null
 
+  // Written from the caller's thread, read by readLoop's loop condition.
+  // @Volatile so the reader actually observes the stop.
   @Volatile
   var isRunning = false
     private set
+
+  /** Counted down by readLoop when it exits, so stop() can wait for it. */
+  private var readLoopFinished: CountDownLatch? = null
 
   /** Called on each PCM frame with a base64-encoded float32 buffer. Thread-safe. */
   var pcmFrameHandler: ((base64PCM: String) -> Unit)? = null
@@ -72,18 +79,50 @@ class VADCapture {
 
     record.startRecording()
 
-    captureHandler?.post { readLoop(record, sampleRate) }
+    val finished = CountDownLatch(1)
+    readLoopFinished = finished
+    captureHandler?.post {
+      try {
+        readLoop(record, sampleRate)
+      } finally {
+        finished.countDown()
+      }
+    }
   }
 
-  /** Stop capture and release AudioRecord resources. */
+  /**
+   * Stop capture and release AudioRecord resources.
+   *
+   * Waits for readLoop to exit before releasing. Releasing an AudioRecord while
+   * another thread is inside a blocking read() is explicitly unsafe per the
+   * AudioRecord contract and can crash natively, and quitSafely() does not wait
+   * for the in-flight Runnable.
+   */
   fun stop() {
     if (!isRunning) return
     isRunning = false
-    audioRecord?.apply {
-      stop()
-      release()
+
+    val record = audioRecord
+    val finished = readLoopFinished
+
+    // stop() unblocks a pending read() so the loop can observe isRunning.
+    runCatching { record?.stop() }
+
+    if (finished != null && !finished.await(STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+      // Deliberately leak the recorder rather than release it under a live
+      // reader: a leaked AudioRecord is recoverable, a native crash is not.
+      audioRecord = null
+      readLoopFinished = null
+      captureThread?.quitSafely()
+      captureThread = null
+      captureHandler = null
+      pcmFrameHandler = null
+      return
     }
+
+    runCatching { record?.release() }
     audioRecord = null
+    readLoopFinished = null
     captureThread?.quitSafely()
     captureThread = null
     captureHandler = null
@@ -104,5 +143,9 @@ class VADCapture {
       val base64 = Base64.encodeToString(byteBuffer.array(), Base64.NO_WRAP)
       pcmFrameHandler?.invoke(base64)
     }
+  }
+
+  private companion object {
+    const val STOP_TIMEOUT_MS = 1_500L
   }
 }

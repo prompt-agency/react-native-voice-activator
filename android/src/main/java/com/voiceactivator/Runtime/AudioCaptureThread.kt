@@ -5,6 +5,9 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 
 internal class AudioCaptureThread {
+  // Written from the caller's thread, read by the worker's loop condition.
+  // Without @Volatile the worker may never observe the stop and keeps reading.
+  @Volatile
   private var capturing = false
   private var audioRecord: AudioRecord? = null
   private var workerThread: Thread? = null
@@ -68,21 +71,49 @@ internal class AudioCaptureThread {
     return true
   }
 
+  /**
+   * Stop capture and release the AudioRecord.
+   *
+   * Returns false when the worker thread did not exit in time. That matters
+   * because the caller frees the native detector as soon as this returns true:
+   * releasing the AudioRecord, or freeing the detector, while the worker is
+   * still inside record.read() and about to call processSamples() is a
+   * use-after-free in the ONNX runtime. Reporting the failure lets the caller
+   * keep the detector alive rather than destroy it underneath a live reader.
+   */
   fun stopCapture(): Boolean {
     if (!capturing) {
       return true
     }
     capturing = false
+
+    // stop() unblocks a pending read(), so the worker can observe `capturing`.
     runCatching {
       audioRecord?.stop()
     }
-    runCatching {
-      workerThread?.join(500)
+
+    val worker = workerThread
+    val stopped = if (worker == null || worker === Thread.currentThread()) {
+      true
+    } else {
+      runCatching { worker.join(JOIN_TIMEOUT_MS) }.isSuccess && !worker.isAlive
     }
+
+    if (!stopped) {
+      // Deliberately leak the AudioRecord rather than release it under a live
+      // reader. The worker exits on its own once read() returns, and a leaked
+      // recorder is recoverable; a native use-after-free is not.
+      return false
+    }
+
     audioRecord?.release()
     audioRecord = null
     workerThread = null
     return true
+  }
+
+  private companion object {
+    const val JOIN_TIMEOUT_MS = 1_500L
   }
 
   fun isCapturing(): Boolean = capturing

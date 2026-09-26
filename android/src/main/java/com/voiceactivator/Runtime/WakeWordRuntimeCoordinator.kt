@@ -88,6 +88,20 @@ internal class WakeWordRuntimeCoordinator(
           ?: false,
     )
 
+    // A second initialize() while detection is running would otherwise free the
+    // native spotter while the capture worker is still inside read() and about
+    // to call processSamples() on it — a use-after-free in the ONNX runtime.
+    // Stop capture first, and refuse rather than free it underneath the reader.
+    if (audioCaptureThread.isCapturing() && !audioCaptureThread.stopCapture()) {
+      throw platformFailure(
+        code = "capture_stop_failed",
+        message =
+          "Android wake word audio capture did not stop in time, so the engine " +
+            "cannot be safely reconfigured. Call stopDetection() and retry.",
+        canStart = false,
+      )
+    }
+
     releaseDetector()
     detector = SherpaOnnxDetector(
       context = applicationContext,
@@ -359,7 +373,12 @@ internal class WakeWordRuntimeCoordinator(
     code: String = "runtime_unsupported",
   ) {
     val ownershipReleased = stopOwnedRuntime()
-    releaseDetector()
+    // stopOwnedRuntime() returns false when the capture worker did not exit, in
+    // which case the detector must stay alive — the worker still holds a
+    // reference to it.
+    if (ownershipReleased) {
+      releaseDetector()
+    }
     val payload = Arguments.createMap().apply {
       putString("reason", reason)
       putBoolean("recoverable", false)
