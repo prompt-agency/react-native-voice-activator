@@ -44,7 +44,9 @@ static NSDictionary *VoiceActivatorMakeError(
 {
   self = [super init];
   if (self) {
-    _audioSessionController = [VoiceActivatorAudioSessionController new];
+    // Shared, not per-instance: arbitration between listening and playback only
+    // works if every caller mutates the same owner.
+    _audioSessionController = [VoiceActivatorAudioSessionController sharedController];
     _assetLoader = [SherpaOnnxAssetLoader new];
     _detector = [SherpaOnnxDetector new];
     _runtimeStateStore = [[VoiceActivatorRuntimeStateStore alloc]
@@ -111,7 +113,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   if (requiresSessionCleanup) {
     NSError *audioSessionError = nil;
-    [_audioSessionController deactivateSession:&audioSessionError];
+    [_audioSessionController endListening];
     if (audioSessionError != nil) {
       [self setErrorStateWithCategory:@"platform"
                                  code:@"audio_session_deactivation_failed"
@@ -202,7 +204,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   NSError *audioSessionError = nil;
-  if (![_audioSessionController activateSession:&audioSessionError]) {
+  if (![_audioSessionController beginListening:&audioSessionError]) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_activation_failed"
                             message:audioSessionError.localizedDescription
@@ -249,7 +251,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   NSError *audioSessionError = nil;
   [_detector stop:nil];
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_deactivation_failed"
@@ -278,7 +280,7 @@ static NSDictionary *VoiceActivatorMakeError(
 {
   NSError *audioSessionError = nil;
   [_detector dispose];
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_deactivation_failed"
@@ -329,7 +331,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   if (shouldResume) {
     NSError *audioSessionError = nil;
-    if (![_audioSessionController activateSession:&audioSessionError]) {
+    if (![_audioSessionController beginListening:&audioSessionError]) {
       [self setErrorStateWithCategory:@"platform"
                                  code:@"audio_session_activation_failed"
                               message:audioSessionError.localizedDescription
@@ -498,7 +500,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   NSError *audioSessionError = nil;
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   [self stopObservingInterruptions];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"

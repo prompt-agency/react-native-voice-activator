@@ -2,6 +2,8 @@
 
 #import <AVFoundation/AVFoundation.h>
 
+#import "VoiceActivatorAudioSessionController.h"
+
 // ─── AVAudioPlayer completion delegate ────────────────────────────────────────
 
 @interface _AudioPlaybackWavDelegate : NSObject <AVAudioPlayerDelegate>
@@ -52,36 +54,27 @@
   /** Matches last successful startStreamingWithSampleRate:earpieceOutput: category choice. */
   BOOL _streamingUsesEarpieceCategory;
   /** YES when this instance activated the audio session solely for WAV (no streaming). */
+  /** True while the WAV player holds a playback intent on the shared session. */
   BOOL _wavOwnsSession;
+  /** True while streaming holds a playback intent on the shared session. */
+  BOOL _streamOwnsSessionIntent;
 }
 
 @synthesize streaming = _streaming;
 
-static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
-                                              BOOL earpieceOutput,
-                                              NSError **error)
+/**
+ * Playback no longer configures the audio session itself.
+ *
+ * It used to call setCategory directly, and on the speaker path it chose plain
+ * Playback — a category with no input — which silently killed the wake-word input
+ * tap for as long as playback ran, taking barge-in and the next turn with it.
+ * VoiceActivatorAudioSessionController now derives one configuration from the
+ * live intents and leaves the category alone while detection holds a listening
+ * intent.
+ */
+static VoiceActivatorAudioSessionController *VoiceActivatorSessionOwner(void)
 {
-  NSError *sessionError = nil;
-  BOOL ok;
-  if (earpieceOutput) {
-    ok = [session
-        setCategory:AVAudioSessionCategoryPlayAndRecord
-                mode:AVAudioSessionModeDefault
-             options:(AVAudioSessionCategoryOptionDuckOthers |
-                      AVAudioSessionCategoryOptionAllowBluetoothA2DP |
-                      AVAudioSessionCategoryOptionAllowAirPlay)
-               error:&sessionError];
-  } else {
-    ok = [session
-        setCategory:AVAudioSessionCategoryPlayback
-                mode:AVAudioSessionModeSpokenAudio
-             options:AVAudioSessionCategoryOptionDuckOthers
-               error:&sessionError];
-  }
-  if (!ok && error) {
-    *error = sessionError;
-  }
-  return ok;
+  return [VoiceActivatorAudioSessionController sharedController];
 }
 
 // ─── Streaming ─────────────────────────────────────────────────────────────
@@ -97,20 +90,15 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
     [self stopStreaming];
   }
 
-  AVAudioSession *session = [AVAudioSession sharedInstance];
   NSError *sessionError = nil;
-  if (!VoiceActivatorConfigureTTSSession(session, earpieceOutput, &sessionError)) {
+  if (![VoiceActivatorSessionOwner() acquirePlaybackWithEarpieceOutput:earpieceOutput
+                                                                error:&sessionError]) {
     if (error) {
       *error = sessionError;
     }
     return NO;
   }
-  if (![session setActive:YES error:&sessionError]) {
-    if (error) {
-      *error = sessionError;
-    }
-    return NO;
-  }
+  _streamOwnsSessionIntent = YES;
 
   // Build engine and player node
   _engine = [[AVAudioEngine alloc] init];
@@ -208,11 +196,8 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
     _wavPlayer = nil;
     _wavDelegate = nil;
     if (_wavOwnsSession) {
-      [[AVAudioSession sharedInstance]
-          setActive:NO
-        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-              error:nil];
       _wavOwnsSession = NO;
+      [VoiceActivatorSessionOwner() releasePlayback];
     }
   }
 
@@ -228,10 +213,10 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
   _engine = nil;
   _format = nil;
 
-  [[AVAudioSession sharedInstance]
-      setActive:NO
-    withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-          error:nil];
+  if (_streamOwnsSessionIntent) {
+    _streamOwnsSessionIntent = NO;
+    [VoiceActivatorSessionOwner() releasePlayback];
+  }
 }
 
 // ─── WAV file playback ─────────────────────────────────────────────────────
@@ -247,12 +232,9 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
     _wavPlayer.delegate = nil;
     _wavPlayer = nil;
     _wavDelegate = nil;
-    if (_wavOwnsSession && !_streaming) {
-      [[AVAudioSession sharedInstance]
-          setActive:NO
-        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-              error:nil];
+    if (_wavOwnsSession) {
       _wavOwnsSession = NO;
+      [VoiceActivatorSessionOwner() releasePlayback];
     }
   }
 
@@ -275,10 +257,9 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
   }
 
   if (!_streaming) {
-    AVAudioSession *session = [AVAudioSession sharedInstance];
     NSError *sessionError = nil;
-    if (!VoiceActivatorConfigureTTSSession(session, earpieceOutput, &sessionError) ||
-        ![session setActive:YES error:&sessionError]) {
+    if (![VoiceActivatorSessionOwner() acquirePlaybackWithEarpieceOutput:earpieceOutput
+                                                                  error:&sessionError]) {
       if (completion) {
         dispatch_async(dispatch_get_main_queue(), ^{
           completion(sessionError ?: [NSError errorWithDomain:@"AudioPlayback"
@@ -305,13 +286,10 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
       if (strongSelf) {
         strongSelf->_wavPlayer = nil;
         strongSelf->_wavDelegate = nil;
-        if (strongSelf->_wavOwnsSession && !strongSelf->_streaming) {
-          [[AVAudioSession sharedInstance]
-              setActive:NO
-            withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-                  error:nil];
+        if (strongSelf->_wavOwnsSession) {
+          strongSelf->_wavOwnsSession = NO;
+          [VoiceActivatorSessionOwner() releasePlayback];
         }
-        strongSelf->_wavOwnsSession = NO;
       }
       if (completion) {
         completion(err);
@@ -325,11 +303,8 @@ static BOOL VoiceActivatorConfigureTTSSession(AVAudioSession *session,
     _wavPlayer = nil;
     _wavDelegate = nil;
     if (_wavOwnsSession) {
-      [[AVAudioSession sharedInstance]
-          setActive:NO
-        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-              error:nil];
       _wavOwnsSession = NO;
+      [VoiceActivatorSessionOwner() releasePlayback];
     }
     if (completion) {
       dispatch_async(dispatch_get_main_queue(), ^{
