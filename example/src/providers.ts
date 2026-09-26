@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import {
+  getModelStatus,
   initialize,
+  prepareModels,
   SherpaOnnxSpeakerVerificationAdapter,
   WhisperRNSTTAdapter,
 } from 'react-native-voice-activator';
@@ -180,6 +182,18 @@ export async function ensureSpeakerRuntime(
   onProgress?: (p: DownloadProgress) => void
 ): Promise<void> {
   if (speakerRuntimeReady) return;
+
+  // The Enrollment tab is the first screen, so on a cold launch this may be the
+  // very first initialize() in the app — the wake word models have to be present
+  // or it rejects with models_not_prepared.
+  await ensureModelsReady((u) =>
+    onProgress?.({
+      percent: u.progress ?? null,
+      receivedBytes: 0,
+      totalBytes: 0,
+    })
+  );
+
   // Must complete before initialize(): the model is loaded lazily on the first
   // embedding extraction, and a missing file is unrecoverable at that point.
   const modelPath = await ensureSpeakerModel(onProgress);
@@ -258,4 +272,36 @@ async function extractVadModel(): Promise<string | undefined> {
   if (stat && Number(stat.size) > 0) return VAD_MODEL_PATH;
   await RNFS.copyFileAssets(VAD_MODEL_ASSET, VAD_MODEL_PATH);
   return VAD_MODEL_PATH;
+}
+
+// ─── Wake word models ─────────────────────────────────────────────────────────
+
+/**
+ * Download the wake word models if they are not already present.
+ *
+ * The package does not ship them, and `initialize()` rejects with a
+ * non-recoverable `models_not_prepared` error when they are absent — so every
+ * screen that initializes has to do this first.
+ *
+ * Idempotent: once the bundle is complete this only re-verifies checksums.
+ */
+export async function ensureModelsReady(
+  onProgress?: (update: { message: string; progress?: number }) => void
+): Promise<void> {
+  const status = await getModelStatus();
+  if (status.ready) return;
+
+  onProgress?.({
+    message: `Downloading wake word models (${(status.bytesTotal / 1e6).toFixed(1)} MB)...`,
+    progress: 0,
+  });
+
+  await prepareModels({
+    onProgress: ({ percent }) => {
+      onProgress?.({
+        message: 'Downloading wake word models...',
+        progress: percent,
+      });
+    },
+  });
 }

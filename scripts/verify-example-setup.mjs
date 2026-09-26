@@ -70,6 +70,7 @@ if (!existsSync(wakeWordScreenPath)) {
     'interruption',
     'audioRouteChanged',
     'ensureSttProvider',
+    'ensureModelsReady',
     'sttProvider',
     'autoSpeak: true',
     'engineConfig',
@@ -105,6 +106,7 @@ if (!existsSync(sessionScreenPath)) {
     'aiHandler',
     'reListenMode',
     'ensureSttProvider',
+    'ensureModelsReady',
     'sttProvider',
     'initialize',
     'startDetection',
@@ -150,7 +152,16 @@ if (!existsSync(providersPath)) {
 } else {
   const src = readFileSync(providersPath, 'utf8');
 
-  const required = ['WhisperRNSTTAdapter', 'ensureSttProvider'];
+  const required = [
+    'WhisperRNSTTAdapter',
+    'ensureSttProvider',
+    // The package does not ship the models, so initialize() rejects with
+    // models_not_prepared unless prepareModels() has run. The example broke this
+    // way once already; assert it so it cannot recur silently.
+    'ensureModelsReady',
+    'prepareModels',
+    'getModelStatus',
+  ];
 
   for (const token of required) {
     if (!src.includes(token)) {

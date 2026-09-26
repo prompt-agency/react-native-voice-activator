@@ -22,6 +22,7 @@ import {
 import {
   markSpeakerRuntimeDisposed,
   markSpeakerRuntimeReady,
+  ensureModelsReady,
   ensureSttProvider,
   getDownloadedSpeakerModelPath,
   speakerVerificationProvider,
@@ -116,6 +117,12 @@ export function WakeWordScreen() {
     try {
       const speakerModelPath = await getDownloadedSpeakerModelPath();
       setProgressText('Preparing speech-to-text model...');
+      // The package no longer ships the models; download them once first.
+      await ensureModelsReady((u) =>
+        setProgressText(
+          u.progress != null ? `${u.message} (${u.progress}%)` : u.message
+        )
+      );
       const sttProvider = await ensureSttProvider((u) =>
         setProgressText(
           u.progress != null ? `${u.message} (${u.progress}%)` : u.message
