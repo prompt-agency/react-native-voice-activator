@@ -247,8 +247,22 @@ describe('documentation and example contract', () => {
       's.vendored_frameworks = "ios/Vendor/SherpaOnnx/*.xcframework"'
     );
     expect(podspec).toContain('s.resources = "ios/Assets/**/*"');
+    // The AAR is fetched at build time rather than shipped in the tarball, so
+    // the wiring is now through a task-produced file. Assert both halves: that
+    // the AAR reaches the compile classpath, and that the fetch is a
+    // prerequisite of compilation rather than something a consumer must
+    // remember to run.
     expect(androidBuildGradle).toContain(
-      'implementation files("libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar")'
+      'def sherpaAarName = "sherpa-onnx-static-link-onnxruntime-1.12.29.aar"'
+    );
+    expect(androidBuildGradle).toContain('implementation files(sherpaAarFile)');
+    expect(androidBuildGradle).toContain(
+      'tasks.register("fetchSherpaOnnxAar")'
+    );
+    expect(androidBuildGradle).toContain('dependsOn("fetchSherpaOnnxAar")');
+    // It must refuse an unverified binary, not merely download one.
+    expect(androidBuildGradle).toContain(
+      'Refusing to link an unverified binary.'
     );
     expect(androidBuildGradle).toContain(
       'assets.srcDirs += ["src/main/assets"]'

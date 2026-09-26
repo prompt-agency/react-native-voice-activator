@@ -163,6 +163,11 @@ Always call `initialize()` before `startDetection()`. Do not call `startDetectio
 
 - Confirm Android NDK is installed: Android Studio → SDK Manager → SDK Tools → NDK (Side by side).
 - Clean the build: `cd android && ./gradlew clean`.
+- **First Android build downloads a ~28 MB Sherpa-ONNX AAR.** It is fetched at
+  build time rather than shipped in the npm package, verified against a pinned
+  SHA-256, and cached in `node_modules/react-native-voice-activator/android/libs/`.
+  Subsequent builds reuse it. On a machine without network access, pass
+  `-PVoiceActivator_sherpaAarPath=/path/to/the.aar`.
 - If `@fugood/react-native-audio-pcm-stream` is not found, install it: `yarn add @fugood/react-native-audio-pcm-stream`.
 
 For a complete error category reference, see [docs/troubleshooting.md](troubleshooting.md).

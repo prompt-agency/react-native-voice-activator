@@ -1,0 +1,6 @@
+{
+  "algorithm": "sha256",
+  "assets": {
+    "sherpa-onnx-static-link-onnxruntime-1.12.29.aar": "b01b05ab9b7f36759bf1906bfac70167d33c56998668e9f7d6fccf86a2022094"
+  }
+}

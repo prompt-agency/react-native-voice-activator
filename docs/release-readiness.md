@@ -45,14 +45,32 @@ exact zips that produced it. The release order is therefore fixed:
 1. `yarn package:ios-vendor` — builds both zips and rewrites the manifest
 2. commit `ios/vendor-checksums.json`
 3. release; `release-it`'s `before:init` hook re-runs
-   `verify-ios-vendor-checksums.mjs --require-assets` and aborts if the zips on
+   `verify-vendor-checksums.mjs --require-assets` and aborts if the artifacts on
    disk no longer match the committed manifest
 4. those same zips are uploaded as the `v<version>` release assets
 
+Android works the same way, with the AAR instead of zips: Gradle's
+`fetchSherpaOnnxAar` task downloads
+`sherpa-onnx-static-link-onnxruntime-1.12.29.aar` from the `v<version>` release,
+verifies it against `android/vendor-checksums.json`, and refuses to put an
+unverified binary on the compile classpath. The AAR is uploaded as a release
+asset alongside the iOS zips.
+
 **A published npm version whose GitHub release assets are missing or do not
-match the manifest is unusable on iOS**: `pod install` fails closed rather than
-linking an unverified binary. Verify the release assets resolve before
-announcing a version.
+match the manifests is unusable**: `pod install` fails closed on iOS and the
+Gradle build fails closed on Android, rather than linking an unverified binary.
+Verify the release assets resolve before announcing a version.
+
+### Air-gapped and offline builds
+
+Neither platform can fetch its binary without network access. Supply the files
+out of band instead:
+
+- Android: `./gradlew ... -PVoiceActivator_sherpaAarPath=/path/to/sherpa-onnx-static-link-onnxruntime-1.12.29.aar`
+- iOS: place the extracted frameworks under `ios/Vendor/SherpaOnnx/` before
+  `pod install`; the `prepare_command` skips anything already present.
+
+Both paths still verify the checksum.
 
 ## Manual Gates
 
