@@ -119,7 +119,6 @@
   },
   "peerDependencies": {
     "@expo/config-plugins": ">=8.0.0",
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4",
     "onnxruntime-react-native": ">=1.20.0",
     "react": "*",
     "react-native": "*",
@@ -129,9 +128,6 @@
   },
   "peerDependenciesMeta": {
     "@expo/config-plugins": {
-      "optional": true
-    },
-    "@fugood/react-native-audio-pcm-stream": {
       "optional": true
     },
     "onnxruntime-react-native": {
@@ -163,7 +159,6 @@
     ],
     "moduleNameMapper": {
       "^whisper\\.rn$": "<rootDir>/src/__mocks__/whisper.rn.js",
-      "^@fugood/react-native-audio-pcm-stream$": "<rootDir>/src/__mocks__/@fugood/react-native-audio-pcm-stream.js",
       "^onnxruntime-react-native$": "<rootDir>/src/__mocks__/onnxruntime-react-native.js"
     }
   },

@@ -133,7 +133,6 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | `whisper.rn` | `WhisperRNSTTAdapter` |
 | `react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
-| `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
 
 After installing:
@@ -143,8 +142,7 @@ npx expo prebuild
 cd ios && pod install
 ```
 
-> [!WARNING]
-> **Android STT is currently blocked on supported versions.** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture `RCTEventEmitter` bridge. Expo SDK 55 removed the `newArchEnabled` option entirely (SDK 54 was the last one to support the Legacy Architecture), so it cannot be disabled here. `WhisperRNSTTAdapter` works on iOS but not on Android on SDK 55+.
+Android recording uses the package's own native capture, so no additional audio module is required.
 
 ## Built-In Sherpa Asset Model
 

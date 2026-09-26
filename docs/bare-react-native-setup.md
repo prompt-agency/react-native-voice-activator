@@ -117,13 +117,11 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | `whisper.rn` | `WhisperRNSTTAdapter` |
 | `react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
-| `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
 
 See [docs/examples/](examples/) for per-adapter setup guides.
 
-> [!WARNING]
-> **Android STT is currently blocked on supported versions.** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge (`RCTEventEmitter`). React Native 0.82 removed the ability to fall back to the Legacy Architecture, so `newArchEnabled=false` is not available on RN 0.83+. `WhisperRNSTTAdapter` works on iOS but not on Android right now.
+Android recording uses the package's own native capture, so no additional audio module is required.
 
 ## Built-In Sherpa Asset Model
 
@@ -171,7 +169,6 @@ Always call `initialize()` before `startDetection()`. Do not call `startDetectio
 - **The ONNX models are downloaded at runtime, not at build time.** Call
   `prepareModels()` once before `initialize()`; see
   [Models Are Downloaded On Demand](../README.md#models-are-downloaded-on-demand).
-- If `@fugood/react-native-audio-pcm-stream` is not found, install it: `yarn add @fugood/react-native-audio-pcm-stream`.
 
 For a complete error category reference, see [docs/troubleshooting.md](troubleshooting.md).
 

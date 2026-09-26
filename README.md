@@ -377,15 +377,9 @@ yarn add whisper.rn react-native-fs
 
 # iOS only
 yarn add react-native-audio-recorder-player
-
-# Android only
-yarn add @fugood/react-native-audio-pcm-stream
 ```
 
-> [!WARNING]
-> **Android STT is currently blocked on supported versions.** `@fugood/react-native-audio-pcm-stream` (last released 2025-10) needs the Old Architecture `RCTEventEmitter` bridge. React Native 0.82 removed the ability to fall back to the Legacy Architecture, and Expo SDK 55 removed the `newArchEnabled` option entirely — so the usual workaround cannot be applied on this package's minimum supported versions (RN 0.83+ / Expo SDK 55+).
->
-> `WhisperRNSTTAdapter` therefore works on iOS but not on Android right now. Tracking issue: replace the Android capture path with the package's own native `startVADCapture`, which removes this peer dependency entirely.
+On Android, recording goes through the package's own native capture, so no extra audio module is needed. (It previously used `@fugood/react-native-audio-pcm-stream`, which requires the Old Architecture bridge that RN 0.83+ no longer provides.)
 
 After installing, re-run `cd ios && pod install`.
 

@@ -1,5 +1,21 @@
 import { NativeEventEmitter, NativeModules } from 'react-native';
 
+import {
+  acquireNativeCapture,
+  NATIVE_CAPTURE_SAMPLE_RATE,
+  releaseNativeCapture,
+  requireVADNativeModule,
+  VAD_NATIVE_PCM_FRAME_EVENT,
+  type VADPCMFrameEvent,
+} from '../../internal/native-pcm-capture';
+
+// Re-exported for consumers that imported these from here before the capture
+// helpers were shared with the STT adapter.
+export {
+  VAD_NATIVE_PCM_FRAME_EVENT,
+  __resetNativeCaptureRefCountForTests,
+} from '../../internal/native-pcm-capture';
+
 import type { InferenceSession } from 'onnxruntime-react-native';
 import type { VADConfig } from '../../public/types';
 import { emitSessionEvent } from '../../internal/session-events';
@@ -16,95 +32,15 @@ type OrtModule = {
   InferenceSession: typeof import('onnxruntime-react-native').InferenceSession;
 };
 
-type VADPCMFrameEvent = { pcm: string };
-
-type VoiceActivatorVADNative = {
-  startVADCapture: (sampleRate: number) => Promise<void>;
-  stopVADCapture: () => Promise<void>;
-};
-
-/** Native event name for 16 kHz float32 PCM frames (shared with session orchestrator buffering). */
-export const VAD_NATIVE_PCM_FRAME_EVENT = 'VoiceActivatorOnVADPCMFrame';
 /**
  * Silero v5 carries a single combined recurrent state of shape [2, 1, 128].
  * (v4 used two separate [2, 1, 64] h/c tensors; the bundled model is v5, whose
  * graph declares inputs input/state/sr and outputs output/stateN.)
  */
 const VAD_STATE_SIZE = 2 * 1 * 128;
-const SAMPLE_RATE = 16000;
+
 /** ~1 s of 512-sample frames at 16 kHz. See {@link SileroVADEngine._enqueueFrame}. */
 const MAX_QUEUED_FRAMES = 32;
-
-function requireVADNativeModule(): VoiceActivatorVADNative {
-  const mod =
-    NativeModules.VoiceActivator as Partial<VoiceActivatorVADNative> | null;
-  if (!mod?.startVADCapture || !mod?.stopVADCapture) {
-    throw new Error(
-      'VoiceActivator native module is missing VAD capture methods; rebuild the app with an up-to-date native binary.'
-    );
-  }
-  return mod as VoiceActivatorVADNative;
-}
-
-/**
- * Native PCM capture is one shared hardware stream, but two engines can need
- * it at the same time: the pre-wake gate (`vadGateEnabled`) and the session
- * utterance detector (`session.vad`). Refcount it so the first start opens
- * capture and only the last stop closes it. An unconditional stop used to
- * silently starve every other live engine of frames, leaving the gate stuck
- * on its last speech state.
- *
- * Transitions are serialised through a single promise chain so an overlapping
- * start/stop pair cannot interleave into the wrong native call order.
- */
-let nativeCaptureRefCount = 0;
-let nativeCaptureQueue: Promise<void> = Promise.resolve();
-
-function acquireNativeCapture(native: VoiceActivatorVADNative): Promise<void> {
-  nativeCaptureQueue = nativeCaptureQueue
-    .catch(() => undefined)
-    .then(async () => {
-      nativeCaptureRefCount += 1;
-      if (nativeCaptureRefCount !== 1) {
-        return;
-      }
-      try {
-        await native.startVADCapture(SAMPLE_RATE);
-      } catch (cause) {
-        nativeCaptureRefCount -= 1;
-        throw cause;
-      }
-    });
-  return nativeCaptureQueue;
-}
-
-function releaseNativeCapture(): Promise<void> {
-  nativeCaptureQueue = nativeCaptureQueue
-    .catch(() => undefined)
-    .then(async () => {
-      if (nativeCaptureRefCount === 0) {
-        return;
-      }
-      nativeCaptureRefCount -= 1;
-      if (nativeCaptureRefCount !== 0) {
-        return;
-      }
-      const mod =
-        NativeModules.VoiceActivator as Partial<VoiceActivatorVADNative> | null;
-      await mod?.stopVADCapture?.();
-    });
-  return nativeCaptureQueue;
-}
-
-/**
- * @internal Test-only hook. Module-level capture refcount survives between
- * tests, so a suite that starts an engine without stopping it would otherwise
- * leak a reference into the next test and suppress its `stopVADCapture` call.
- */
-export function __resetNativeCaptureRefCountForTests(): void {
-  nativeCaptureRefCount = 0;
-  nativeCaptureQueue = Promise.resolve();
-}
 
 let nextEngineInstanceId = 0;
 
@@ -301,7 +237,7 @@ export class SileroVADEngine {
       const inputTensor = new Tensor('float32', samples, [1, samples.length]);
       const srTensor = new Tensor(
         'int64',
-        BigInt64Array.from([BigInt(SAMPLE_RATE)]),
+        BigInt64Array.from([BigInt(NATIVE_CAPTURE_SAMPLE_RATE)]),
         [1]
       );
       const stateTensor = new Tensor(

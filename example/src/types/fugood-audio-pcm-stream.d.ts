@@ -1,6 +1,8 @@
-// Type declarations for @fugood/react-native-audio-pcm-stream
-// This package has no bundled TypeScript types.
-// API derived from whisper.rn's AudioPcmStreamAdapter usage.
+// Type declarations for @fugood/react-native-audio-pcm-stream.
+//
+// The library ships no TypeScript types. This lives in the example rather than
+// the package because react-native-voice-activator no longer depends on it —
+// only EnrollmentScreen does, for its own microphone capture.
 declare module '@fugood/react-native-audio-pcm-stream' {
   interface LiveAudioStreamSubscription {
     remove(): void;

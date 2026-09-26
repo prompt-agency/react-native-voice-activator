@@ -50,30 +50,57 @@ jest.mock('react-native-audio-recorder-player', () => ({
   AVLinearPCMBitDepthKeyIOSType: { bit16: 16 },
 }));
 
-// Android PCM stream mock
-const mockPcmStreamSubscription = { remove: jest.fn() };
+// Android now records through the package's own native capture, so there is no
+// third-party audio module to mock — only the native module and its event
+// emitter.
+const mockNativeSubscription = { remove: jest.fn() };
 
-const mockPcmStream = {
-  init: jest.fn(),
-  start: jest.fn(),
-  stop: jest.fn(),
-  on: jest.fn(() => mockPcmStreamSubscription),
+const mockNativeCapture = {
+  startVADCapture: jest.fn().mockResolvedValue(undefined),
+  stopVADCapture: jest.fn().mockResolvedValue(undefined),
 };
 
-jest.mock('@fugood/react-native-audio-pcm-stream', () => ({
-  __esModule: true,
-  default: mockPcmStream,
-}));
+const mockAddListener = jest.fn(() => mockNativeSubscription);
 
 // react-native Platform mock — factory must not reference outer variables (hoisting)
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' as 'ios' | 'android' },
+  NativeModules: {
+    VoiceActivator: {
+      startVADCapture: jest.fn().mockResolvedValue(undefined),
+      stopVADCapture: jest.fn().mockResolvedValue(undefined),
+    },
+  },
+  NativeEventEmitter: jest.fn(),
 }));
 
-// Grab the mutable Platform ref after mock is registered
-const mockPlatform = jest.requireMock('react-native').Platform as {
-  OS: 'ios' | 'android';
+// Grab the mutable refs after the mock is registered
+const reactNativeMock = jest.requireMock('react-native') as {
+  Platform: { OS: 'ios' | 'android' };
+  NativeModules: { VoiceActivator: typeof mockNativeCapture };
+  NativeEventEmitter: jest.Mock;
 };
+const mockPlatform = reactNativeMock.Platform;
+reactNativeMock.NativeModules.VoiceActivator = mockNativeCapture;
+
+/**
+ * Re-arm the mocks that jest.clearAllMocks() strips.
+ *
+ * clearAllMocks() removes implementations set with mockImplementation, so
+ * wiring NativeEventEmitter once at module scope leaves addListener returning
+ * undefined from the second test onwards — which throws inside the adapter
+ * before it ever reaches the microphone.
+ */
+function armNativeMocks() {
+  reactNativeMock.NativeEventEmitter.mockImplementation(() => ({
+    addListener: mockAddListener,
+  }));
+  mockAddListener.mockReturnValue(mockNativeSubscription);
+  mockNativeCapture.startVADCapture.mockResolvedValue(undefined);
+  mockNativeCapture.stopVADCapture.mockResolvedValue(undefined);
+}
+
+armNativeMocks();
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +108,7 @@ import {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
 } from '../providers/whisper-rn/WhisperRNSTTAdapter';
+import { __resetNativeCaptureRefCountForTests } from '../internal/native-pcm-capture';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +117,8 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockPlatform.OS = 'ios';
+    __resetNativeCaptureRefCountForTests();
+    armNativeMocks();
     mockRNFS.exists.mockResolvedValue(false);
     mockRNFS.downloadFile.mockReturnValue({ promise: Promise.resolve() });
     mockRecorderInstance.startRecorder.mockResolvedValue('/tmp/recording.wav');
@@ -312,6 +342,8 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockPlatform.OS = 'android';
+    __resetNativeCaptureRefCountForTests();
+    armNativeMocks();
     mockRNFS.exists.mockResolvedValue(false);
     mockRNFS.downloadFile.mockReturnValue({ promise: Promise.resolve() });
     mockWhisperContext.transcribe.mockReturnValue({
@@ -324,17 +356,15 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     jest.useRealTimers();
   });
 
-  it('initializes PCM stream on Android — no audio-recorder-player loaded', async () => {
+  it('records through the package native capture, not a third-party module', async () => {
     const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
     await adapter.initialize();
 
-    expect(mockPcmStream.init).toHaveBeenCalledWith({
-      sampleRate: 16_000,
-      channels: 1,
-      bitsPerSample: 16,
-      audioSource: 6, // AudioSource.VOICE_RECOGNITION
-      bufferSize: 4096,
-    });
+    // initialize() must not touch the microphone at all on Android — capture is
+    // acquired per transcription and released again, so the wake-word engine
+    // keeps the mic between turns.
+    expect(mockNativeCapture.startVADCapture).not.toHaveBeenCalled();
+    // And the iOS recorder is not constructed on Android.
     expect(mockAudioRecorderPlayer).not.toHaveBeenCalled();
   });
 
@@ -357,7 +387,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     );
   });
 
-  it('transcribes on Android: starts PCM stream, assembles WAV, passes bare path to ctx.transcribe()', async () => {
+  it('transcribes on Android: acquires native capture, assembles WAV, passes a bare path to ctx.transcribe()', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 2000,
@@ -365,20 +395,26 @@ describe('WhisperRNSTTAdapter — Android path', () => {
 
     await adapter.initialize();
 
-    // Simulate one PCM chunk arriving during recording
-    let pcmCallback: ((data: string) => void) | undefined;
-    (mockPcmStream.on as jest.Mock).mockImplementationOnce(
-      (_event: string, callback: (data: string) => void) => {
-        pcmCallback = callback;
-        return mockPcmStreamSubscription;
-      }
-    );
+    // Simulate one PCM frame arriving during recording
+    let pcmCallback: ((event: { pcm: string }) => void) | undefined;
+    mockAddListener.mockImplementationOnce(((
+      _event: string,
+      callback: (e: { pcm: string }) => void
+    ) => {
+      pcmCallback = callback;
+      return mockNativeSubscription;
+    }) as unknown as typeof mockAddListener);
 
     const transcriptionPromise = adapter.transcribe();
     await Promise.resolve(); // let on() + start() register
 
-    // Emit a PCM chunk (valid base64 of some bytes)
-    pcmCallback?.(btoa('\x00\x01\x02\x03'));
+    // Native capture emits 16 kHz float32 frames, so the payload is a float32
+    // buffer rather than the 16-bit stream the old module produced.
+    pcmCallback?.({
+      pcm: Buffer.from(new Float32Array([0, 0.1, -0.1, 0.2]).buffer).toString(
+        'base64'
+      ),
+    });
 
     await jest.advanceTimersByTimeAsync(2000);
 
@@ -389,16 +425,22 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       provider: 'whisper-rn',
     });
 
-    expect(mockPcmStream.start).toHaveBeenCalledTimes(1);
-    expect(mockPcmStream.stop).toHaveBeenCalledTimes(1);
+    expect(mockNativeCapture.startVADCapture).toHaveBeenCalledWith(16000);
+    // Released before transcription, so the mic is not held while Whisper runs.
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalledTimes(1);
+    // Unique per call, so two overlapping transcriptions cannot clobber each other.
     expect(mockRNFS.writeFile).toHaveBeenCalledWith(
-      '/mock/caches/voice-activator/recording.wav',
+      expect.stringMatching(
+        /^\/mock\/caches\/voice-activator\/whisper-android-\d+-\d+\.wav$/
+      ),
       expect.any(String), // base64-encoded WAV
       'base64'
     );
     // Android: bare path — NO file:// prefix
     expect(mockWhisperContext.transcribe).toHaveBeenCalledWith(
-      '/mock/caches/voice-activator/recording.wav',
+      expect.stringMatching(
+        /^\/mock\/caches\/voice-activator\/whisper-android-\d+-\d+\.wav$/
+      ),
       { language: 'en' }
     );
   });
@@ -419,11 +461,11 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       WhisperRNSTTCancelledError
     );
 
-    expect(mockPcmStream.stop).toHaveBeenCalled();
-    expect(mockPcmStreamSubscription.remove).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
+    expect(mockNativeSubscription.remove).toHaveBeenCalled();
   });
 
-  it('cancel() stops PCM stream on Android', async () => {
+  it('cancel() releases native capture on Android', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
@@ -439,7 +481,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       WhisperRNSTTCancelledError
     );
 
-    expect(mockPcmStream.stop).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
     expect(mockWhisperContext.transcribe).not.toHaveBeenCalled();
   });
 
@@ -477,7 +519,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     await expect(disposePromise).resolves.toBeUndefined();
 
     expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
-    expect(mockPcmStream.stop).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
   });
 
   it('throws if transcribe() is called while another is already in progress on Android', async () => {
