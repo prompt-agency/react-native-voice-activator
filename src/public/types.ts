@@ -43,6 +43,13 @@ export interface WakeWordEngineAssetKeys {
 export interface WakeWordEngineConfiguration {
   assetKeys?: WakeWordEngineAssetKeys;
   sensitivity?: number;
+  /**
+   * @internal Set by the runtime when `wakePhrase` generated the keywords file.
+   *
+   * Tells the native side the keywords file holds plain text, so it must
+   * tokenize it via `bpe.model` instead of expecting pre-tokenized BPE output.
+   */
+  keywordsAreRawText?: boolean;
 }
 
 export interface WakeWordEngineCapabilities {
@@ -143,6 +150,23 @@ export interface WakeWordInitializationOptions {
    * effect on the managed `session` flow, which always speaks the AI handler's
    * response.
    */
+  /**
+   * A wake phrase in plain English, e.g. `'hey acme'`. Pass an array for several.
+   *
+   * No training, no console, no per-keyword model: the bundled keyword spotter is
+   * open-vocabulary, and the native library tokenizes the phrase itself using the
+   * `bpe.model` already in the model bundle. The generated keywords file is
+   * written to app storage and reused across launches.
+   *
+   * Phrases must be A-Z, apostrophes and spaces, at least 6 letters. Two or more
+   * distinct words work far better than one short word — a short trigger
+   * false-fires on ordinary speech. Digits and punctuation are rejected: spell
+   * them out ("hey acme two", not "hey acme 2").
+   *
+   * Mutually exclusive with `engineConfig.assetKeys.keywordAssetKey`, which
+   * selects a pre-tokenized keywords file instead.
+   */
+  wakePhrase?: string | readonly string[];
   autoSpeak?: boolean;
   /**
    * Bound, in milliseconds, on a single `sttProvider.transcribe()` or

@@ -57,6 +57,10 @@ import {
   type ModelBundleStatus,
   type ModelPreparationOptions,
 } from '../internal/model-store';
+import {
+  WakePhraseError,
+  writeWakePhraseKeywords,
+} from '../internal/wake-phrase';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -745,6 +749,23 @@ function rejectUnsupportedRuntime(methodName: string): Promise<void> {
  * succeed. The app has to call prepareModels() first, or supply its own model
  * root, which is exactly the distinction `recoverable: false` exists to draw.
  */
+/**
+ * Fail initialize() with a non-recoverable configuration error.
+ *
+ * Non-recoverable because every caller of this is a mistake in the options: a
+ * retry with the same options produces the same result.
+ */
+function rejectConfiguration(code: string, message: string): Promise<void> {
+  const error: WakeWordError = {
+    category: 'configuration',
+    code,
+    message,
+    recoverable: false,
+  };
+  runtimeStore.recordError(error, 'error');
+  return Promise.reject(new Error(message));
+}
+
 function rejectModelsUnavailable(detail: string): Promise<void> {
   const error: WakeWordError = {
     category: 'configuration',
@@ -965,6 +986,54 @@ export const voiceActivator: VoiceActivatorApi = {
         assetKeys: {
           ...resolvedEngineConfig?.assetKeys,
           modelAssetKey: modelStatus.directory,
+        },
+      };
+    }
+
+    if (options.wakePhrase !== undefined) {
+      if (resolvedEngineConfig?.assetKeys?.keywordAssetKey) {
+        return rejectConfiguration(
+          'wake_phrase_conflict',
+          'Pass either wakePhrase or engineConfig.assetKeys.keywordAssetKey, not ' +
+            'both. wakePhrase generates a plain-text keywords file that the native ' +
+            'side tokenizes; keywordAssetKey selects a pre-tokenized file.'
+        );
+      }
+
+      const modelRoot = resolvedEngineConfig?.assetKeys?.modelAssetKey;
+      if (!modelRoot || !modelRoot.startsWith('/')) {
+        return rejectConfiguration(
+          'wake_phrase_unsupported_root',
+          'wakePhrase requires the on-demand model bundle, because the generated ' +
+            'keywords file is written next to it. It cannot be combined with a ' +
+            'bundled modelAssetKey; generate a keywords file offline and pass ' +
+            'engineConfig.assetKeys.keywordAssetKey instead.'
+        );
+      }
+
+      let generated: Awaited<ReturnType<typeof writeWakePhraseKeywords>>;
+      try {
+        generated = await writeWakePhraseKeywords(
+          options.wakePhrase,
+          modelRoot
+        );
+      } catch (cause) {
+        return rejectConfiguration(
+          cause instanceof WakePhraseError
+            ? 'wake_phrase_invalid'
+            : 'wake_phrase_write_failed',
+          cause instanceof Error
+            ? cause.message
+            : 'Could not prepare the wake phrase keywords file.'
+        );
+      }
+
+      resolvedEngineConfig = {
+        ...resolvedEngineConfig,
+        keywordsAreRawText: true,
+        assetKeys: {
+          ...resolvedEngineConfig?.assetKeys,
+          keywordAssetKey: generated.path,
         },
       };
     }

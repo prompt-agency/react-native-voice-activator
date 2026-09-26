@@ -81,6 +81,14 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
   config.max_active_paths = 4;
   config.num_trailing_blanks = 1;
   config.keywords_file = assetPaths.keywordsPath.UTF8String;
+  // Setting these switches sherpa-onnx from expecting a pre-tokenized keywords
+  // file to tokenizing plain text itself, via the simple-sentencepiece
+  // implementation linked into the framework. That is what makes an arbitrary
+  // wakePhrase work with no training.
+  if (assetPaths.bpeVocabPath != nil) {
+    config.model_config.modeling_unit = "bpe";
+    config.model_config.bpe_vocab = assetPaths.bpeVocabPath.UTF8String;
+  }
   config.keywords_score = 1.0f;
   config.keywords_threshold = SherpaThresholdFromSensitivity(sensitivity);
 

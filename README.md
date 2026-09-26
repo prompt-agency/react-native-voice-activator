@@ -21,7 +21,7 @@ No cloud, no API key, no per-use cost. Detection runs entirely on-device; the mo
 - [Quickstart](#quickstart)
 - [Models Are Downloaded On Demand](#models-are-downloaded-on-demand)
 - [Conversation Session](#conversation-session)
-- [Built-In Wake Words](#built-in-wake-words)
+- [Wake Words](#wake-words)
 - [Optional: Speech-to-Text](#optional-speech-to-text)
 - [Optional: Text-to-Speech](#optional-text-to-speech)
 - [Troubleshooting](#troubleshooting)
@@ -42,7 +42,7 @@ flowchart LR
     E -->|manual| F["Wait for\nlisten()"]
 ```
 
-- **Wake word detection** — on-device, no cloud, no API key. Real engine-backed local detection through the built-in native-managed engine path (Sherpa-ONNX). Models are [downloaded once on demand](#models-are-downloaded-on-demand), then everything runs locally.
+- **Any wake phrase, no training** — `wakePhrase: 'hey acme'` and you are done. On-device, no cloud, no API key, no per-keyword model. Real engine-backed local detection through the built-in native-managed engine path (Sherpa-ONNX). Models are [downloaded once on demand](#models-are-downloaded-on-demand), then everything runs locally.
 - **Managed conversation sessions** — the package drives the full wake → listen → AI → speak → re-listen loop.
 - **Barge-in** — say the wake word while the AI is speaking to interrupt TTS and start a new turn. (Interruption latency is not yet measured on physical devices; see [Reliability Validation](docs/reliability-validation.md).)
 - **React hooks** — `useWakeWord()` and `useVoiceSession()` for reactive component updates.
@@ -123,7 +123,7 @@ For detailed setup, see [Bare React Native Setup](docs/bare-react-native-setup.m
 
 ## Quickstart
 
-This validates the wake word runtime without STT or TTS. Say **"Hello World"** — the event fires.
+This validates the wake word runtime without STT or TTS. Say **"hey acme"** — or whatever phrase you pass — and the event fires.
 
 ```typescript
 import {
@@ -161,7 +161,7 @@ async function runQuickstart() {
   });
 
   try {
-    await initialize();       // load the wake word engine
+    await initialize({ wakePhrase: 'hey acme' }); // any English phrase
     await startDetection();   // start listening
     // Say "Hello World" — wakeWordDetected fires
     await stopDetection();    // stop listening
@@ -288,9 +288,58 @@ If you supply only one of them, no session starts — but detection does **not**
 
 See the [Conversation Session guide](docs/conversation-session.md) for barge-in behavior, manual mode, `maxTurns`, VAD configuration, and the full event reference.
 
-## Built-In Wake Words
+## Wake Words
 
-The bundled Sherpa-ONNX engine recognizes these phrases:
+### Use any phrase you like
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+That is the whole setup. No training run, no GPU, no vendor console, no
+per-keyword model, no API key.
+
+The bundled keyword spotter is **open-vocabulary**: it detects phrases that were
+never in its training data. `bpe.model` ships in the model bundle and
+`simple-sentencepiece` is linked into the native library, so the phrase is
+tokenized on device. The package writes a small plain-text keywords file beside
+the model bundle and reuses it across launches.
+
+Several triggers at once:
+
+```typescript
+await initialize({ wakePhrase: ['hey acme', 'ok acme'] });
+```
+
+**Choosing a phrase that works:**
+
+| Rule | Why |
+|---|---|
+| Two or more distinct words | A single short word scores against everything else the model hears and false-fires on ordinary speech |
+| At least 6 letters | Same reason; this is the enforced floor |
+| A-Z, apostrophes, spaces only | Digits and punctuation cannot be tokenized as spoken — write "hey acme two", not "hey acme 2" |
+| Phonetically distinctive | Avoid phrases that rhyme with common speech in your app's context |
+| Under 40 characters | Users will not say a long phrase consistently |
+
+Invalid phrases are rejected by `initialize()` with a non-recoverable
+`wake_phrase_invalid` error listing every problem, rather than silently producing
+a keyword that never matches.
+
+> **Detection accuracy for arbitrary phrases is not yet measured on physical
+> devices.** Sherpa-ONNX publishes no false-accept rates for its open-vocabulary
+> path, and neither do we yet. Tune with `engineConfig.sensitivity` and measure
+> in your own acoustic conditions before shipping. See
+> [Reliability Validation](docs/reliability-validation.md).
+
+### Pre-tokenized presets
+
+The model bundle also carries nine pre-tokenized keyword files from the upstream
+Sherpa-ONNX demo set. They exist for quick smoke-testing — `keywords-hello-world.txt`
+is handy because "Hello World" is unambiguous — and are **not** recommended for
+shipping: several are trademarked phrases, and none of them is your product's name.
+
+Select one with `engineConfig.assetKeys.keywordAssetKey` instead of `wakePhrase`
+(the two are mutually exclusive):
 
 | Wake Word | `keywordAssetKey` |
 |---|---|
@@ -526,7 +575,7 @@ async function handleAccountDeletion(userId: string) {
 
 ## Built-In Model Configuration
 
-The Sherpa-ONNX model defaults are resolved internally, from the on-demand bundle unless you override the root. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Built-In Wake Words](#built-in-wake-words) for the full keyword list.
+The Sherpa-ONNX model defaults are resolved internally, from the on-demand bundle unless you override the root. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Wake Words](#wake-words) for `wakePhrase` and the preset list.
 
 ## Example App and Reliability
 

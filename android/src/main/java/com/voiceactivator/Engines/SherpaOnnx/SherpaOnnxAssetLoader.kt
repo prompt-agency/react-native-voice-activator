@@ -6,6 +6,15 @@ import java.io.File
 internal data class SherpaOnnxAssetRequest(
   val modelAssetKey: String?,
   val keywordAssetKey: String?,
+  /**
+   * True when the keywords file holds plain text rather than pre-tokenized BPE
+   * output, which is the case for a generated `wakePhrase`.
+   *
+   * Sherpa-ONNX then needs `modelingUnit = "bpe"` and `bpeVocab` pointing at the
+   * bundle's bpe.model so it can tokenize the text itself. The bundled presets
+   * are already tokenized and must NOT be run through that path.
+   */
+  val rawTextKeywords: Boolean = false,
 )
 
 internal data class SherpaOnnxAssetPaths(
@@ -14,6 +23,8 @@ internal data class SherpaOnnxAssetPaths(
   val joiner: String,
   val tokens: String,
   val keywords: String,
+  /** Absolute path or asset key of bpe.model, when raw-text keywords are used. */
+  val bpeVocab: String?,
   /**
    * True when the paths above are absolute filesystem paths rather than keys
    * into the APK's AssetManager.
@@ -49,6 +60,8 @@ internal class SherpaOnnxAssetLoader {
         joiner = resolveModelFile(dir, "joiner"),
         tokens = resolveRequiredFile(dir, "tokens.txt"),
         keywords = resolveKeywordFile(dir, request.keywordAssetKey),
+        bpeVocab =
+          if (request.rawTextKeywords) resolveRequiredFile(dir, "bpe.model") else null,
         fromFileSystem = true,
       )
     }
@@ -59,6 +72,12 @@ internal class SherpaOnnxAssetLoader {
       joiner = resolveModelAsset(context, root, "joiner"),
       tokens = resolveRequiredAsset(context, "$root/tokens.txt"),
       keywords = resolveKeywordAsset(context, root, request.keywordAssetKey),
+      bpeVocab =
+        if (request.rawTextKeywords) {
+          resolveRequiredAsset(context, "$root/bpe.model")
+        } else {
+          null
+        },
       fromFileSystem = false,
     )
   }

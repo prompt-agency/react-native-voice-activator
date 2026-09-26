@@ -4,6 +4,26 @@ This guide covers migration from the earlier credential-era built-in engine path
 to the current Sherpa-ONNX default engine.
 
 
+## Custom wake phrases need no training
+
+**New, non-breaking.** `wakePhrase` accepts any English phrase:
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+This replaces the previous guidance, which pointed at an Icefall training
+pipeline for anything outside the nine bundled demo keywords. The keyword spotter
+was always open-vocabulary; the package now exposes that. `bpe.model` was already
+in the bundle, and `simple-sentencepiece` is linked into the native library, so
+the phrase is tokenized on device.
+
+`engineConfig.assetKeys.keywordAssetKey` still works for a pre-tokenized file and
+is mutually exclusive with `wakePhrase`.
+
+On Android this required the asset loader to accept absolute filesystem paths,
+which it previously rejected.
+
 ## Models are downloaded on demand
 
 **Breaking.** The ONNX models are no longer shipped inside the package, and

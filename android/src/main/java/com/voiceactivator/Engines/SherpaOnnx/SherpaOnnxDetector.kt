@@ -50,8 +50,12 @@ internal class SherpaOnnxDetector(
         debug = false,
         provider = "cpu",
         modelType = "",
-        modelingUnit = "",
-        bpeVocab = "",
+        // Setting these switches sherpa-onnx from expecting a pre-tokenized
+        // keywords file to tokenizing plain text itself, via the
+        // simple-sentencepiece implementation linked into the native library.
+        // That is what makes an arbitrary wakePhrase work with no training.
+        modelingUnit = if (assets.bpeVocab != null) "bpe" else "",
+        bpeVocab = assets.bpeVocab ?: "",
       ),
       maxActivePaths = 4,
       keywordsFile = assets.keywords,

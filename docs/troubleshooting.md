@@ -86,6 +86,26 @@ Common causes:
   install it, or ship the models in your app and pass
   `engineConfig.assetKeys.modelAssetKey`
 
+## A custom `wakePhrase` never fires
+
+Nothing errors — the keyword simply never matches. Work through these:
+
+- **Say it the way it is spelled.** The phrase is tokenized from text, so "hey
+  acme" matches someone saying "hey ack-me", not "hey A-C-M-E".
+- **Is it distinctive enough?** Two or more words, at least 6 letters. A short or
+  common phrase either misses or fires constantly.
+- **Raise `engineConfig.sensitivity`.** The default is `0.5`. Higher detects more
+  and false-fires more; find the operating point in your own acoustic conditions.
+- **Check the generated file.** `getModelStatus().directory` plus
+  `generated-keywords/` is where it lives. It should be plain uppercase text, one
+  phrase per line, with no `▁` characters. A `▁` means a pre-tokenized file is
+  being used with the raw-text path, which cannot match.
+- **Confirm the models are the on-demand bundle.** `wakePhrase` needs `bpe.model`,
+  which the bundle carries. It is rejected outright with an app-bundled model root.
+
+Detection rates for arbitrary phrases are not yet measured on physical devices —
+see [Reliability Validation](/reliability-validation). Measure before shipping.
+
 ## Is This Error Worth Retrying?
 
 Every error carries `recoverable`. It answers one question: will the same call

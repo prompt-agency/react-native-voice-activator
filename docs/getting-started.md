@@ -77,7 +77,7 @@ cd ios && pod install
 <string>This app uses the microphone to detect wake words.</string>
 ```
 
-Android microphone permission is requested at runtime in the Step 4 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
+Android microphone permission is requested at runtime in the Step 6 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
 
 ## Step 4 — Download the Models
 
@@ -104,7 +104,19 @@ transfer is always something your app chose. To skip the download entirely, ship
 a model bundle in your app and pass
 `engineConfig.assetKeys.modelAssetKey` instead.
 
-## Step 5 — Your First Detection
+## Step 5 — Pick a Wake Phrase
+
+Any English phrase, no training required:
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+Two or more words, at least 6 letters, A-Z and spaces only. See
+[Wake Words](../README.md#wake-words) for the full rules and the pre-tokenized
+presets.
+
+## Step 6 — Your First Detection
 
 Copy this into your app and run it. Say **"Hello World"** — you should see the detection event in your console.
 

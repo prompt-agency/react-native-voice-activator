@@ -149,9 +149,16 @@ static NSDictionary *VoiceActivatorMakeError(
   NSString *keywordAssetKey = [assetKeys[@"keywordAssetKey"] isKindOfClass:[NSString class]]
       ? assetKeys[@"keywordAssetKey"]
       : nil;
+  NSNumber *rawTextKeywordsValue =
+      [engineConfig[@"keywordsAreRawText"] isKindOfClass:[NSNumber class]]
+          ? engineConfig[@"keywordsAreRawText"]
+          : nil;
+  BOOL rawTextKeywords = rawTextKeywordsValue != nil && rawTextKeywordsValue.boolValue;
+
   SherpaOnnxAssetPaths *assetPaths =
       [_assetLoader loadAssetPathsWithModelAssetKey:modelAssetKey
                                     keywordAssetKey:keywordAssetKey
+                                    rawTextKeywords:rawTextKeywords
                                               error:&assetError];
   if (assetPaths == nil || ![_detector configureWithAssetPaths:assetPaths
                                                    sensitivity:sensitivity

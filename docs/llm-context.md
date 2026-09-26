@@ -131,6 +131,7 @@ WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration
   sttProvider?: SpeechToTextProvider
   ttsProvider?: TextToSpeechProvider
+  wakePhrase?: string | string[]      // any English phrase; no training needed
   autoSpeak?: boolean                 // default false; single-shot flow only
   providerTimeoutMs?: number          // default 30000; 0 disables
   session?: VoiceSessionConfig
@@ -393,6 +394,9 @@ async function deleteEnrollment(userId: string) {
 | `engine` | Native engine failed to load or crashed | Check that model assets are bundled correctly; see [Getting Started](getting-started.md) |
 | `platform` | OS-level constraint (background mode, foreground service), or the native module is absent (`runtime_unavailable`, not recoverable) | See [Background Behavior](background-behavior.md) |
 | `configuration` / `models_not_prepared` | The on-demand model bundle is absent or unverified (not recoverable) | Call `prepareModels()`, or pass `engineConfig.assetKeys.modelAssetKey` |
+| `configuration` / `wake_phrase_invalid` | A `wakePhrase` failed validation (not recoverable) | Message lists every problem; see the phrase rules |
+| `configuration` / `wake_phrase_conflict` | Both `wakePhrase` and `keywordAssetKey` were supplied (not recoverable) | Pick one |
+| `configuration` / `wake_phrase_unsupported_root` | `wakePhrase` used with an app-bundled `modelAssetKey` (not recoverable) | Generate a keywords file offline, pass `keywordAssetKey` |
 | `internal` | Unexpected runtime error | File a bug; include `getStatus().lastError.message` |
 
 All errors carry `recoverable: boolean`, answering only: can the same call with the same options succeed?
