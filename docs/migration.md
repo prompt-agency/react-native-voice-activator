@@ -3,6 +3,43 @@
 This guide covers migration from the earlier credential-era built-in engine path
 to the current Sherpa-ONNX default engine.
 
+
+## Models are downloaded on demand
+
+**Breaking.** The ONNX models are no longer shipped inside the package, and
+`initialize()` no longer finds them automatically.
+
+Add one call before `initialize()`:
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+if (!(await getModelStatus()).ready) {
+  await prepareModels();
+}
+await initialize();
+```
+
+Without it, `initialize()` rejects with a non-recoverable `models_not_prepared`
+error.
+
+Why: the models were duplicated across the iOS and Android asset directories, so
+they cost 15.7 MB of every `npm install` and 7.8 MB of every shipped app binary —
+including for apps that never started detection. The package is now ~220 kB
+instead of ~42 MB.
+
+To keep the old behaviour of having no runtime download, ship a model bundle in
+your app and point at it, in which case `prepareModels()` is unnecessary:
+
+```typescript
+await initialize({
+  engineConfig: { assetKeys: { modelAssetKey: 'my-models' } },
+});
+```
+
+Android additionally now accepts an absolute filesystem path for
+`modelAssetKey`, which it previously rejected.
+
 ## Who Should Use This Guide
 
 Use this guide if your app integrated an earlier version of

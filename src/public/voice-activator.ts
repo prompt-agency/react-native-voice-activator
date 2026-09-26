@@ -50,6 +50,13 @@ import {
   isOperationTimeoutError,
   withTimeout,
 } from '../internal/with-timeout';
+import {
+  getModelBundleStatus,
+  modelBundleManifest,
+  prepareModelBundle,
+  type ModelBundleStatus,
+  type ModelPreparationOptions,
+} from '../internal/model-store';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -731,6 +738,24 @@ function rejectUnsupportedRuntime(methodName: string): Promise<void> {
   return Promise.reject(new Error(error.message));
 }
 
+/**
+ * Fail initialize() when the on-demand model bundle is absent.
+ *
+ * Non-recoverable on purpose: retrying initialize() with the same options cannot
+ * succeed. The app has to call prepareModels() first, or supply its own model
+ * root, which is exactly the distinction `recoverable: false` exists to draw.
+ */
+function rejectModelsUnavailable(detail: string): Promise<void> {
+  const error: WakeWordError = {
+    category: 'configuration',
+    code: 'models_not_prepared',
+    message: `Wake word models are not available. ${detail}`,
+    recoverable: false,
+  };
+  runtimeStore.recordError(error, 'error');
+  return Promise.reject(new Error(error.message));
+}
+
 function createRuntimeUnavailableError(methodName: string): WakeWordError {
   return {
     // The native module is absent — a property of the build, not of package
@@ -907,6 +932,42 @@ export const voiceActivator: VoiceActivatorApi = {
     const runtimeConfiguration = createRuntimeConfiguration(options);
     const nextEngineRuntime = resolveEngineRuntime();
     const token = ++initializeToken;
+
+    // Models are downloaded on demand rather than shipped in the package, so
+    // point the engine at the downloaded bundle unless the app supplied its own
+    // model root. Failing here with a specific, non-recoverable error is far
+    // easier to act on than a native "missing asset" thrown several layers down.
+    let resolvedEngineConfig = runtimeConfiguration.engineConfig;
+    if (!resolvedEngineConfig?.assetKeys?.modelAssetKey) {
+      let modelStatus: ModelBundleStatus;
+      try {
+        modelStatus = await getModelBundleStatus();
+      } catch (cause) {
+        return rejectModelsUnavailable(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not inspect model storage.'
+        );
+      }
+
+      if (!modelStatus.ready) {
+        return rejectModelsUnavailable(
+          `${modelStatus.missing.length} of ${modelBundleManifest.files.length} model ` +
+            `files are missing from ${modelStatus.directory}. Call prepareModels() ` +
+            `once before initialize() to download them ` +
+            `(${(modelStatus.bytesTotal / 1e6).toFixed(1)} MB), or pass ` +
+            `engineConfig.assetKeys.modelAssetKey to use a model bundle you ship yourself.`
+        );
+      }
+
+      resolvedEngineConfig = {
+        ...resolvedEngineConfig,
+        assetKeys: {
+          ...resolvedEngineConfig?.assetKeys,
+          modelAssetKey: modelStatus.directory,
+        },
+      };
+    }
     let resolvedSttProvider = runtimeConfiguration.sttProvider;
     let resolvedTtsProvider = runtimeConfiguration.ttsProvider;
 
@@ -925,6 +986,7 @@ export const voiceActivator: VoiceActivatorApi = {
 
       const resolvedRuntimeConfiguration = {
         ...runtimeConfiguration,
+        ...(resolvedEngineConfig ? { engineConfig: resolvedEngineConfig } : {}),
         ...(resolvedSttProvider ? { sttProvider: resolvedSttProvider } : {}),
         ...(resolvedTtsProvider ? { ttsProvider: resolvedTtsProvider } : {}),
       };
@@ -1134,6 +1196,14 @@ export const voiceActivator: VoiceActivatorApi = {
     return getCurrentStatus();
   },
 
+  async prepareModels(options: ModelPreparationOptions = {}) {
+    return prepareModelBundle(options);
+  },
+
+  async getModelStatus() {
+    return getModelBundleStatus();
+  },
+
   async dispose() {
     const activeRuntime = getVoiceActivatorRuntimeBridge();
     if (!activeRuntime?.dispose) {
@@ -1238,6 +1308,8 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 };
 
+export const prepareModels = voiceActivator.prepareModels;
+export const getModelStatus = voiceActivator.getModelStatus;
 export const initialize = voiceActivator.initialize;
 export const startDetection = voiceActivator.startDetection;
 export const stopDetection = voiceActivator.stopDetection;

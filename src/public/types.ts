@@ -1,3 +1,9 @@
+import type {
+  ModelBundleStatus,
+  ModelPreparationOptions,
+  ModelPreparationResult,
+} from '../internal/model-store';
+
 export const wakeWordStates = [
   'idle',
   'initializing',
@@ -306,6 +312,24 @@ export interface WakeWordSubscription {
 export type AudioRoute = 'default' | 'speaker' | 'earpiece' | 'bluetooth';
 
 export interface VoiceActivatorApi {
+  /**
+   * Download the wake word models if they are not already present.
+   *
+   * The models are not shipped in the npm package. Call this once — typically
+   * behind your own "set up voice" affordance — before `initialize()`. It is
+   * idempotent, so calling it on every launch costs only a checksum check once
+   * the bundle is complete.
+   *
+   * `initialize()` rejects with a non-recoverable `models_not_prepared` error if
+   * the models are absent, rather than downloading them implicitly: a
+   * multi-megabyte network transfer should be something the app chooses and can
+   * show progress for.
+   */
+  prepareModels(
+    options?: ModelPreparationOptions
+  ): Promise<ModelPreparationResult>;
+  /** Whether the model bundle is present and passes verification. */
+  getModelStatus(): Promise<ModelBundleStatus>;
   initialize(options?: WakeWordInitializationOptions): Promise<void>;
   startDetection(): Promise<void>;
   stopDetection(): Promise<void>;
@@ -321,6 +345,15 @@ export interface VoiceActivatorApi {
   importEnrollment(data: EnrollmentData): Promise<void>;
   clearEnrollment(): Promise<void>;
 }
+
+export type {
+  ModelBundleManifest,
+  ModelBundleStatus,
+  ModelFileSpec,
+  ModelPreparationOptions,
+  ModelPreparationProgress,
+  ModelPreparationResult,
+} from '../internal/model-store';
 
 // ─── Voice Session Types ─────────────────────────────────────────────────────
 

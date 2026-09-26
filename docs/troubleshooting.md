@@ -64,6 +64,28 @@ If you see these codes with a provider you believe is healthy, raise the bound
 before assuming a bug: on-device transcription of a long utterance on an older
 device legitimately takes seconds.
 
+## `models_not_prepared`
+
+`initialize()` rejects with this when the on-demand model bundle is absent or
+fails verification. It is a `configuration` error and **not recoverable**:
+retrying `initialize()` with the same options cannot succeed.
+
+```typescript
+const status = await getModelStatus();
+// status.missing lists the manifest-relative paths that are absent or corrupt
+if (!status.ready) await prepareModels();
+```
+
+Common causes:
+
+- `prepareModels()` was never called
+- the device was offline the first time it ran, so the download never completed
+- the app was reinstalled, or iOS reclaimed the storage — call `prepareModels()`
+  again, it re-fetches only what is missing
+- `react-native-fs` is not installed; it is required for the download. Either
+  install it, or ship the models in your app and pass
+  `engineConfig.assetKeys.modelAssetKey`
+
 ## Is This Error Worth Retrying?
 
 Every error carries `recoverable`. It answers one question: will the same call
@@ -72,7 +94,7 @@ with the same options possibly succeed?
 | `recoverable` | Meaning | Examples |
 |---|---|---|
 | `true` | Retry may work | `stt_timeout`, `tts_timeout`, `stt_transcribe_failed`, most `permission` and `lifecycle` errors |
-| `false` | Retry cannot work — change something first | any `configuration` error, and `runtime_unavailable` |
+| `false` | Retry cannot work — change something first | any `configuration` error (including `models_not_prepared`), and `runtime_unavailable` |
 
 `runtime_unavailable` (category `platform`) means the native module is absent
 from the build. No amount of retrying helps; rebuild with `pod install` or

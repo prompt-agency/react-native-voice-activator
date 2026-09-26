@@ -79,7 +79,32 @@ cd ios && pod install
 
 Android microphone permission is requested at runtime in the Step 4 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
 
-## Step 4 — Your First Detection
+## Step 4 — Download the Models
+
+The ONNX models are not shipped in the npm package; they are downloaded once
+(~7.8 MB) into your app's own storage and verified against a pinned SHA-256
+manifest.
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+if (!(await getModelStatus()).ready) {
+  await prepareModels({
+    onProgress: ({ percent }) => console.log(`Models ${percent}%`),
+  });
+}
+```
+
+`prepareModels()` is idempotent, so calling it on every launch is fine — once the
+bundle is complete it only re-verifies checksums.
+
+`initialize()` deliberately does **not** download for you. With the models absent
+it rejects with a non-recoverable `models_not_prepared` error, so a large network
+transfer is always something your app chose. To skip the download entirely, ship
+a model bundle in your app and pass
+`engineConfig.assetKeys.modelAssetKey` instead.
+
+## Step 5 — Your First Detection
 
 Copy this into your app and run it. Say **"Hello World"** — you should see the detection event in your console.
 

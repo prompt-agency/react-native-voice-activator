@@ -107,6 +107,25 @@ Native Interface    NativeVoiceActivator.ts  TurboModule codegen spec (RN Codege
 ### Key Types
 
 ```typescript
+// Models are downloaded on demand; call this once before initialize().
+prepareModels(options?: ModelPreparationOptions): Promise<ModelPreparationResult>
+getModelStatus(): Promise<ModelBundleStatus>
+
+ModelPreparationOptions {
+  baseUrl?: string            // defaults to this package's GitHub release
+  flatAssets?: boolean        // default true (flattened release asset names)
+  force?: boolean             // re-download even if already valid
+  onProgress?: (p: ModelPreparationProgress) => void
+}
+
+ModelBundleStatus {
+  ready: boolean
+  directory: string
+  bundleVersion: string
+  missing: string[]           // manifest-relative paths absent or unverified
+  bytesTotal: number
+}
+
 // initialize() options
 WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration
@@ -373,6 +392,7 @@ async function deleteEnrollment(userId: string) {
 | `configuration` | Invalid or missing initialization options | Review `WakeWordInitializationOptions` -- both `sttProvider` and `ttsProvider` are required for sessions |
 | `engine` | Native engine failed to load or crashed | Check that model assets are bundled correctly; see [Getting Started](getting-started.md) |
 | `platform` | OS-level constraint (background mode, foreground service), or the native module is absent (`runtime_unavailable`, not recoverable) | See [Background Behavior](background-behavior.md) |
+| `configuration` / `models_not_prepared` | The on-demand model bundle is absent or unverified (not recoverable) | Call `prepareModels()`, or pass `engineConfig.assetKeys.modelAssetKey` |
 | `internal` | Unexpected runtime error | File a bug; include `getStatus().lastError.message` |
 
 All errors carry `recoverable: boolean`, answering only: can the same call with the same options succeed?

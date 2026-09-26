@@ -19,6 +19,7 @@ No cloud required for wake word detection. Speech-to-text and text-to-speech run
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quickstart](#quickstart)
+- [Models Are Downloaded On Demand](#models-are-downloaded-on-demand)
 - [Conversation Session](#conversation-session)
 - [Built-In Wake Words](#built-in-wake-words)
 - [Optional: Speech-to-Text](#optional-speech-to-text)
@@ -126,6 +127,8 @@ This validates the wake word runtime without STT or TTS. Say **"Hello World"** �
 
 ```typescript
 import {
+  prepareModels,
+  getModelStatus,
   initialize,
   startDetection,
   stopDetection,
@@ -140,6 +143,14 @@ async function runQuickstart() {
   if (status.state === 'unsupported') {
     console.log('Wake word not available:', status.reason);
     return;
+  }
+
+  // One-time, ~7.8 MB download. Idempotent, so it is safe to call on every
+  // launch — once the models are present it only re-verifies checksums.
+  if (!(await getModelStatus()).ready) {
+    await prepareModels({
+      onProgress: ({ percent }) => console.log(`Models ${percent}%`),
+    });
   }
 
   const onDetected = addWakeWordListener('wakeWordDetected', (event) => {
@@ -161,6 +172,64 @@ async function runQuickstart() {
   }
 }
 ```
+
+## Models Are Downloaded On Demand
+
+The ONNX models are **not** in the npm package. They are downloaded once, verified against a pinned SHA-256 manifest, and stored in your app's own directory.
+
+That keeps the package at ~220 kB instead of ~42 MB, and keeps ~7.8 MB out of every shipped app binary — including for apps that never turn detection on.
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+const status = await getModelStatus();
+// { ready: false, missing: [...], directory: '/…/voice-activator/models/1', bytesTotal: 7829... }
+
+if (!status.ready) {
+  await prepareModels({
+    onProgress: ({ percent, file, fileIndex, fileCount }) => {
+      console.log(`${percent}% — ${file} (${fileIndex}/${fileCount})`);
+    },
+  });
+}
+```
+
+**`initialize()` does not download for you.** If the models are absent it rejects with a non-recoverable `models_not_prepared` error naming `prepareModels()`. A multi-megabyte transfer should be something your app chooses, schedules and can show progress for — not a side effect of a lifecycle call.
+
+| | |
+|---|---|
+| Size | ~7.8 MB across 16 files |
+| Stored in | iOS `Library/voice-activator/models/<v>`, Android `files/voice-activator/models/<v>` |
+| Integrity | every file SHA-256 verified before use; a mismatch is refused, not used |
+| Interrupted download | written to a `.part` file and moved into place, so a truncated file is never trusted |
+| Repeat calls | idempotent — only missing or corrupt files are re-fetched |
+
+### Self-hosting the models
+
+`prepareModels()` defaults to this package's GitHub release. To serve them yourself and drop the runtime dependency on GitHub:
+
+```typescript
+// Mirror of the release assets, flattened names (foo__bar__baz.onnx)
+await prepareModels({ baseUrl: 'https://cdn.example.com/voice-models' });
+
+// Or a mirror of the original directory tree
+await prepareModels({
+  baseUrl: 'https://cdn.example.com/voice-models',
+  flatAssets: false,
+});
+```
+
+### Shipping the models inside your app instead
+
+If you would rather have no runtime download at all, place a model bundle in your app and point at it. `prepareModels()` is then unnecessary:
+
+```typescript
+await initialize({
+  engineConfig: { assetKeys: { modelAssetKey: 'my-models' } },
+});
+```
+
+On Android that is a path relative to `android/app/src/main/assets/`, or an absolute filesystem path. On iOS it is a bundle-relative directory or an absolute path.
 
 ## Conversation Session
 

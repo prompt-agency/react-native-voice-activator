@@ -61,6 +61,27 @@ match the manifests is unusable**: `pod install` fails closed on iOS and the
 Gradle build fails closed on Android, rather than linking an unverified binary.
 Verify the release assets resolve before announcing a version.
 
+### Model assets
+
+The ONNX models are not in the npm tarball either. They are uploaded as release
+assets under flattened names (GitHub asset names cannot contain slashes) and
+downloaded once at runtime by `prepareModels()`, verified against
+`src/internal/model-manifest.json`.
+
+Release order:
+
+1. `yarn generate:model-manifest` — rewrites the manifest from the files on disk
+2. commit `src/internal/model-manifest.json`
+3. release; `release-it`'s `before:init` hook runs `scripts/package-models.mjs`,
+   which stages `dist-models/` and fails if any file is missing or disagrees with
+   the committed manifest
+4. every file in `dist-models/` is uploaded as a `v<version>` release asset
+
+**A published version whose model assets are missing is unusable**:
+`prepareModels()` fails, and `initialize()` then rejects with
+`models_not_prepared`. Consumers can work around it with a `baseUrl` pointing at
+their own mirror, but do not rely on that.
+
 ### Air-gapped and offline builds
 
 Neither platform can fetch its binary without network access. Supply the files

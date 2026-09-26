@@ -168,6 +168,9 @@ Always call `initialize()` before `startDetection()`. Do not call `startDetectio
   SHA-256, and cached in `node_modules/react-native-voice-activator/android/libs/`.
   Subsequent builds reuse it. On a machine without network access, pass
   `-PVoiceActivator_sherpaAarPath=/path/to/the.aar`.
+- **The ONNX models are downloaded at runtime, not at build time.** Call
+  `prepareModels()` once before `initialize()`; see
+  [Models Are Downloaded On Demand](../README.md#models-are-downloaded-on-demand).
 - If `@fugood/react-native-audio-pcm-stream` is not found, install it: `yarn add @fugood/react-native-audio-pcm-stream`.
 
 For a complete error category reference, see [docs/troubleshooting.md](troubleshooting.md).
