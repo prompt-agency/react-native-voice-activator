@@ -6,7 +6,7 @@
 
 On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase — the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
 
-No cloud required for wake word detection. Speech-to-text and text-to-speech run on-device through opt-in providers.
+No cloud, no API key, no per-use cost. Detection runs entirely on-device; the models are downloaded once (~7.8 MB) on first setup, after which nothing leaves the device. Speech-to-text and text-to-speech also run on-device through opt-in providers.
 
 > **Supports:** React Native `0.83+` · Expo SDK `55+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
@@ -42,7 +42,7 @@ flowchart LR
     E -->|manual| F["Wait for\nlisten()"]
 ```
 
-- **Wake word detection** — on-device, no cloud, no API key. real engine-backed local wake word detection is implemented through the built-in native-managed engine path (Sherpa-ONNX with bundled models).
+- **Wake word detection** — on-device, no cloud, no API key. Real engine-backed local detection through the built-in native-managed engine path (Sherpa-ONNX). Models are [downloaded once on demand](#models-are-downloaded-on-demand), then everything runs locally.
 - **Managed conversation sessions** — the package drives the full wake → listen → AI → speak → re-listen loop.
 - **Barge-in** — say the wake word while the AI is speaking to interrupt TTS and start a new turn. (Interruption latency is not yet measured on physical devices; see [Reliability Validation](docs/reliability-validation.md).)
 - **React hooks** — `useWakeWord()` and `useVoiceSession()` for reactive component updates.
@@ -526,7 +526,7 @@ async function handleAccountDeletion(userId: string) {
 
 ## Built-In Model Configuration
 
-The bundled Sherpa-ONNX model defaults are resolved internally. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Built-In Wake Words](#built-in-wake-words) for the full keyword list.
+The Sherpa-ONNX model defaults are resolved internally, from the on-demand bundle unless you override the root. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Built-In Wake Words](#built-in-wake-words) for the full keyword list.
 
 ## Example App and Reliability
 

@@ -18,7 +18,7 @@ hero:
 
 features:
   - title: On-device wake word detection
-    details: No cloud, no API key. Engine-backed local wake word detection via a native-managed engine (Sherpa-ONNX with bundled models).
+    details: No cloud, no API key. Engine-backed local wake word detection via a native-managed engine (Sherpa-ONNX). Models download once, then run locally.
   - title: Managed conversation sessions
     details: The package drives the full wake, listen, AI, speak, re-listen loop for you.
   - title: Barge-in

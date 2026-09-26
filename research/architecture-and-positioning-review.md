@@ -107,9 +107,13 @@ Branch `fix/pre-publish-hardening`, 2026-09-25. Full gate green throughout: 39 s
 | D9 concurrent `initialize()` orphaning handles | Fixed via an init token. 2 regression tests. |
 | D9 global event buses not exception-safe | Fixed. 4 regression tests. |
 | D10 14 MB dead weight | Was not a real finding — see the correction below. |
+| D10 tarball size / distribution | **Fixed. 41.7 MB → 220 kB.** Android AAR moved to a checksum-verified build-time Gradle fetch (28 MB); ONNX models moved to a checksum-verified on-demand runtime download (15.7 MB). Both platforms now consistent, and ~7.8 MB comes off every shipped app binary too. |
+| D1 session path unbounded | **Fixed** — the original D1 fix only covered the single-shot path; the session's transcribe/aiHandler/speak were still unbounded. |
 | Jest resolving from the in-repo worktree | Fixed. Was masking the suite as 40 failing suites out of 104. |
 
 Not yet addressed: D8 (no measured FA/hr for zero-shot phrases — needs devices), the `wakePhrase` API, the hook snapshot reset on remount, Android STT being blocked by `@fugood/react-native-audio-pcm-stream` needing the old architecture, and the native-layer audit.
+
+Note that the on-demand model work made Android's `SherpaOnnxAssetLoader` accept absolute filesystem paths, which it previously rejected outright. That removes the main obstacle to the `wakePhrase` API: a generated `keywords.txt` can now be written to app storage and passed as an absolute `keywordAssetKey` on both platforms.
 
 A pattern worth recording: three separate contract checks were **enforcing** false claims — the STT/TTS ownership framing in both the README and getting-started, and a claim that `getStatus()` returns an event history it has never carried. Each had to be updated before the docs could be corrected. Tests derived from a design cannot find errors in that design.
 
