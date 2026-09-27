@@ -9,6 +9,7 @@
 
 import {
   buildKeywordsFileContents,
+  validateWakePhrase,
   normalizeWakePhrase,
   normalizeWakePhrases,
   WakePhraseError,
@@ -134,5 +135,38 @@ describe('the generated keywords file', () => {
     const name = wakePhraseFileName(["WHAT'S UP THERE"]);
     expect(name).toMatch(/^[a-z0-9-]+\.txt$/);
     expect(name).not.toContain("'");
+  });
+});
+
+describe('validateWakePhrase (non-throwing, for UI feedback)', () => {
+  it('accepts a good phrase and returns the normalized form', () => {
+    expect(validateWakePhrase('  hey   Acme ')).toEqual({
+      valid: true,
+      normalized: 'HEY ACME',
+      problems: [],
+    });
+  });
+
+  it('reports problems instead of throwing', () => {
+    const result = validateWakePhrase('hey acme 2');
+
+    expect(result.valid).toBe(false);
+    expect(result.normalized).toBeNull();
+    expect(result.problems).toHaveLength(1);
+    expect(result.problems[0]).toMatch(/spell them out/);
+  });
+
+  it('reports a reason for an empty phrase rather than an empty problem list', () => {
+    const result = validateWakePhrase('   ');
+
+    expect(result.valid).toBe(false);
+    // An empty problems array would render as "invalid, but no reason given".
+    expect(result.problems.length).toBeGreaterThan(0);
+  });
+
+  it('agrees with what initialize() would accept', () => {
+    // The two must not drift: this delegates to the same normalizer.
+    expect(validateWakePhrase('ok acme').valid).toBe(true);
+    expect(validateWakePhrase('go').valid).toBe(false);
   });
 });

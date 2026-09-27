@@ -143,6 +143,40 @@ export function normalizeWakePhrases(
   return normalized;
 }
 
+export interface WakePhraseValidation {
+  valid: boolean;
+  /** Uppercased, whitespace-collapsed form that would be written to disk. */
+  normalized: string | null;
+  /** Human-readable reasons, empty when valid. */
+  problems: string[];
+}
+
+/**
+ * Validate a phrase without throwing, for live feedback in a settings UI.
+ *
+ * `initialize({ wakePhrase })` rejects on an invalid phrase, which is the right
+ * behaviour for a programming error but a poor way to drive a text field — an app
+ * letting a user choose their own wake word needs to say "too short" as they type,
+ * not after a failed initialize.
+ */
+export function validateWakePhrase(phrase: string): WakePhraseValidation {
+  try {
+    const [normalized] = normalizeWakePhrases(phrase);
+    return { valid: true, normalized: normalized ?? null, problems: [] };
+  } catch (cause) {
+    if (cause instanceof WakePhraseError) {
+      return {
+        valid: false,
+        normalized: null,
+        problems: cause.issues.length
+          ? cause.issues.map((issue) => issue.reason)
+          : [cause.message],
+      };
+    }
+    throw cause;
+  }
+}
+
 /**
  * Body of the keywords file sherpa-onnx reads: one phrase per line.
  *

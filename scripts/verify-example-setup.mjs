@@ -73,6 +73,12 @@ if (!existsSync(wakeWordScreenPath)) {
     'ensureModelsReady',
     'sttProvider',
     'autoSpeak: true',
+    // The differentiator has to be visible in the showcase app, not just the
+    // README: an arbitrary phrase with no training is the reason to pick this
+    // package over the alternatives.
+    'wakePhrase',
+    'validateWakePhrase',
+    'Any phrase you like',
     'engineConfig',
     'keywordAssetKey',
     'Bundled keyword presets',

@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import {
@@ -15,6 +16,7 @@ import {
   initialize,
   startDetection,
   stopDetection,
+  validateWakePhrase,
   type WakeWordDetectedEvent,
   type WakeWordError,
   type WakeWordStatus,
@@ -49,6 +51,71 @@ const KEYWORD_PRESETS = [
   { id: 'merry-christmas', label: 'MERRY CHRISTMAS', keywordAssetKey: 'keywords-merry-christmas.txt', phrases: 'MERRY CHRISTMAS' },
 ];
 
+/**
+ * The upstream Sherpa-ONNX demo keywords.
+ *
+ * Kept for smoke-testing — "Hello World" is unambiguous — but not what an app
+ * ships: several are trademarked phrases and none is a product's own name. The
+ * custom-phrase tab is the one that matters.
+ */
+function PresetPicker({
+  selectedPresetId,
+  onSelect,
+  selectedPreset,
+  activePresetId,
+  needsReinit,
+  state,
+}: {
+  selectedPresetId: string;
+  onSelect: (id: string) => void;
+  selectedPreset: (typeof KEYWORD_PRESETS)[number];
+  activePresetId: string | null;
+  needsReinit: boolean;
+  state: string;
+}) {
+  return (
+    <>
+      <Text style={s.hint}>
+        Bundled keyword presets · Keyword detection status: {state}
+        {needsReinit ? ' · Re-initialize to apply new preset' : ''}
+      </Text>
+      <Text style={s.hint}>
+        Pre-tokenized upstream demo keywords. Useful for a first smoke test, not
+        for shipping.
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll}>
+        {KEYWORD_PRESETS.map((preset) => {
+          const active = selectedPresetId === preset.id;
+          return (
+            <Pressable
+              key={preset.id}
+              style={[s.chip, active && s.chipActive]}
+              onPress={() => onSelect(preset.id)}
+            >
+              <Text style={[s.chipText, active && s.chipTextActive]}>
+                {preset.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <Text style={s.hint}>Phrases: {selectedPreset.phrases}</Text>
+      <Text style={s.hint}>Asset key: {selectedPreset.keywordAssetKey}</Text>
+      {activePresetId ? (
+        <Text style={s.hint}>
+          Active preset:{' '}
+          {KEYWORD_PRESETS.find((p) => p.id === activePresetId)?.label ?? activePresetId}
+        </Text>
+      ) : null}
+      {needsReinit ? (
+        <Text style={s.warn}>
+          Keyword selection changed. Run Initialize again before Start detection.
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
 let seq = 0;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -57,13 +124,27 @@ export function WakeWordScreen() {
   const [status, setStatus] = useState<WakeWordStatus>(() => getStatus());
   const [selectedPresetId, setSelectedPresetId] = useState('all');
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  // Custom phrase is the default mode: it is what the package is for, and the
+  // bundled presets are upstream demo keywords nobody ships.
+  const [useCustomPhrase, setUseCustomPhrase] = useState(true);
+  const [phraseInput, setPhraseInput] = useState('hey acme');
+  const [activePhrase, setActivePhrase] = useState<string | null>(null);
   const [lastDetection, setLastDetection] = useState<WakeWordDetectedEvent | null>(null);
   const [lastError, setLastError] = useState<WakeWordError | null>(null);
   const [events, setEvents] = useState<EventEntry[]>([]);
   const [progressText, setProgressText] = useState('');
 
   const selectedPreset = KEYWORD_PRESETS.find((p) => p.id === selectedPresetId) ?? KEYWORD_PRESETS[0]!;
-  const needsReinit = activePresetId !== null && activePresetId !== selectedPresetId;
+  const phraseCheck = validateWakePhrase(phraseInput);
+
+  // What is configured versus what is running, so the screen can say when a
+  // re-initialize is needed rather than silently detecting the old phrase.
+  const activeSelection = useCustomPhrase
+    ? phraseCheck.normalized
+    : selectedPreset.keywordAssetKey;
+  const runningSelection = activePhrase ?? activePresetId;
+  const needsReinit =
+    runningSelection !== null && runningSelection !== activeSelection;
 
   function syncDiagnosticsFromStatus(s?: WakeWordStatus) {
     const next = s ?? getStatus();
@@ -130,9 +211,16 @@ export function WakeWordScreen() {
       );
       setProgressText('');
       await initialize({
-        engineConfig: {
-          assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
-        },
+        // wakePhrase and keywordAssetKey are mutually exclusive: one generates a
+        // plain-text keywords file the native side tokenizes, the other selects a
+        // pre-tokenized one.
+        ...(useCustomPhrase
+          ? { wakePhrase: phraseInput }
+          : {
+              engineConfig: {
+                assetKeys: { keywordAssetKey: selectedPreset.keywordAssetKey },
+              },
+            }),
         sttProvider,
         // Only wire speaker verification if the model is already on disk;
         // enrollment is what downloads it.
@@ -143,10 +231,21 @@ export function WakeWordScreen() {
       });
       if (speakerModelPath) markSpeakerRuntimeReady();
       else markSpeakerRuntimeDisposed();
-      setActivePresetId(selectedPresetId);
+      if (useCustomPhrase) {
+        setActivePhrase(phraseCheck.normalized);
+        setActivePresetId(null);
+      } else {
+        setActivePresetId(selectedPresetId);
+        setActivePhrase(null);
+      }
       setProgressText('');
       setLastDetection(null);
-      pushEvent('initialize', selectedPreset.label);
+      pushEvent(
+        'initialize',
+        useCustomPhrase
+          ? `wakePhrase "${phraseCheck.normalized}"`
+          : selectedPreset.label
+      );
       syncDiagnosticsFromStatus();
     } catch {
       syncDiagnosticsFromStatus();
@@ -169,6 +268,7 @@ export function WakeWordScreen() {
       markSpeakerRuntimeDisposed();
       setLastDetection(null);
       setActivePresetId(null);
+      setActivePhrase(null);
       setProgressText('');
       syncDiagnosticsFromStatus();
       pushEvent('dispose', 'runtime torn down');
@@ -182,9 +282,9 @@ export function WakeWordScreen() {
       <View style={s.hero}>
         <Text style={s.heroTitle}>② Wake Word</Text>
         <Text style={s.heroSub}>
-          The engine listens continuously in the background for a trigger phrase.
-          When detected, your app wakes up — no cloud, no streaming audio.
-          Pick a keyword below, initialize, and say it aloud.
+          Type any phrase you like — no training, no cloud, no API key. The engine
+          listens continuously on device and wakes your app when it hears it.
+          Initialize, then say it aloud.
         </Text>
         <View style={s.pillRow}>
           <StatusPill label={status.state} active={status.isListening} />
@@ -203,45 +303,100 @@ export function WakeWordScreen() {
 
       {progressText ? <Text style={s.progress}>{progressText}</Text> : null}
 
-      {/* Bundled keyword presets */}
-      <SectionCard title="Bundled keyword presets">
-        <Text style={s.hint}>
-          Keyword detection status: {status.state}
-          {needsReinit ? ' · Re-initialize to apply new preset' : ''}
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll}>
-          {KEYWORD_PRESETS.map((preset) => {
-            const active = selectedPresetId === preset.id;
-            return (
-              <Pressable
-                key={preset.id}
-                style={[s.chip, active && s.chipActive]}
-                onPress={() => setSelectedPresetId(preset.id)}
-              >
-                <Text style={[s.chipText, active && s.chipTextActive]}>
-                  {preset.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <Text style={s.hint}>Phrases: {selectedPreset.phrases}</Text>
-        <Text style={s.hint}>Asset key: {selectedPreset.keywordAssetKey}</Text>
-        {activePresetId && (
-          <Text style={s.hint}>
-            Active preset: {KEYWORD_PRESETS.find((p) => p.id === activePresetId)?.label ?? activePresetId}
-          </Text>
-        )}
-        {needsReinit && (
-          <Text style={s.warn}>
-            Keyword selection changed. Run Initialize again before Start detection.
-          </Text>
+      {/* Mode switch */}
+      <SectionCard title="Wake phrase">
+        <View style={s.modeRow}>
+          <Pressable
+            style={[s.modeTab, useCustomPhrase && s.modeTabActive]}
+            onPress={() => setUseCustomPhrase(true)}
+          >
+            <Text style={[s.modeTabText, useCustomPhrase && s.modeTabTextActive]}>
+              Any phrase you like
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[s.modeTab, !useCustomPhrase && s.modeTabActive]}
+            onPress={() => setUseCustomPhrase(false)}
+          >
+            <Text style={[s.modeTabText, !useCustomPhrase && s.modeTabTextActive]}>
+              Bundled presets
+            </Text>
+          </Pressable>
+        </View>
+
+        {useCustomPhrase ? (
+          <>
+            <Text style={s.hint}>
+              No training, no GPU, no console, no API key. The phrase is tokenized
+              on device using the bpe.model in the bundle, so anything you type
+              here works.
+            </Text>
+            <TextInput
+              value={phraseInput}
+              onChangeText={setPhraseInput}
+              placeholder="hey acme"
+              placeholderTextColor={C.helper}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[s.input, !phraseCheck.valid && s.inputInvalid]}
+            />
+            {phraseCheck.valid ? (
+              <Text style={s.hint}>
+                Will listen for: {phraseCheck.normalized}
+              </Text>
+            ) : (
+              <View style={s.warnBox}>
+                {phraseCheck.problems.map((problem) => (
+                  <Text key={problem} style={s.warnText}>
+                    {problem}
+                  </Text>
+                ))}
+              </View>
+            )}
+            <Text style={s.hint}>
+              Two or more distinct words work far better than one short word: a
+              short trigger fires on ordinary speech.
+            </Text>
+            <View style={s.chipRow}>
+              {['hey acme', 'ok computer', 'hello assistant'].map((suggestion) => (
+                <Pressable
+                  key={suggestion}
+                  style={s.chip}
+                  onPress={() => setPhraseInput(suggestion)}
+                >
+                  <Text style={s.chipText}>{suggestion}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {activePhrase ? (
+              <Text style={s.hint}>Active phrase: {activePhrase}</Text>
+            ) : null}
+            {needsReinit ? (
+              <Text style={s.warn}>
+                Keyword selection changed. Run Initialize again before Start detection.
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <PresetPicker
+            selectedPresetId={selectedPresetId}
+            onSelect={setSelectedPresetId}
+            selectedPreset={selectedPreset}
+            activePresetId={activePresetId}
+            needsReinit={needsReinit}
+            state={status.state}
+          />
         )}
       </SectionCard>
 
       {/* Controls */}
       <SectionCard title="Controls">
-        <Btn label="Initialize" onPress={handleInitialize} tone="primary" />
+        <Btn
+          label="Initialize"
+          onPress={handleInitialize}
+          tone="primary"
+          disabled={useCustomPhrase && !phraseCheck.valid}
+        />
         <Btn label="Start detection" onPress={handleStart} disabled={!status.canStart} />
         <Btn label="Stop detection" onPress={handleStop} disabled={!status.isListening} tone="quiet" />
         <Btn label="Dispose" onPress={handleDispose} tone="danger" />
@@ -332,4 +487,38 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 13, fontWeight: '600', color: C.meta },
   chipTextActive: { color: C.primaryText },
+  modeRow: { flexDirection: 'row', gap: 8 },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    backgroundColor: C.tileBg,
+    alignItems: 'center',
+  },
+  modeTabActive: { backgroundColor: C.primary, borderColor: C.primary },
+  modeTabText: { fontSize: 13, fontWeight: '600', color: C.secondaryText },
+  modeTabTextActive: { color: C.primaryText },
+  input: {
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: C.heading,
+    backgroundColor: C.card,
+  },
+  inputInvalid: { borderColor: C.dangerBorder, backgroundColor: C.dangerBg },
+  warnText: { fontSize: 13, color: C.warnText, lineHeight: 18 },
+  warnBox: {
+    backgroundColor: C.warnBg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.warnBorder,
+    padding: 10,
+    gap: 4,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
 });

@@ -17,6 +17,12 @@ export {
 } from './public/voice-activator';
 export { addSessionListener } from './internal/session-events';
 /**
+ * Non-throwing wake-phrase validation, for apps that let a user choose their own
+ * trigger phrase and need feedback as they type.
+ */
+export { validateWakePhrase } from './internal/wake-phrase';
+export type { WakePhraseValidation } from './internal/wake-phrase';
+/**
  * Accuracy measurement. Exported because the numbers that decide whether a wake
  * phrase is usable — detection rate and false accepts per hour — can only be
  * produced against your own corpus, in your own acoustic conditions.
