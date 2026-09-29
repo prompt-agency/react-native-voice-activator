@@ -249,16 +249,30 @@ Real engine-backed local wake word detection runs through the built-in native-ma
 
 The supported public override points are `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file):
 
+`modelAssetKey` is used verbatim, and the bundled model lives at a different
+root on each platform, so the value is platform specific. Each loader falls
+back to its own default only when the key is omitted entirely:
+
 ```typescript
+import { Platform } from 'react-native';
+
+const BUNDLED_MODEL_ASSET_KEY =
+  Platform.OS === 'android'
+    ? 'voice-activator-sherpa-onnx/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'
+    : 'SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
+
 await initialize({
   engineConfig: {
     assetKeys: {
-      modelAssetKey: 'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01',
+      modelAssetKey: BUNDLED_MODEL_ASSET_KEY,
       keywordAssetKey: 'keywords-hello-world.txt',
     },
   },
 });
 ```
+
+Passing a root that is right for one platform and wrong for the other fails on
+Android with `Missing bundled Sherpa-ONNX asset for encoder in model root`.
 
 Bundled keyword files include `HELLO WORLD`, `MERRY CHRISTMAS`, and more — see [Built-In Wake Words](../README.md#built-in-wake-words).
 

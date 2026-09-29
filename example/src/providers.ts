@@ -36,8 +36,27 @@ const DEFAULT_KEYWORD_ASSET = 'keywords.txt';
  * `modelAssetKey` when `wakePhrase` is set, because it writes the generated
  * keywords file next to the model bundle.
  */
-export const BUNDLED_MODEL_ASSET_KEY =
+/**
+ * The bundled model root differs per platform, and the key is used verbatim:
+ * each loader only falls back to its own default when modelAssetKey is absent,
+ * so a key that is right for one platform is wrong for the other.
+ *
+ *   Android: AssetManager key under the library's asset namespace, matching
+ *            SherpaOnnxAssetLoader.DEFAULT_MODEL_ROOT.
+ *   iOS:     bundle-relative path matching SherpaOnnxAssetLoader's kAssetRoot.
+ *
+ * iOS happens to tolerate a wrong root today, because the podspec also copies
+ * these files flat into the bundle and the loader falls back to searching by
+ * filename. Do not rely on that; Android has no such fallback and fails with
+ * "Missing bundled Sherpa-ONNX asset for encoder in model root".
+ */
+const SHERPA_KWS_MODEL_DIR =
   'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
+
+export const BUNDLED_MODEL_ASSET_KEY =
+  Platform.OS === 'android'
+    ? `voice-activator-sherpa-onnx/${SHERPA_KWS_MODEL_DIR}`
+    : `SherpaOnnxKws/${SHERPA_KWS_MODEL_DIR}`;
 
 // ─── Speaker model download ───────────────────────────────────────────────────
 
