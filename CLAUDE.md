@@ -78,6 +78,12 @@ Expo Plugin (src/expo/)
 
 **Vendor type shims**: `src/vendor-types/` contains hand-written type definitions for optional peers (e.g. `whisper.rn`, `onnxruntime-react-native`) so the library typechecks when those packages are not installed.
 
+**Nitro version pin**: `react-native-nitro-modules` is pinned to exactly
+`0.31.10`, not a range. `react-native-audio-recorder-player@4.5.0` ships
+pre-generated Nitrogen output built against nitro `^0.29.2`; against nitro
+0.37.1 it fails to compile with `Unresolved reference 'updateNative'`. Do not
+widen this pin without rebuilding the example app on Android.
+
 ### Provider Interface Contracts
 
 ```typescript
@@ -102,7 +108,7 @@ Errors are typed into categories: `permission`, `lifecycle`, `configuration`, `e
 
 ### Testing
 
-Tests use `react-native` Jest preset. Native module and optional peers are mocked via `moduleNameMapper` and file-local `jest.mock`. Run a single test file:
+Tests use the `@react-native/jest-preset` Jest preset. Native module and optional peers are mocked via `moduleNameMapper` and file-local `jest.mock`. Run a single test file:
 
 ```bash
 yarn test --testPathPattern=whisper-rn-stt-adapter

@@ -14,17 +14,17 @@
   },
   "dependencies": {
     "@fugood/react-native-audio-pcm-stream": "^1.1.4",
-    "@react-native/new-app-screen": "0.83.2",
-    "expo": "^55.0.0",
-    "expo-dev-client": "~55.0.11",
-    "expo-speech": "^55.0.8",
+    "@react-native/new-app-screen": "0.86.3",
+    "expo": "^57.0.0",
+    "expo-dev-client": "~57.0.19",
+    "expo-speech": "~57.0.3",
     "onnxruntime-react-native": "^1.24.3",
-    "react": "19.2.0",
-    "react-native": "0.83.2",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
     "react-native-audio-recorder-player": "^3.6.0",
     "react-native-fs": "^2.20.0",
-    "react-native-nitro-modules": "^0.31.3",
-    "react-native-safe-area-context": "^5.5.2",
+    "react-native-nitro-modules": "0.31.10",
+    "react-native-safe-area-context": "~5.7.0",
     "react-native-voice-activator": "portal:..",
     "whisper.rn": "^0.5.0"
   },
@@ -32,18 +32,18 @@
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
-    "@react-native-community/cli": "20.0.0",
-    "@react-native-community/cli-platform-android": "20.0.0",
-    "@react-native-community/cli-platform-ios": "20.0.0",
-    "@react-native/babel-preset": "0.83.2",
-    "@react-native/metro-config": "0.83.2",
-    "@react-native/typescript-config": "0.83.2",
+    "@react-native-community/cli": "20.2.0",
+    "@react-native-community/cli-platform-android": "20.2.0",
+    "@react-native-community/cli-platform-ios": "20.2.0",
+    "@react-native/babel-preset": "0.86.3",
+    "@react-native/metro-config": "0.86.3",
+    "@react-native/typescript-config": "0.86.3",
     "@types/react": "^19.2.0",
     "patch-package": "^8.0.1",
     "react-native-builder-bob": "^0.40.18",
     "react-native-monorepo-config": "^0.1.9"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   }
 }
