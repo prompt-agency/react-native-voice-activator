@@ -82,9 +82,10 @@ Common causes:
 - the device was offline the first time it ran, so the download never completed
 - the app was reinstalled, or iOS reclaimed the storage — call `prepareModels()`
   again, it re-fetches only what is missing
-- `react-native-fs` is not installed; it is required for the download. Either
-  install it, or ship the models in your app and pass
-  `engineConfig.assetKeys.modelAssetKey`
+- `@dr.pogodin/react-native-fs` is not installed; it is required for the
+  download. Either install it, or ship the models in your app and pass
+  `engineConfig.assetKeys.modelAssetKey` (use the exported
+  `BUNDLED_MODEL_ASSET_KEY` for the bundle the Expo plugin ships)
 
 ## A custom `wakePhrase` never fires
 

@@ -37,19 +37,39 @@ function dirname(path) {
 const SCAN_ROOTS = ['src', 'example/src'];
 const SCAN_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
+// Documentation is scanned too, and with a LOOSER pattern than the code above.
+// A doc does not have to quote the specifier to send a reader to the wrong
+// package: `react-native-fs is not installed; it is required for the download`
+// in troubleshooting.md survived the code-only version of this check and told
+// people to install the package that does not work. Prose is the failure mode
+// here, so the prose is what gets matched.
+const DOC_ROOTS = ['docs', 'README.md'];
+const DOC_EXTENSIONS = new Set(['.md']);
+
+// The one file whose subject IS the legacy package: the upgrade note that tells
+// existing users to migrate off it necessarily names it. Excluded wholesale,
+// because every mention in it is deliberate.
+const DOC_EXCEPTIONS = new Set(['docs/upgrading.md']);
+
 // Matches a quoted `react-native-fs` specifier, with nothing between the
 // quote and the literal text. This is what keeps the scoped
 // `@dr.pogodin/react-native-fs` out of the match set: its quote is followed
 // by `@dr.pogodin/`, not by `react-native-fs` directly.
 const LEGACY_SPECIFIER = /(['"])react-native-fs\1/g;
 
-function walk(dir, files) {
+// The prose form: the bare package name wherever it is NOT the tail of the
+// scoped name. The lookbehind is what distinguishes
+// `@dr.pogodin/react-native-fs` (supported) from `react-native-fs` (legacy),
+// and the trailing boundary keeps it from firing inside longer identifiers.
+const LEGACY_PROSE = /(?<!@dr\.pogodin\/)\breact-native-fs\b/g;
+
+function walk(dir, files, extensions = SCAN_EXTENSIONS) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     const stats = statSync(full);
     if (stats.isDirectory()) {
-      walk(full, files);
-    } else if (SCAN_EXTENSIONS.has(extname(entry))) {
+      walk(full, files, extensions);
+    } else if (extensions.has(extname(entry))) {
       files.push(full);
     }
   }
@@ -98,14 +118,46 @@ for (const root of SCAN_ROOTS) {
   }
 }
 
+for (const root of DOC_ROOTS) {
+  const absoluteRoot = join(repoRoot, root);
+  let rootStats;
+  try {
+    rootStats = statSync(absoluteRoot);
+  } catch {
+    continue;
+  }
+
+  const files = [];
+  if (rootStats.isDirectory()) {
+    walk(absoluteRoot, files, DOC_EXTENSIONS);
+  } else {
+    files.push(absoluteRoot);
+  }
+
+  for (const file of files) {
+    const relativePath = file.slice(repoRoot.length + 1);
+    if (DOC_EXCEPTIONS.has(relativePath)) continue;
+
+    const contents = readFileSync(file, 'utf8');
+    contents.split('\n').forEach((line, index) => {
+      LEGACY_PROSE.lastIndex = 0;
+      if (!LEGACY_PROSE.test(line)) return;
+      violations.push(`${relativePath}:${index + 1}: ${line.trim()}`);
+    });
+  }
+}
+
 if (violations.length > 0) {
   console.error(
     'Found imports of the legacy `react-native-fs` package. This library uses ' +
       '`@dr.pogodin/react-native-fs` instead; the legacy package has no linked ' +
-      'native module and will throw at the first call on device.'
+      'native module and will throw at the first call on device. In docs, the ' +
+      'bare name sends readers to install the wrong package.'
   );
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
 
-console.log('No legacy react-native-fs imports found.');
+console.log(
+  'No legacy react-native-fs imports or documentation references found.'
+);
