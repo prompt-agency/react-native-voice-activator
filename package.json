@@ -18,6 +18,7 @@
     "src",
     "lib",
     "THIRD-PARTY-NOTICES.md",
+    "SECURITY.md",
     "scripts/fetch-silero-vad-model.mjs",
     "android",
     "ios",
@@ -79,6 +80,9 @@
   "author": "Prompt Agency",
   "homepage": "https://github.com/prompt-agency/react-native-voice-activator",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/prompt-agency/react-native-voice-activator.git"
