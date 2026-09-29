@@ -11,10 +11,15 @@ Install the peer dependencies that `WhisperRNSTTAdapter` requires:
 yarn add whisper.rn @dr.pogodin/react-native-fs
 
 # iOS only
-yarn add react-native-audio-recorder-player
+yarn add react-native-audio-recorder-player@^4.0.0 react-native-nitro-modules@0.31.10
 
 # Android only
 ```
+
+`react-native-audio-recorder-player` v4 is a Nitro module and needs `react-native-nitro-modules`.
+Pin it to `0.31.10`: this package requires `>=0.31.3 <0.32.0`, but the recorder's own peer range
+is `*`, so an unpinned install can resolve a newer Nitro (0.32+) that fails to compile against the
+recorder's v4.5.0 pre-generated bindings (`Unresolved reference 'updateNative'`).
 
 ## iOS Setup
 

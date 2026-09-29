@@ -381,8 +381,14 @@ To train a custom wake word, see the [Wake Word Training guide](docs/model-train
 yarn add whisper.rn @dr.pogodin/react-native-fs
 
 # iOS only
-yarn add react-native-audio-recorder-player
+yarn add react-native-audio-recorder-player@^4.0.0 react-native-nitro-modules@0.31.10
 ```
+
+`react-native-audio-recorder-player` v4 is a Nitro module, so it needs `react-native-nitro-modules`
+too. Pin it to `0.31.10`: the recorder's peer range is `*`, but its pre-generated Nitrogen output
+was built against an older Nitro core, and newer Nitro releases (0.32 and above) fail to compile
+it with `Unresolved reference 'updateNative'`. `0.31.10` sits inside this package's own peer range
+(`>=0.31.3 <0.32.0`) and is the version this compatibility window actually works with.
 
 On Android, recording goes through the package's own native capture, so no extra audio module is needed. (It previously used `@fugood/react-native-audio-pcm-stream`, which requires the Old Architecture bridge that RN 0.83+ no longer provides.)
 

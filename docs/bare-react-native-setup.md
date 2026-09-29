@@ -117,7 +117,13 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | `whisper.rn` | `WhisperRNSTTAdapter` |
 | `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
+| `react-native-nitro-modules@0.31.10` | `react-native-audio-recorder-player` (it is a Nitro module) |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
+
+Pin `react-native-nitro-modules` to `0.31.10` specifically. It must satisfy this package's peer
+range `>=0.31.3 <0.32.0`, but the recorder's own peer range is `*`, so a plain install can resolve
+a newer Nitro (0.32+) whose API the recorder's v4.5.0 pre-generated bindings do not compile
+against (`Unresolved reference 'updateNative'`).
 
 See [docs/examples/](examples/) for per-adapter setup guides.
 

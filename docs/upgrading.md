@@ -1,5 +1,9 @@
 # Upgrading
 
+For migrating from the earlier credential-era built-in engine path to the
+current Sherpa-ONNX default engine (API changes, not peer dependency version
+changes), see [Migration](./migration.md) instead.
+
 ## To React Native 0.86 / Expo SDK 57
 
 This release moves the tested baseline to React Native `0.86+` and Expo SDK

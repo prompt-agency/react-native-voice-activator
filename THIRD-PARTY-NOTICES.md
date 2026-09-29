@@ -33,7 +33,7 @@ GitHub release assets, pinned by SHA-256 in
 These are optional peer dependencies or user-supplied assets. They are resolved
 from the consuming application, not shipped here, and carry their own licenses:
 
-- `whisper.rn`, `onnxruntime-react-native`, `react-native-fs`,
+- `whisper.rn`, `onnxruntime-react-native`, `@dr.pogodin/react-native-fs`,
   `react-native-audio-recorder-player`
 - Piper / VITS TTS voices and `espeak-ng-data`, which the application supplies
   itself (see [`docs/android-tts-setup.md`](./docs/android-tts-setup.md)).

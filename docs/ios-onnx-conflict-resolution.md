@@ -107,3 +107,30 @@ as part of `yarn verify:contracts` to keep it that way. Consumers integrating
 `onnxruntime-react-native` alongside this package should no longer need the
 `HEADER_SEARCH_PATHS` / `USE_HEADERMAP` Podfile workaround this section
 previously documented.
+
+#### If you are on an older release
+
+If you cannot yet upgrade to this release and still see
+`onnxruntime_cxx_api.h` resolving to Sherpa's bundled copy (compile errors
+such as "no member named `AddExternalInitializersFromFilesInMemory` in
+`Ort::SessionOptions`"), add this to your `post_install` block:
+
+```ruby
+installer.pods_project.targets.each do |target|
+  next unless target.name == 'onnxruntime-react-native'
+
+  target.build_configurations.each do |config|
+    # $(inherited) MUST be kept: dropping it loses the pod's own xcconfig
+    # paths (React-jsi, ReactCommon, ...) and breaks `jsi/jsi.h` not found.
+    config.build_settings['HEADER_SEARCH_PATHS'] = [
+      "\"${PODS_ROOT}/onnxruntime-c/Headers\"",
+      '$(inherited)',
+    ]
+    # Required as well: CocoaPods' header map would otherwise still
+    # resolve onnxruntime_cxx_api.h back to Sherpa's copy.
+    config.build_settings['USE_HEADERMAP'] = 'NO'
+  end
+end
+```
+
+Upgrading to this release removes the need for this block.

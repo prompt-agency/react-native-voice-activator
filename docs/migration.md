@@ -1,7 +1,9 @@
 # Migration
 
 This guide covers migration from the earlier credential-era built-in engine path
-to the current Sherpa-ONNX default engine.
+to the current Sherpa-ONNX default engine. For upgrading to a newer React
+Native / Expo SDK baseline (peer dependency version changes), see
+[Upgrading](./upgrading.md) instead.
 
 
 ## Custom wake phrases need no training
