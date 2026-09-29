@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as RNFS from '@dr.pogodin/react-native-fs';
 import {
+  BUNDLED_MODEL_ASSET_KEY,
   getModelStatus,
   initialize,
   prepareModels,
@@ -28,33 +29,20 @@ export const speakerVerificationProvider =
 const DEFAULT_KEYWORD_ASSET = 'keywords.txt';
 
 /**
- * The acoustic model bundle that ships inside the app (ios/Assets and
- * android/src/main/assets), matching `model-manifest.json`'s directory name.
- * Preset-keyword flows pass this so they load the model that is already on
- * disk instead of falling through to the on-demand download path. wakePhrase
- * flows must NOT use this: `initialize()` requires an absolute path for
- * `modelAssetKey` when `wakePhrase` is set, because it writes the generated
- * keywords file next to the model bundle.
+ * The acoustic model bundle that ships inside the app, re-exported from the
+ * package so the screens can keep importing it from here.
  *
- * The root differs per platform and the key is used verbatim, since each
- * loader falls back to its own default only when modelAssetKey is absent:
+ * Preset-keyword flows pass this to load the model already on disk instead of
+ * falling through to the on-demand download path. wakePhrase flows must NOT
+ * use it: `initialize()` requires an absolute path for `modelAssetKey` when
+ * `wakePhrase` is set, because it writes the generated keywords file next to
+ * the model bundle.
  *
- *   Android: AssetManager key under the library's asset namespace, matching
- *            SherpaOnnxAssetLoader.DEFAULT_MODEL_ROOT.
- *   iOS:     bundle-relative path matching SherpaOnnxAssetLoader's kAssetRoot.
- *
- * iOS happens to tolerate a wrong root today, because the podspec also copies
- * these files flat into the bundle and the loader falls back to searching by
- * filename. Do not rely on that; Android has no such fallback and fails with
- * "Missing bundled Sherpa-ONNX asset for encoder in model root".
+ * The value is platform specific and the package owns it, kept in step with
+ * both native loaders by a contract test. An app should never spell these
+ * roots out itself.
  */
-const SHERPA_KWS_MODEL_DIR =
-  'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
-
-export const BUNDLED_MODEL_ASSET_KEY =
-  Platform.OS === 'android'
-    ? `voice-activator-sherpa-onnx/${SHERPA_KWS_MODEL_DIR}`
-    : `SherpaOnnxKws/${SHERPA_KWS_MODEL_DIR}`;
+export { BUNDLED_MODEL_ASSET_KEY };
 
 // ─── Speaker model download ───────────────────────────────────────────────────
 

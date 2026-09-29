@@ -250,16 +250,11 @@ Real engine-backed local wake word detection runs through the built-in native-ma
 The supported public override points are `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file):
 
 `modelAssetKey` is used verbatim, and the bundled model lives at a different
-root on each platform, so the value is platform specific. Each loader falls
-back to its own default only when the key is omitted entirely:
+root on each platform, so the correct value is platform specific. Import it
+rather than writing it out:
 
 ```typescript
-import { Platform } from 'react-native';
-
-const BUNDLED_MODEL_ASSET_KEY =
-  Platform.OS === 'android'
-    ? 'voice-activator-sherpa-onnx/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'
-    : 'SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
+import { initialize, BUNDLED_MODEL_ASSET_KEY } from 'react-native-voice-activator';
 
 await initialize({
   engineConfig: {
@@ -271,8 +266,13 @@ await initialize({
 });
 ```
 
-Passing a root that is right for one platform and wrong for the other fails on
-Android with `Missing bundled Sherpa-ONNX asset for encoder in model root`.
+Each native loader falls back to its own default root only when the key is
+omitted entirely, never when it is present but wrong, so hardcoding a root that
+suits one platform fails on the other. Android reports `Missing bundled
+Sherpa-ONNX asset for encoder in model root`; iOS currently tolerates it,
+because the podspec also copies these files flat into the app bundle and the
+loader then finds them by filename. That asymmetry is why the constant is
+exported: the mistake passes an iOS device test and fails on Android.
 
 Bundled keyword files include `HELLO WORLD`, `MERRY CHRISTMAS`, and more — see [Built-In Wake Words](../README.md#built-in-wake-words).
 

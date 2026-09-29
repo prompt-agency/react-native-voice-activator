@@ -17,6 +17,13 @@ export {
 } from './public/voice-activator';
 export { addSessionListener } from './internal/session-events';
 /**
+ * Asset root of the model bundle the Expo config plugin ships into your app,
+ * for apps that bundle the models instead of downloading them. Platform
+ * specific: `modelAssetKey` is used verbatim and the two native loaders use
+ * different roots, so this cannot be hardcoded as one string.
+ */
+export { BUNDLED_MODEL_ASSET_KEY } from './internal/bundled-model-asset-key';
+/**
  * Non-throwing wake-phrase validation, for apps that let a user choose their own
  * trigger phrase and need feedback as they type.
  */
