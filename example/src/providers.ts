@@ -35,11 +35,9 @@ const DEFAULT_KEYWORD_ASSET = 'keywords.txt';
  * flows must NOT use this: `initialize()` requires an absolute path for
  * `modelAssetKey` when `wakePhrase` is set, because it writes the generated
  * keywords file next to the model bundle.
- */
-/**
- * The bundled model root differs per platform, and the key is used verbatim:
- * each loader only falls back to its own default when modelAssetKey is absent,
- * so a key that is right for one platform is wrong for the other.
+ *
+ * The root differs per platform and the key is used verbatim, since each
+ * loader falls back to its own default only when modelAssetKey is absent:
  *
  *   Android: AssetManager key under the library's asset namespace, matching
  *            SherpaOnnxAssetLoader.DEFAULT_MODEL_ROOT.
