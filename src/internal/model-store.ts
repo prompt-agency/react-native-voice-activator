@@ -155,7 +155,7 @@ function defaultBaseUrl(): string {
   // Kept in sync with the podspec and the Gradle task, which resolve their own
   // binaries from the matching release tag.
   const version = require('../../package.json').version as string;
-  return `https://github.com/prompt-agency/react-native-voice-activator/releases/download/v${version}/models`;
+  return `https://github.com/prompt-agency/react-native-voice-activator/releases/download/v${version}`;
 }
 
 async function fileMatches(
