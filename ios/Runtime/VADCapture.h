@@ -14,8 +14,15 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * Called on each 512-sample PCM frame with a base64-encoded float32 buffer.
  * Invoked on an internal audio I/O thread — handler must be thread-safe.
+ *
+ * Deliberately atomic. The tap block reads this on the audio I/O thread while
+ * callers clear it on their own queue; with a nonatomic accessor that read is a
+ * bare ivar load, so a concurrent assignment can release the old block while the
+ * audio thread still holds the raw pointer. The atomic getter returns a
+ * retained, autoreleased value, which the tap block snapshots into a strong
+ * local once per callback and calls through for the rest of the callback.
  */
-@property (nonatomic, copy, nullable) void (^pcmFrameHandler)(NSString *base64PCM);
+@property (atomic, copy, nullable) void (^pcmFrameHandler)(NSString *base64PCM);
 
 /**
  * Start PCM capture at the given sample rate (should be 16000 Hz for Silero VAD).
