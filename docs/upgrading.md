@@ -64,5 +64,7 @@ unchanged.
 
 ### Toolchain
 
-- Node `>=22.13` (React Native 0.86 requirement).
+- Node.js `20.19.4+`, `22.13+`, `24.3+`, or `25+` (React Native 0.86's
+  `engines` field is `^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0`; Node
+  21.x and 23.x are not supported).
 - JDK 17 or 21 for Android builds. JDK 25 fails CMake configuration.

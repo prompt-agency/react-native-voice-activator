@@ -9,7 +9,7 @@ Confirm your environment before installing:
 | Requirement | How to check |
 |---|---|
 | React Native `0.86+` | `npx react-native --version` |
-| Node.js `18+` | `node --version` |
+| Node.js `20.19.4+`, `22.13+`, `24.3+`, or `25+` (React Native 0.86's `engines` field; Node 21.x and 23.x are not supported) | `node --version` |
 | iOS: Xcode `15+` | Xcode → About Xcode |
 | iOS: CocoaPods installed | `pod --version` |
 | Android: Android Studio | NDK and SDK must be installed via SDK Manager |
