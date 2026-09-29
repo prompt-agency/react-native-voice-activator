@@ -6,12 +6,10 @@ const supportMatrix = {
   reactPeerRange: '>=19.0.0',
   expo: 'SDK 57+',
   platforms: ['iOS', 'Android'],
-  // Android: android/gradle.properties sets VoiceActivator_minSdkVersion=24 and
-  // the runtime carries real pre-O branches (ServiceLauncher falls back to
-  // startService, WakeWordForegroundService skips notification channels).
-  // API 24 and 25 are therefore built and coded for, but never exercised.
-  androidMinSdk: 24,
-  androidMinSdkVerified: 26,
+  // Android: matches VoiceActivator_minSdkVersion in android/gradle.properties.
+  // 26 is the real floor, not a conservative claim: the foreground-service
+  // runtime needs startForegroundService and notification channels, both API 26.
+  androidMinSdk: 26,
   // iOS: the podspec takes RN's own min_ios_version_supported rather than
   // hardcoding a floor, so this tracks the documented claim, not an assertion.
   iosDeploymentTarget: '13.0',

@@ -3,7 +3,6 @@ package com.voiceactivator.Runtime
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 
 internal class ServiceLauncher(
   private val applicationContext: Context? = null,
@@ -23,11 +22,7 @@ internal class ServiceLauncher(
 
     val startResult = runCatching {
       val serviceIntent = foregroundServiceIntent(context)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(serviceIntent)
-      } else {
-        context.startService(serviceIntent)
-      }
+      context.startForegroundService(serviceIntent)
     }.getOrNull()
 
     if (startResult == null) {

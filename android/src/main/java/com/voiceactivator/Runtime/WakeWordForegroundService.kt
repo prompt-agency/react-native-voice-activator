@@ -40,10 +40,6 @@ internal class WakeWordForegroundService : Service() {
   }
 
   private fun ensureNotificationChannel() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      return
-    }
-
     val notificationManager =
       getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -63,19 +59,11 @@ internal class WakeWordForegroundService : Service() {
     )
   }
 
-  @Suppress("DEPRECATION")
   private fun buildNotification(): Notification {
     val icon = applicationInfo.icon.takeIf { it != 0 }
       ?: android.R.drawable.ic_btn_speak_now
 
-    val builder =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        Notification.Builder(this, CHANNEL_ID)
-      } else {
-        Notification.Builder(this)
-      }
-
-    return builder
+    return Notification.Builder(this, CHANNEL_ID)
       .setSmallIcon(icon)
       .setContentTitle("Voice activator is listening")
       .setContentText(

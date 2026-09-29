@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import android.os.Build
 
 internal class AudioRouteMonitor(
   context: Context? = null,
@@ -67,9 +66,6 @@ internal class AudioRouteMonitor(
 
   private fun detectCurrentRoute(): String {
     val manager = audioManager ?: return currentRoute ?: "default"
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-      return currentRoute ?: "default"
-    }
 
     val devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
     val prioritizedDevice =
@@ -84,9 +80,6 @@ internal class AudioRouteMonitor(
 
   private fun registerPlatformCallback() {
     val manager = audioManager ?: return
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-      return
-    }
 
     if (audioDeviceCallback != null) {
       return
@@ -109,10 +102,6 @@ internal class AudioRouteMonitor(
 
   private fun unregisterPlatformCallback() {
     val manager = audioManager ?: return
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-      audioDeviceCallback = null
-      return
-    }
 
     val callback = audioDeviceCallback ?: return
     manager.unregisterAudioDeviceCallback(callback)
