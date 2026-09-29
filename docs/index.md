@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: react-native-voice-activator
-  text: On-device wake word detection for React Native and Expo
-  tagline: Say a trigger phrase, the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
+  text: The on-device wake word for React Native voice agents
+  tagline: Listen for your phrase entirely on the device, then hand a hot mic to ElevenLabs, LiveKit or OpenAI Realtime. Or run the whole turn offline and never touch a network.
   actions:
     - theme: brand
       text: Get Started
@@ -17,18 +17,18 @@ hero:
       link: https://github.com/prompt-agency/react-native-voice-activator
 
 features:
-  - title: On-device wake word detection
-    details: Any phrase you like — wakePhrase 'hey acme' and you are done. No training, no cloud, no API key. Models download once, then run locally.
-  - title: Managed conversation sessions
-    details: The package drives the full wake, listen, AI, speak, re-listen loop for you.
-  - title: Barge-in
-    details: Say the wake word while the AI is speaking to interrupt TTS and start a new turn.
-  - title: React hooks
-    details: useWakeWord() and useVoiceSession() for reactive component updates.
-  - title: Expo config plugin
-    details: Automatic native configuration, permissions, background modes, manifest entries.
-  - title: Extensible providers
-    details: Inject your own STT and TTS providers. Built-in adapters (WhisperRNSTTAdapter, CustomTTSAdapter) are opt-in.
+  - title: Any phrase, no training
+    details: wakePhrase 'hey acme' and you are done. No console, no dataset, no model to build. No cloud, no API key, no per-use cost.
+  - title: The part voice agents are missing
+    details: Every speech-to-speech platform assumes the mic is already open. LiveKit ships on-device wake word for Python, Rust and Swift, not React Native. Deepgram says it does not do wake word at all.
+  - title: Use it as a mic gate
+    details: addWakeWordListener fires, you hand the hot mic to whatever voice stack you already run. The handoff is where this package's job ends.
+  - title: Or let it drive the turn
+    details: Opt in to STT and TTS providers and it runs the full listen, transcribe, your AI, speak loop with barge-in. Worth it offline; redundant when your vendor does turn detection server-side.
+  - title: React hooks and an Expo plugin
+    details: useWakeWord() and useVoiceSession(), plus automatic native configuration, permissions, background modes and manifest entries.
+  - title: New Architecture only
+    details: React Native 0.86+ and Expo SDK 57+, built as a TurboModule. No old-architecture bridge, which is where most wake-word packages are stuck.
 ---
 
 ## What It Does

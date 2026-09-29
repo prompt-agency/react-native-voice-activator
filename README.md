@@ -4,9 +4,36 @@
 
 # react-native-voice-activator
 
-On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase — the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
+**The on-device wake word and mic gate for React Native voice agents.** Your app
+listens for a phrase you choose, entirely on the device, and opens the mic the
+moment it fires. Hand that hot mic to ElevenLabs, LiveKit or OpenAI Realtime, or
+run the whole turn offline and never touch a network.
 
-No cloud, no API key, no per-use cost. Detection runs entirely on-device; the models are downloaded once (~7.8 MB) on first setup, after which nothing leaves the device. Speech-to-text and text-to-speech also run on-device through opt-in providers.
+Every speech-to-speech platform starts from a session that is already running
+and a microphone that is already open. None of them ships the part before that.
+As of September 2026, LiveKit has on-device wake word with Python, Rust and
+Swift clients and no React Native one; Deepgram states it does not do wake-word
+detection; OpenAI Realtime expects server-side VAD or a push-to-talk button.
+That gap is what this package fills.
+
+```ts
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+Any English phrase, no training, no console, no model to build. No cloud, no API
+key, no per-use cost. Detection runs entirely on-device; the models are
+downloaded once (~7.8 MB) on first setup, after which nothing leaves the device.
+
+## Two ways to use it
+
+**As a mic gate.** `addWakeWordListener` fires, you start your own session with
+whatever voice stack you already use. The package's job ends at the handoff.
+
+**As a managed session.** Supply speech-to-text and text-to-speech providers and
+the package drives the whole listen → transcribe → your AI → speak loop, with
+barge-in. This is worth it when you are offline or not using a vendor that does
+server-side turn detection; it is redundant when you are. It is opt-in, not the
+identity of the package.
 
 > **Supports:** React Native `0.86+` · Expo SDK `57+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.

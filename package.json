@@ -1,7 +1,7 @@
 {
   "name": "react-native-voice-activator",
   "version": "0.1.0",
-  "description": "React Native and Expo wake word detection library",
+  "description": "On-device wake word and mic gate for React Native voice agents. Any phrase, no training, no API key.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -75,7 +75,14 @@
     "speech",
     "keyword-detection",
     "sherpa-onnx",
-    "voice-activity-detection"
+    "voice-activity-detection",
+    "wakeword",
+    "hotword",
+    "voice-agent",
+    "voice-assistant",
+    "on-device",
+    "turbomodule",
+    "new-architecture"
   ],
   "author": "Prompt Agency",
   "homepage": "https://github.com/prompt-agency/react-native-voice-activator",
