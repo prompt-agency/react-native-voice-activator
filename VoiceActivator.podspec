@@ -114,12 +114,132 @@ Pod::Spec.new do |s|
   sherpa_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework/Headers\""
   onnxruntime_header_root = "\"${PODS_TARGET_SRCROOT}/ios/Vendor/SherpaOnnx/sherpa-onnxruntime.xcframework/Headers\""
 
-  # When RUNANYWHERE_ONNX_COMPAT=1 is set at `pod install` time, the bundled
-  # sherpa-onnxruntime.xcframework is excluded so sherpa-onnx can link against
-  # another ONNX Runtime xcframework already in the app (same ORT 1.17.1 /
-  # API v17). Use only when you intentionally link a second ORT and need a
-  # single symbol namespace; see docs/ios-onnx-conflict-resolution.md.
-  if ENV['RUNANYWHERE_ONNX_COMPAT'] == '1'
+  # Two ONNX Runtimes in one binary share a single symbol namespace, and only
+  # one of them wins at link time. ORT is backward compatible in one direction
+  # only: a NEWER runtime happily serves the older API version sherpa-onnx was
+  # built against (ORT 1.17.1 / ORT_API_VERSION 17), while our bundled 1.17.1
+  # cannot serve the API version a newer onnxruntime-react-native asks for. If
+  # sherpa's copy wins, the newer caller gets
+  #   "The requested API version [30] is not available, only API versions
+  #    [1, 17] are supported in this build"
+  # and then SIGSEGVs. So whenever the app already links an ONNX Runtime via
+  # onnxruntime-react-native, we drop our sherpa-onnxruntime.xcframework and
+  # let sherpa bind to theirs. When nothing else provides one, we must keep
+  # vendoring ours or sherpa's ORT symbols are undefined at link time.
+  #
+  # This used to be a manual opt-in, which meant every `pod install` (including
+  # the one `expo prebuild` runs for you) silently reintroduced the crash. It is
+  # now detected at `pod install` time; see docs/ios-onnx-conflict-resolution.md.
+  #
+  # Detection: ask Node to resolve onnxruntime-react-native the way Metro and
+  # the autolinker do, anchored at the app project. Node's resolver is the only
+  # thing that gets npm/yarn hoisting, Yarn workspaces and pnpm's symlinked
+  # store all correct. If Node is missing or resolution fails we fall back to a
+  # plain directory walk, and if that finds nothing either we default to
+  # vendoring our own runtime (the historical behaviour, and the one that
+  # cannot produce an unlinkable build).
+  ort_detection_anchors = []
+  begin
+    if defined?(Pod::Config) && Pod::Config.instance.installation_root
+      # The directory holding the Podfile (usually <app>/ios), then the app root.
+      installation_root = Pod::Config.instance.installation_root.to_s
+      ort_detection_anchors << installation_root
+      ort_detection_anchors << File.expand_path("..", installation_root)
+    end
+  rescue StandardError
+    # Not running under `pod install` (lint, tooling); anchors below still apply.
+  end
+  # Where this package itself sits. In a normal install that is inside the app's
+  # node_modules, so walking up from here reaches the app. With a `portal:` or
+  # `link:` dependency it is the library checkout instead, which is exactly why
+  # the installation root above is tried first.
+  ort_detection_anchors << __dir__
+  begin
+    ort_detection_anchors << File.realpath(__dir__)
+  rescue StandardError
+    # realpath can fail on an unusual mount; the literal path is already queued.
+  end
+  ort_detection_anchors = ort_detection_anchors.compact.uniq
+
+  external_ort_path = nil
+  external_ort_method = nil
+
+  begin
+    require "shellwords"
+    node_script = "try { process.stdout.write(require.resolve(" \
+                  "'onnxruntime-react-native/package.json', " \
+                  "{ paths: process.argv.slice(1) })) } catch (e) { process.exit(3) }"
+    command = "node -e #{Shellwords.escape(node_script)} " \
+              "#{ort_detection_anchors.map { |p| Shellwords.escape(p) }.join(' ')} 2>/dev/null"
+    output = `#{command}`
+    if $?.respond_to?(:success?) && $?.success? && !output.to_s.strip.empty?
+      external_ort_path = File.dirname(output.strip)
+      external_ort_method = "node resolution"
+    end
+  rescue StandardError
+    # Node unavailable or unusable; fall through to the directory walk.
+  end
+
+  if external_ort_path.nil?
+    walked = nil
+    ort_detection_anchors.each do |anchor|
+      dir = File.expand_path(anchor)
+      loop do
+        candidate = File.join(dir, "node_modules", "onnxruntime-react-native")
+        if File.directory?(candidate)
+          walked = candidate
+          break
+        end
+        parent = File.dirname(dir)
+        break if parent == dir
+        dir = parent
+      end
+      break if walked
+    end
+    if walked
+      external_ort_path = walked
+      external_ort_method = "directory walk (node resolution unavailable)"
+    end
+  end
+
+  compat_override = ENV['RUNANYWHERE_ONNX_COMPAT']
+  if compat_override == '1'
+    skip_bundled_ort = true
+    decision_reason = "RUNANYWHERE_ONNX_COMPAT=1 forces it (detection said " \
+                      "#{external_ort_path ? 'another ONNX Runtime is present' : 'no other ONNX Runtime'})"
+  elsif compat_override == '0'
+    skip_bundled_ort = false
+    decision_reason = "RUNANYWHERE_ONNX_COMPAT=0 forces it (detection said " \
+                      "#{external_ort_path ? 'another ONNX Runtime is present' : 'no other ONNX Runtime'})"
+  elsif external_ort_path
+    skip_bundled_ort = true
+    decision_reason = "detected onnxruntime-react-native via #{external_ort_method} at #{external_ort_path}"
+  else
+    skip_bundled_ort = false
+    decision_reason = "no onnxruntime-react-native found from #{ort_detection_anchors.first}"
+  end
+
+  # One line, always printed. A linking decision this consequential must not be
+  # something you have to read the podspec to discover. CocoaPods evaluates a
+  # podspec several times per install, so the message is printed once per
+  # distinct decision rather than once per evaluation.
+  decision_message =
+    if skip_bundled_ort
+      "[VoiceActivator] Skipping bundled sherpa-onnxruntime.xcframework " \
+      "(sherpa-onnx will link the app's ONNX Runtime): #{decision_reason}. " \
+      "Override with RUNANYWHERE_ONNX_COMPAT=0."
+    else
+      "[VoiceActivator] Vendoring bundled sherpa-onnxruntime.xcframework " \
+      "(ORT 1.17.1): #{decision_reason}. " \
+      "Override with RUNANYWHERE_ONNX_COMPAT=1."
+    end
+  $voice_activator_ort_notices ||= {}
+  unless $voice_activator_ort_notices[decision_message]
+    $voice_activator_ort_notices[decision_message] = true
+    Kernel.puts decision_message
+  end
+
+  if skip_bundled_ort
     s.vendored_frameworks = "ios/Vendor/SherpaOnnx/sherpa-onnx.xcframework"
     ort_header_paths = "\"$(PODS_ROOT)/Headers/Private/Yoga\" $(inherited) #{sherpa_header_root}"
   else
