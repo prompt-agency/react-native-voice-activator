@@ -77,6 +77,7 @@ const mockPlatform = jest.requireMock('react-native').Platform as {
 import {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
+  WhisperRNSTTUnreadableAudioError,
 } from '../providers/whisper-rn/WhisperRNSTTAdapter';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -250,6 +251,31 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     expect(mockRecorderInstance.addRecordBackListener).toHaveBeenCalledTimes(1);
     expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
       1
+    );
+  });
+
+  it('throws a typed error when whisper cannot read the recorded file', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    mockWhisperContext.transcribe.mockImplementationOnce(() => ({
+      stop: jest.fn(),
+      promise: Promise.reject(new Error('failed to read audio file')),
+    }));
+
+    const transcriptionPromise = adapter.transcribe();
+    // Attach a handler immediately so the fake-timer advance below doesn't
+    // leave the promise rejection unobserved across a real macrotask
+    // boundary, which Node reports as an unhandled rejection.
+    transcriptionPromise.catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTUnreadableAudioError
     );
   });
 

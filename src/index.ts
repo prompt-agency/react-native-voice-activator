@@ -17,6 +17,7 @@ export { addSessionListener } from './internal/session-events';
 export {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
+  WhisperRNSTTUnreadableAudioError,
 } from './providers/whisper-rn';
 export { CustomTTSAdapter, SherpaOnnxTTSAdapter } from './providers/tts';
 export type { SherpaOnnxTTSConfig } from './providers/tts';

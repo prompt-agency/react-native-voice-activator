@@ -120,6 +120,19 @@ export class WhisperRNSTTCancelledError extends Error {
   }
 }
 
+export class WhisperRNSTTUnreadableAudioError extends Error {
+  readonly code = 'stt_unreadable_audio';
+
+  constructor(cause?: unknown) {
+    super(
+      'WhisperRNSTTAdapter: whisper could not read the recorded audio. ' +
+        'The iOS recording container may not be PCM WAV.'
+    );
+    this.name = 'WhisperRNSTTUnreadableAudioError';
+    this.cause = cause;
+  }
+}
+
 // ─── Adapter ──────────────────────────────────────────────────────────────────
 
 export class WhisperRNSTTAdapter implements SpeechToTextProvider {
@@ -370,7 +383,13 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       );
       this.activeStop = stop;
 
-      const { result } = await promise;
+      let result: string;
+      try {
+        ({ result } = await promise);
+      } catch (e) {
+        if (e instanceof WhisperRNSTTCancelledError) throw e;
+        throw new WhisperRNSTTUnreadableAudioError(e);
+      }
 
       if (activeTranscription.cancelled) {
         throw new WhisperRNSTTCancelledError();
