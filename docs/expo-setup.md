@@ -189,6 +189,38 @@ Adding `onnxruntime-react-native` (for `CustomTTSAdapter`) introduces a second O
 
 Confirm `expo prebuild` ran successfully with the plugin enabled. The foreground service manifest entry is required for Android background detection and is added by the plugin during prebuild.
 
+### iOS launch failure: "UIScene life cycle is required for apps built with this SDK"
+
+Symptom, on launch rather than at build time:
+
+```
+Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+```
+
+This is an Xcode 26+ / iOS SDK 26+ requirement and is not specific to this package. Any app built with that SDK must adopt the scene-based life cycle. Expo SDK 57 ships the scene delegate (`ExpoAppSceneDelegate`, Objective-C name `EXExpoAppSceneDelegate`) but `expo prebuild` on SDK 57 still generates the pre-scene `AppDelegate.swift` and no scene manifest, so you have to opt in yourself.
+
+Two things are needed, and both must survive `expo prebuild --clean`:
+
+1. Register the scene delegate in `app.json` under `expo.ios.infoPlist`:
+
+```json
+"UIApplicationSceneManifest": {
+  "UIApplicationSupportsMultipleScenes": false,
+  "UISceneConfigurations": {
+    "UIWindowSceneSessionRoleApplication": [
+      {
+        "UISceneConfigurationName": "Default Configuration",
+        "UISceneDelegateClassName": "EXExpoAppSceneDelegate"
+      }
+    ]
+  }
+}
+```
+
+2. Patch the generated `AppDelegate.swift` with a local config plugin, because `ExpoAppSceneDelegate` casts the app delegate to `ExpoReactNativeFactoryProvider` and calls `fatalError` if that fails. The plugin must declare the conformance (`class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {`) and remove the `#if os(iOS) || os(tvOS)` block that creates its own `UIWindow` and calls `factory.startReactNative(...)`, since the scene delegate now does both. The `RCTReactNativeFactory` must still be created and assigned to `reactNativeFactory`.
+
+`example/plugins/with-ui-scene-lifecycle.js` in this repository is a working reference implementation.
+
 ### iOS pod install fails after adding a new peer
 
 Run `pod repo update` then `pod install` again. If the error persists, try `npx expo prebuild --clean` followed by `pod install`.

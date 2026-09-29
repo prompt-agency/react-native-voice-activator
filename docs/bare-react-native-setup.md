@@ -153,6 +153,18 @@ The app must declare `UIBackgroundModes: ["audio"]`. Add it to `Info.plist` and 
 
 You have two ONNX Runtime copies in your binary — typically this package's bundled Sherpa ORT plus `onnxruntime-react-native`. See the [iOS ONNX Conflict Resolution guide](ios-onnx-conflict-resolution.md).
 
+### iOS launch failure: "UIScene life cycle is required for apps built with this SDK"
+
+Symptom, on launch rather than at build time:
+
+```
+Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+```
+
+This is an Xcode 26+ / iOS SDK 26+ requirement and is not specific to this package. Any app built with that SDK must adopt the scene-based life cycle: add a `UIApplicationSceneManifest` to `Info.plist` naming a `UISceneDelegateClassName`, and move window creation and React Native startup out of `AppDelegate` and into that scene delegate. Follow Apple's "Transitioning to the UIKit scene-based life cycle" together with your React Native version's own scene guidance; the exact delegate class depends on your app template.
+
+For an Expo-managed app, see the equivalent entry in [Expo Setup](expo-setup.md#ios-launch-failure-uiscene-life-cycle-is-required-for-apps-built-with-this-sdk), which has the concrete `app.json` and config-plugin recipe.
+
 ### `engine` error at startup
 
 - Check `getStatus().lastError.code` and `lastError.message` for the specific failure.
