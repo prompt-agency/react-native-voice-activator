@@ -130,9 +130,20 @@ NSError *SherpaAssetError(NSString *message)
                                                   rawTextKeywords:(BOOL)rawTextKeywords
                                                              error:(NSError * _Nullable * _Nullable)error
 {
-  NSString *trimmedModelAssetKey =
-      [[modelAssetKey stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
-          stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];
+  // Only a TRAILING slash is noise. A leading slash is load-bearing: it is what
+  // marks the key as an absolute filesystem path rather than a directory inside
+  // the app bundle, and the on-demand model bundle is always absolute (see
+  // src/public/voice-activator.ts, which passes the downloaded directory
+  // through as modelAssetKey). Trimming both ends, as this used to, silently
+  // reclassified every downloaded bundle as a bundle-relative path and made the
+  // default flow fail with "Missing bundled Sherpa-ONNX encoder model in
+  // var/mobile/...". Mirrors normalizeAssetRoot in the Android loader.
+  NSString *trimmedModelAssetKey = [modelAssetKey
+      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  while (trimmedModelAssetKey.length > 1 && [trimmedModelAssetKey hasSuffix:@"/"]) {
+    trimmedModelAssetKey =
+        [trimmedModelAssetKey substringToIndex:trimmedModelAssetKey.length - 1];
+  }
   NSString *modelRoot = trimmedModelAssetKey.length > 0 ? trimmedModelAssetKey : kAssetRoot;
   BOOL bundleSearch = ![modelRoot hasPrefix:@"/"] && ![modelRoot hasPrefix:@"file://"];
   if (!bundleSearch) {

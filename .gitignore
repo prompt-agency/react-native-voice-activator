@@ -129,3 +129,4 @@ sherpa-onnxruntime.xcframework.zip
 research/
 # Staged model files for release upload (see scripts/package-models.mjs)
 dist-models/
+coverage/
