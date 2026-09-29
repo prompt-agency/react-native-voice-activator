@@ -3,6 +3,63 @@
 This guide covers migration from the earlier credential-era built-in engine path
 to the current Sherpa-ONNX default engine.
 
+
+## Custom wake phrases need no training
+
+**New, non-breaking.** `wakePhrase` accepts any English phrase:
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+This replaces the previous guidance, which pointed at an Icefall training
+pipeline for anything outside the nine bundled demo keywords. The keyword spotter
+was always open-vocabulary; the package now exposes that. `bpe.model` was already
+in the bundle, and `simple-sentencepiece` is linked into the native library, so
+the phrase is tokenized on device.
+
+`engineConfig.assetKeys.keywordAssetKey` still works for a pre-tokenized file and
+is mutually exclusive with `wakePhrase`.
+
+On Android this required the asset loader to accept absolute filesystem paths,
+which it previously rejected.
+
+## Models are downloaded on demand
+
+**Breaking.** The ONNX models are no longer shipped inside the package, and
+`initialize()` no longer finds them automatically.
+
+Add one call before `initialize()`:
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+if (!(await getModelStatus()).ready) {
+  await prepareModels();
+}
+await initialize();
+```
+
+Without it, `initialize()` rejects with a non-recoverable `models_not_prepared`
+error.
+
+Why: the models were duplicated across the iOS and Android asset directories, so
+they cost 15.7 MB of every `npm install` and 7.8 MB of every shipped app binary —
+including for apps that never started detection. The package is now ~220 kB
+instead of ~42 MB.
+
+To keep the old behaviour of having no runtime download, ship a model bundle in
+your app and point at it, in which case `prepareModels()` is unnecessary:
+
+```typescript
+await initialize({
+  engineConfig: { assetKeys: { modelAssetKey: 'my-models' } },
+});
+```
+
+Android additionally now accepts an absolute filesystem path for
+`modelAssetKey`, which it previously rejected.
+
 ## Who Should Use This Guide
 
 Use this guide if your app integrated an earlier version of

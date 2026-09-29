@@ -58,7 +58,7 @@ Internal (src/internal/)
   └── runtime-store.ts         # Mutable state store for runtime status
 
 Native Interface
-  └── src/NativeVoiceActivator.ts  # Codegen spec (Nitro Modules)
+  └── src/NativeVoiceActivator.ts  # Codegen spec (TurboModule, RN Codegen)
 
 Expo Plugin (src/expo/)
   └── Automates Android foreground service, iOS background modes, mic permissions

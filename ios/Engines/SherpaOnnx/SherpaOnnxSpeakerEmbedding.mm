@@ -1,6 +1,39 @@
 #import "SherpaOnnxSpeakerEmbedding.h"
 #include "sherpa-onnx/c-api/c-api.h"
 
+/**
+ * Validate a decoded embedding against the extractor's dimension.
+ *
+ * The native SherpaOnnxSpeakerEmbeddingManager* calls read exactly `dim` floats
+ * from the pointer they are given and have no length parameter, so a short or
+ * corrupted base64 payload from JS would cause a heap over-read. The Android
+ * implementation sizes its FloatArray from the actual decoded byte count and is
+ * unaffected; this makes iOS equally safe.
+ */
+static BOOL SherpaValidateEmbeddingLength(NSData *data,
+                                          int32_t dim,
+                                          NSError *_Nullable *_Nullable error) {
+  const NSUInteger required = (NSUInteger)dim * sizeof(float);
+  if (data.length == required) {
+    return YES;
+  }
+
+  if (error) {
+    *error = [NSError
+        errorWithDomain:@"SherpaOnnxSpeakerEmbedding"
+                   code:-20
+               userInfo:@{
+                 NSLocalizedDescriptionKey : [NSString
+                     stringWithFormat:@"Embedding is %lu bytes but this model "
+                                      @"requires exactly %lu (%d float32 "
+                                      @"values). Refusing to read out of bounds.",
+                                      (unsigned long)data.length,
+                                      (unsigned long)required, dim]
+               }];
+  }
+  return NO;
+}
+
 @implementation SherpaOnnxSpeakerEmbedding {
   const SherpaOnnxSpeakerEmbeddingExtractor *_extractor;
   const SherpaOnnxSpeakerEmbeddingManager *_manager;
@@ -199,6 +232,11 @@
     return NO;
   }
 
+  int32_t expectedDim = SherpaOnnxSpeakerEmbeddingExtractorDim(_extractor);
+  if (!SherpaValidateEmbeddingLength(data, expectedDim, error)) {
+    return NO;
+  }
+
   const float *floats = (const float *)[data bytes];
   int32_t result = SherpaOnnxSpeakerEmbeddingManagerAdd(_manager, [name UTF8String], floats);
   if (result == 0) {
@@ -240,6 +278,11 @@
                                    code:-4
                                userInfo:@{NSLocalizedDescriptionKey : @"Invalid base64 embedding data."}];
     }
+    return nil;
+  }
+
+  int32_t expectedDim = SherpaOnnxSpeakerEmbeddingExtractorDim(_extractor);
+  if (!SherpaValidateEmbeddingLength(data, expectedDim, error)) {
     return nil;
   }
 
@@ -298,6 +341,11 @@
                                    code:-4
                                userInfo:@{NSLocalizedDescriptionKey : @"Invalid base64 embedding data."}];
     }
+    return nil;
+  }
+
+  int32_t expectedDim = SherpaOnnxSpeakerEmbeddingExtractorDim(_extractor);
+  if (!SherpaValidateEmbeddingLength(data, expectedDim, error)) {
     return nil;
   }
 

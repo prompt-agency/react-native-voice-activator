@@ -87,19 +87,21 @@ function cleanupSessionSubscriptions() {
 }
 
 function subscribe(listener: () => void) {
-  const isFirstSubscriber = storeListeners.size === 0;
   storeListeners.add(listener);
-  if (isFirstSubscriber) {
-    snapshot = createInitialSnapshot();
-  }
+
+  // Session listeners are established once and kept for the module's lifetime,
+  // for the same reason as useWakeWord: a session keeps running whether or not a
+  // component is mounted. Tearing the listeners down on unmount dropped every
+  // event that arrived before the next mount, and resetting the snapshot
+  // reported no session while one was mid-turn. React 19 StrictMode mounts,
+  // unmounts and remounts every effect, so that was the common case.
+  //
+  // Unlike useWakeWord there is no status to re-read: everything here is
+  // event-derived, so the retained snapshot IS the current state.
   ensureSessionSubscriptions();
   listener();
   return () => {
     storeListeners.delete(listener);
-    if (storeListeners.size === 0) {
-      cleanupSessionSubscriptions();
-      snapshot = createInitialSnapshot();
-    }
   };
 }
 

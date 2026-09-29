@@ -7,6 +7,12 @@ import {
 import { float32PcmBase64ChunksToWavBase64 } from '../internal/vad-float32-pcm-to-wav';
 import { base64ToUint8Array, uint8ArrayToBase64 } from '../internal/base64';
 import {
+  DEFAULT_AI_HANDLER_TIMEOUT_MS,
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  isOperationTimeoutError,
+  withTimeout,
+} from '../internal/with-timeout';
+import {
   SileroVADEngine,
   VAD_NATIVE_PCM_FRAME_EVENT,
 } from '../providers/vad/SileroVADEngine';
@@ -185,24 +191,38 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
   /**
    * @internal Triggered by wake word detection while a session is active.
-   * Interrupts TTS playback (if speaking) or discards a pending AI response
-   * (if waiting), then restarts the turn from the listening state.
-   * No-op when the session is idle, listening, or closed.
+   *
+   * Per stage:
+   * - `listening` / `transcribing`: abandons the utterance in progress and
+   *   restarts the turn. The half-spoken phrase is never sent to the AI
+   *   handler — saying the wake word again mid-sentence means "forget that,
+   *   listen to me now".
+   * - `speaking`: stops TTS and restarts the turn.
+   * - `waiting`: the AI handler is not cancellable, so it runs to completion
+   *   and its response is discarded when it resolves.
+   *
+   * No-op when the session is idle or closed.
    */
   async bargeIn(): Promise<void> {
     if (this._closed) return;
-    if (
-      this._state === 'idle' ||
-      this._state === 'closed' ||
-      this._state === 'listening'
-    ) {
+    if (this._state === 'idle' || this._state === 'closed') {
       return;
     }
+
     this._bargingIn = true;
+
+    if (this._state === 'listening' || this._state === 'transcribing') {
+      // Two paths to unblock: the VAD listener waits on an AbortSignal, while
+      // the non-VAD path sits in sttProvider.transcribe() and only cancel()
+      // will release it. Both are safe to call when the other is in use.
+      this._abortActiveListen();
+      await this.sttProvider.cancel().catch(() => undefined);
+      return;
+    }
+
     if (this._state === 'speaking') {
       await this.ttsProvider.stop().catch(() => undefined);
     }
-    // If 'waiting': AI handler is not cancellable — _bargingIn causes discard on resolve
   }
 
   /**
@@ -368,20 +388,47 @@ export class VoiceSessionOrchestrator implements VoiceSession {
 
       let transcriptionText: string;
       try {
-        const result =
-          this.config.vad !== undefined
-            ? await this._transcribeWithVad()
-            : await this.sttProvider.transcribe();
+        const result = await withTimeout(
+          'transcribe',
+          this.sttProvider.name,
+          this.config.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+          () =>
+            this.config.vad !== undefined
+              ? this._transcribeWithVad()
+              : this.sttProvider.transcribe()
+        );
         this._clearSilenceTimeout();
         if (this._closed) return;
+
+        // A barge-in may have arrived while transcribe() was in flight. Not
+        // every provider honours cancel() by rejecting — whisper.rn issue #183
+        // is the documented case — so the result is discarded here rather than
+        // relying on the abort path having thrown. Without this, the abandoned
+        // utterance still reaches the AI handler.
+        if (this._bargingIn) {
+          this._bargingIn = false;
+          continue;
+        }
+
         transcriptionText = result.text;
       } catch (cause) {
         this._clearSilenceTimeout();
         if (this._closed) return;
         if (cause instanceof VoiceSessionListenAbortedError) {
+          // A barge-in abort means "listen again", not "end the session". Any
+          // other abort (close/abort/silence timeout) still ends the loop.
+          if (this._bargingIn) {
+            this._bargingIn = false;
+            continue;
+          }
           return;
         }
         this._state = 'idle';
+        if (isOperationTimeoutError(cause)) {
+          this.sttProvider.cancel().catch(() => undefined);
+          this._emitAll('sessionError', this._buildError('stt_timeout', cause));
+          return;
+        }
         this._emitAll('sessionError', this._buildError('stt_failed', cause));
         return;
       }
@@ -393,7 +440,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       this._state = 'waiting';
       let aiResponse: string;
       try {
-        aiResponse = await this.config.aiHandler(transcriptionText);
+        aiResponse = await withTimeout(
+          'aiHandler',
+          'aiHandler',
+          this.config.aiHandlerTimeoutMs ?? DEFAULT_AI_HANDLER_TIMEOUT_MS,
+          () => this.config.aiHandler(transcriptionText)
+        );
         if (this._closed) return;
         if (this._bargingIn) {
           this._bargingIn = false;
@@ -408,7 +460,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
         this._state = 'idle';
         this._emitAll(
           'sessionError',
-          this._buildError('ai_handler_failed', cause)
+          this._buildError(
+            isOperationTimeoutError(cause)
+              ? 'ai_handler_timeout'
+              : 'ai_handler_failed',
+            cause
+          )
         );
         return;
       }
@@ -417,7 +474,12 @@ export class VoiceSessionOrchestrator implements VoiceSession {
       this._emitAll('sessionSpeaking', { text: aiResponse });
 
       try {
-        await this.ttsProvider.speak(aiResponse);
+        await withTimeout(
+          'speak',
+          this.ttsProvider.name,
+          this.config.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+          () => this.ttsProvider.speak(aiResponse)
+        );
         if (this._closed) return;
         if (this._bargingIn) {
           this._bargingIn = false;
@@ -430,6 +492,11 @@ export class VoiceSessionOrchestrator implements VoiceSession {
           continue;
         }
         this._state = 'idle';
+        if (isOperationTimeoutError(cause)) {
+          this.ttsProvider.stop().catch(() => undefined);
+          this._emitAll('sessionError', this._buildError('tts_timeout', cause));
+          return;
+        }
         this._emitAll('sessionError', this._buildError('tts_failed', cause));
         return;
       }

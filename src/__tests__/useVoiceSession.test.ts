@@ -447,7 +447,7 @@ describe('useVoiceSession hook contract', () => {
     await expect(result.close()).resolves.toBeUndefined();
   });
 
-  it('unsubscribing last listener cleans up session subscriptions', async () => {
+  it('keeps session subscriptions after the last listener unsubscribes', async () => {
     const removeMocks: jest.Mock[] = [];
     let unsubscribe: (() => void) | undefined;
 
@@ -485,8 +485,18 @@ describe('useVoiceSession hook contract', () => {
     // Should have subscribed to 7 session events
     expect(removeMocks).toHaveLength(7);
 
-    // Unsubscribing the last listener triggers cleanup
+    // Unsubscribing does NOT remove them. A session keeps running whether or not
+    // a component is mounted, so tearing the listeners down on unmount dropped
+    // every event that arrived before the next mount — and React 19 StrictMode
+    // unmounts and remounts every effect.
     unsubscribe?.();
+    for (const remove of removeMocks) {
+      expect(remove).not.toHaveBeenCalled();
+    }
+
+    // __resetUseVoiceSessionStoreForTests() is what releases them.
+    const mod = await import('../public/useVoiceSession');
+    mod.__resetUseVoiceSessionStoreForTests();
     for (const remove of removeMocks) {
       expect(remove).toHaveBeenCalledTimes(1);
     }

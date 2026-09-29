@@ -69,8 +69,16 @@ if (!existsSync(wakeWordScreenPath)) {
     'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
+    'ensureSttProvider',
+    'ensureModelsReady',
     'sttProvider',
     'autoSpeak: true',
+    // The differentiator has to be visible in the showcase app, not just the
+    // README: an arbitrary phrase with no training is the reason to pick this
+    // package over the alternatives.
+    'wakePhrase',
+    'validateWakePhrase',
+    'Any phrase you like',
     'engineConfig',
     'keywordAssetKey',
     'Bundled keyword presets',
@@ -103,6 +111,8 @@ if (!existsSync(sessionScreenPath)) {
     'useVoiceSession',
     'aiHandler',
     'reListenMode',
+    'ensureSttProvider',
+    'ensureModelsReady',
     'sttProvider',
     'initialize',
     'startDetection',
@@ -112,22 +122,6 @@ if (!existsSync(sessionScreenPath)) {
   for (const token of required) {
     if (!src.includes(token)) {
       errors.push(`SessionScreen.tsx does not reference: ${token}`);
-    }
-  }
-}
-
-// ─── providers.ts ─────────────────────────────────────────────────────────────
-
-const providersPath = join(root, 'example/src/providers.ts');
-
-if (!existsSync(providersPath)) {
-  errors.push('example/src/providers.ts is missing');
-} else {
-  const providers = readFileSync(providersPath, 'utf8');
-
-  for (const token of ['WhisperRNSTTAdapter', 'sttProvider']) {
-    if (!providers.includes(token)) {
-      errors.push(`providers.ts does not reference: ${token}`);
     }
   }
 }
@@ -149,6 +143,36 @@ if (!existsSync(manualScreenPath)) {
   for (const token of required) {
     if (!src.includes(token)) {
       errors.push(`ManualScreen.tsx does not reference: ${token}`);
+    }
+  }
+}
+
+// ─── Shared provider helper ───────────────────────────────────────────────────
+// WakeWordScreen and SessionScreen obtain their STT provider from this module
+// rather than constructing it inline, so the adapter wiring is asserted here.
+
+const providersPath = join(root, 'example/src/providers.ts');
+
+if (!existsSync(providersPath)) {
+  errors.push('Example provider helper does not exist at example/src/providers.ts.');
+} else {
+  const src = readFileSync(providersPath, 'utf8');
+
+  const required = [
+    'WhisperRNSTTAdapter',
+    'sttProvider',
+    'ensureSttProvider',
+    // The package does not ship the models, so initialize() rejects with
+    // models_not_prepared unless prepareModels() has run. The example broke this
+    // way once already; assert it so it cannot recur silently.
+    'ensureModelsReady',
+    'prepareModels',
+    'getModelStatus',
+  ];
+
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`providers.ts does not reference: ${token}`);
     }
   }
 }

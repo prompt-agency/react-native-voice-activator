@@ -53,9 +53,13 @@ internal class ServiceLauncher(
       context.stopService(foregroundServiceIntent(context))
     }.getOrElse { false }
 
-    if (stopSucceeded) {
-      ownsForegroundRuntime = false
-    }
+    // stopService() returns false when the service was not running, which is
+    // indistinguishable from "already stopped" — and keeping ownership latched in
+    // that case left the flag stuck true with no path back down short of a full
+    // dispose(), while the persistent notification may have been gone already.
+    // Ownership is released either way; the return value still reports the
+    // outcome so the caller can surface it.
+    ownsForegroundRuntime = false
 
     return stopSucceeded
   }

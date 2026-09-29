@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import type { AudioSet } from 'react-native-audio-recorder-player';
 import type {
   BuiltInProviderProgress,
@@ -7,16 +7,31 @@ import type {
   WhisperRNSTTConfig,
 } from '../../public/types';
 import { WHISPER_RN_MODELS } from './catalog';
+import {
+  acquireNativeCapture,
+  releaseNativeCapture,
+  requireVADNativeModule,
+  VAD_NATIVE_PCM_FRAME_EVENT,
+  type VADPCMFrameEvent,
+} from '../../internal/native-pcm-capture';
+import { float32PcmBase64ChunksToWavBase64 } from '../../internal/vad-float32-pcm-to-wav';
+
+/**
+ * Unique suffix per recording. A fixed filename collides when two
+ * transcriptions overlap, and the loser silently transcribes the winner's audio.
+ */
+let recordingSequence = 0;
+
+function nextRecordingId(): string {
+  recordingSequence += 1;
+  return `${Date.now()}-${recordingSequence}`;
+}
 
 import type { WhisperContext } from '../../vendor-types/whisper-rn';
 
 type AudioRecorderPlayerModule =
   typeof import('react-native-audio-recorder-player');
 type RNFSModule = typeof import('@dr.pogodin/react-native-fs');
-type LiveAudioStreamModule =
-  typeof import('@fugood/react-native-audio-pcm-stream');
-type LiveAudioStreamType = LiveAudioStreamModule['default'];
-type LiveAudioStreamSubscription = ReturnType<LiveAudioStreamType['on']>;
 
 type ActiveTranscription = {
   cancelled: boolean;
@@ -25,88 +40,6 @@ type ActiveTranscription = {
 
 function stripFileScheme(path: string | undefined): string {
   return (path ?? '').replace(/^file:\/\//, '');
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  // Strip non-base64 chars (RNFS adds newlines every 76 chars; Hermes atob rejects whitespace)
-  const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
-  const binary = atob(clean);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.length;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
-}
-
-/**
- * Assemble a valid 16kHz mono 16-bit PCM WAV file from raw base64 PCM chunks
- * and return the result as a base64 string suitable for RNFS.writeFile(..., 'base64').
- */
-function buildWavBase64(pcmChunks: string[]): string {
-  const pcmArrays = pcmChunks.map(base64ToUint8Array);
-  const pcmLength = pcmArrays.reduce((sum, arr) => sum + arr.length, 0);
-
-  const sampleRate = 16_000;
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8); // 32000
-  const blockAlign = numChannels * (bitsPerSample / 8); // 2
-
-  // 44-byte RIFF/WAV header + PCM data
-  const wavBuffer = new ArrayBuffer(44 + pcmLength);
-  const view = new DataView(wavBuffer);
-
-  // RIFF chunk
-  view.setUint8(0, 0x52); // R
-  view.setUint8(1, 0x49); // I
-  view.setUint8(2, 0x46); // F
-  view.setUint8(3, 0x46); // F
-  view.setUint32(4, 36 + pcmLength, true); // ChunkSize
-  view.setUint8(8, 0x57); // W
-  view.setUint8(9, 0x41); // A
-  view.setUint8(10, 0x56); // V
-  view.setUint8(11, 0x45); // E
-
-  // fmt sub-chunk
-  view.setUint8(12, 0x66); // f
-  view.setUint8(13, 0x6d); // m
-  view.setUint8(14, 0x74); // t
-  view.setUint8(15, 0x20); //  (space)
-  view.setUint32(16, 16, true); // Subchunk1Size (PCM)
-  view.setUint16(20, 1, true); // AudioFormat: PCM = 1
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-
-  // data sub-chunk header
-  view.setUint8(36, 0x64); // d
-  view.setUint8(37, 0x61); // a
-  view.setUint8(38, 0x74); // t
-  view.setUint8(39, 0x61); // a
-  view.setUint32(40, pcmLength, true);
-
-  // Copy PCM data into the buffer
-  const wavBytes = new Uint8Array(wavBuffer);
-  let offset = 44;
-  for (const arr of pcmArrays) {
-    wavBytes.set(arr, offset);
-    offset += arr.length;
-  }
-
-  return uint8ArrayToBase64(wavBytes);
 }
 
 // ─── Error ────────────────────────────────────────────────────────────────────
@@ -143,7 +76,6 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     null;
   private audioRecorderModule: AudioRecorderPlayerModule | null = null;
   private rnfs: RNFSModule | null = null;
-  private audioPcmStream: LiveAudioStreamType | null = null; // Android only
   private activeTranscription: ActiveTranscription | null = null;
   private activeStop: (() => Promise<void>) | null = null;
 
@@ -204,17 +136,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       this.audioRecorderModule = audioRecorderModule;
     }
 
-    if (Platform.OS === 'android') {
-      const pcmModule = await import('@fugood/react-native-audio-pcm-stream');
-      this.audioPcmStream = pcmModule.default;
-      this.audioPcmStream.init({
-        sampleRate: 16_000,
-        channels: 1,
-        bitsPerSample: 16,
-        audioSource: 6, // AudioSource.VOICE_RECOGNITION — better quality in noisy environments
-        bufferSize: 4096,
-      });
-    }
+    // Android records through the package's own native capture — see
+    // _transcribeAndroid. No third-party audio module is needed.
   }
 
   private getAudioSet(): AudioSet {
@@ -414,7 +337,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     const maxRecordingMs = this.config.maxRecordingMs ?? 10_000;
     const pcmChunks: string[] = [];
     let resolveWait = () => undefined as void;
-    let subscription: LiveAudioStreamSubscription | null = null;
+    let subscription: { remove: () => void } | null = null;
+    let captureHeld = false;
 
     const activeTranscription: ActiveTranscription = {
       cancelled: false,
@@ -424,42 +348,64 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
 
     const rnfs = this.rnfs!;
     const tmpDir = `${rnfs.CachesDirectoryPath}/voice-activator`;
-    const wavPath = `${tmpDir}/recording.wav`;
+    // Unique per call: a fixed name collides when two transcriptions overlap,
+    // and the loser silently transcribes the winner's audio.
+    const wavPath = `${tmpDir}/whisper-android-${nextRecordingId()}.wav`;
 
     await rnfs.mkdir(tmpDir);
 
-    subscription = this.audioPcmStream!.on('data', (data: string) => {
+    const native = requireVADNativeModule();
+    const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
+    subscription = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((
+      event: VADPCMFrameEvent
+    ) => {
       if (!activeTranscription.cancelled) {
-        pcmChunks.push(data);
+        pcmChunks.push(event.pcm);
       }
-    });
+    }) as (...args: readonly object[]) => unknown);
 
-    this.audioPcmStream!.start();
-
-    const waitForRecording = new Promise<void>((resolve) => {
-      const timeoutId = setTimeout(resolve, maxRecordingMs);
-      resolveWait = () => {
-        clearTimeout(timeoutId);
-        resolve();
-      };
-    });
-
+    // Acquisition happens inside the try so the finally always releases it.
+    // Throwing between acquire and try would leak the capture refcount, and a
+    // leaked reference suppresses stopVADCapture for every other consumer for
+    // the rest of the process.
     try {
+      await acquireNativeCapture(native);
+      captureHeld = true;
+
+      // cancel() may have arrived while capture was being acquired. Without this
+      // check its resolveWait() call is a no-op — the timer below is not armed
+      // yet — so the cancellation would be lost and the recording would run its
+      // full maxRecordingMs before anyone noticed.
+      if (activeTranscription.cancelled) {
+        throw new WhisperRNSTTCancelledError();
+      }
+
+      const waitForRecording = new Promise<void>((resolve) => {
+        const timeoutId = setTimeout(resolve, maxRecordingMs);
+        resolveWait = () => {
+          clearTimeout(timeoutId);
+          resolve();
+        };
+      });
+
       await waitForRecording;
 
-      // Guard against double-stop: cancel() already calls stop() before resolving the wait
-      if (!activeTranscription.cancelled) {
-        this.audioPcmStream!.stop();
+      // Release before assembling the WAV so the mic is not held during
+      // transcription. Refcounted, so other consumers keep their frames.
+      if (captureHeld) {
+        captureHeld = false;
+        await releaseNativeCapture();
       }
-      subscription.remove();
+      subscription?.remove();
       subscription = null;
 
       if (activeTranscription.cancelled) {
         throw new WhisperRNSTTCancelledError();
       }
 
-      // Assemble PCM chunks into a valid WAV file
-      const wavBase64 = buildWavBase64(pcmChunks);
+      // Native capture emits 16 kHz float32 frames, unlike the 16-bit stream the
+      // previous third-party module produced.
+      const wavBase64 = float32PcmBase64ChunksToWavBase64(pcmChunks);
       await rnfs.writeFile(wavPath, wavBase64, 'base64');
 
       // Android: bare path — NO file:// prefix
@@ -478,6 +424,10 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     } finally {
       this.activeStop = null;
       this.activeTranscription = null;
+      if (captureHeld) {
+        captureHeld = false;
+        await releaseNativeCapture().catch(() => undefined);
+      }
       if (subscription) {
         subscription.remove();
       }
@@ -497,13 +447,8 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     this.activeTranscription.cancelled = true;
     this.activeTranscription.resolveWait();
 
-    if (Platform.OS === 'android' && this.audioPcmStream) {
-      try {
-        this.audioPcmStream.stop();
-      } catch {
-        // ignore — may not be running
-      }
-    }
+    // Android capture is released by _transcribeAndroid once the wait resolves,
+    // so there is nothing module-specific to stop here.
 
     if (this.activeStop) {
       try {
@@ -523,7 +468,6 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     this.ctx = null;
     this.AudioRecorderPlayer = null;
     this.audioRecorderModule = null;
-    this.audioPcmStream = null;
     this.rnfs = null;
   }
 }

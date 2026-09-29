@@ -14,7 +14,6 @@ yarn add whisper.rn @dr.pogodin/react-native-fs
 yarn add react-native-audio-recorder-player
 
 # Android only
-yarn add @fugood/react-native-audio-pcm-stream
 ```
 
 ## iOS Setup
@@ -54,10 +53,9 @@ async function ensureRecordPermission(): Promise<boolean> {
 
 ### Android Architecture Note
 
-`@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge (`RCTEventEmitter`). New Architecture (Fabric) apps require legacy interop mode:
+Android recording uses the package's own native capture — no additional audio
+module and no Old Architecture interop is required.
 
-- **Expo:** set `"newArchEnabled": false` in `app.json`, or enable legacy interop in `android/gradle.properties`
-- **Bare React Native:** set `newArchEnabled=false` in `android/gradle.properties`
 
 ## Usage
 
@@ -129,7 +127,7 @@ The model is downloaded from `https://huggingface.co/ggerganov/whisper.cpp` and 
 
 | | iOS | Android |
 |---|---|---|
-| Recording library | `react-native-audio-recorder-player` | `@fugood/react-native-audio-pcm-stream` |
+| Recording library | `react-native-audio-recorder-player` | none — the package's native capture |
 | Audio capture | AVFoundation WAV file | Raw PCM chunks → WAV (assembled in JS) |
 | Path passed to whisper.rn | `file:///path/recording.wav` | `/path/recording.wav` (no `file://`) |
 | Temp file cleanup | `RNFS.unlink()` in `finally` | `RNFS.unlink()` in `finally` |
@@ -144,8 +142,8 @@ The model must come from the `ggerganov/whisper.cpp` HuggingFace repository. Sel
 **`transcribe()` returns empty string on iOS**
 Confirm `NSMicrophoneUsageDescription` is present in Info.plist and the microphone permission was granted. The adapter configures the audio session automatically (16kHz mono WAV, measurement mode).
 
-**Android build failure: `@fugood/react-native-audio-pcm-stream` not found**
-Install the Android-only peer dep: `yarn add @fugood/react-native-audio-pcm-stream`. Confirm New Architecture legacy interop is enabled.
+**Android: no audio frames arrive**
+Recording goes through the package's own native capture, so confirm `RECORD_AUDIO` is granted at runtime and that the native module loaded (`getStatus().state` must not be `'unsupported'`).
 
 **`Cannot find module 'whisper.rn'`**
 Install the peer dep: `yarn add whisper.rn`. If you are running Jest tests, ensure `moduleNameMapper` maps `whisper.rn` to a stub (see `package.json` in this repo for the pattern).

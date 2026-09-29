@@ -22,7 +22,7 @@ describe('documentation and example contract', () => {
     expect(readme).toContain('stopDetection');
     expect(readme).toContain('dispose');
     expect(readme).toContain(
-      'real engine-backed local wake word detection is implemented through the built-in native-managed engine path'
+      'Real engine-backed local detection through the built-in native-managed engine path'
     );
     expect(readme).toContain('Reliability evaluation artifacts');
     expect(readme).toContain('tests/fixtures/reliability/latest-results.json');
@@ -44,19 +44,25 @@ describe('documentation and example contract', () => {
     expect(readme).toContain(
       'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.'
     );
-    expect(readme).toContain('optional downstream STT/TTS extension examples');
     expect(readme).toContain('CustomTTSAdapter');
     expect(readme).toContain('onnxruntime-react-native');
     expect(readme).toContain('## Optional: Text-to-Speech');
     expect(readme).toContain('## Wake-to-Transcribe-to-Speak Flow');
     expect(readme).toContain(
-      'The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned.'
+      'STT and TTS providers are **opt-in but package-driven**. You supply the provider; the package calls it.'
     );
     expect(readme).toContain(
-      'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals'
+      'If you pass no `sttProvider`, the package emits `wakeWordDetected` and stops there'
     );
     expect(readme).toContain(
-      'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features'
+      'the package takes over the flow and drives it for you'
+    );
+    // Guard against the old, inaccurate framing coming back.
+    expect(readme).not.toContain(
+      'the package itself does not own transcription or synthesis'
+    );
+    expect(readme).not.toContain(
+      'those speech flows remain outside the package runtime'
     );
     expect(readme).toContain('## Built-In Model Configuration');
     expect(readme).toContain('The supported public override points remain');
@@ -241,8 +247,22 @@ describe('documentation and example contract', () => {
       's.vendored_frameworks = "ios/Vendor/SherpaOnnx/*.xcframework"'
     );
     expect(podspec).toContain('s.resources = "ios/Assets/**/*"');
+    // The AAR is fetched at build time rather than shipped in the tarball, so
+    // the wiring is now through a task-produced file. Assert both halves: that
+    // the AAR reaches the compile classpath, and that the fetch is a
+    // prerequisite of compilation rather than something a consumer must
+    // remember to run.
     expect(androidBuildGradle).toContain(
-      'implementation files("libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar")'
+      'def sherpaAarName = "sherpa-onnx-static-link-onnxruntime-1.12.29.aar"'
+    );
+    expect(androidBuildGradle).toContain('implementation files(sherpaAarFile)');
+    expect(androidBuildGradle).toContain(
+      'tasks.register("fetchSherpaOnnxAar")'
+    );
+    expect(androidBuildGradle).toContain('dependsOn("fetchSherpaOnnxAar")');
+    // It must refuse an unverified binary, not merely download one.
+    expect(androidBuildGradle).toContain(
+      'Refusing to link an unverified binary.'
     );
     expect(androidBuildGradle).toContain(
       'assets.srcDirs += ["src/main/assets"]'
@@ -316,23 +336,20 @@ describe('documentation and example contract', () => {
     expect(gettingStarted).toContain('error');
     expect(gettingStarted).toContain('wakeWordDetected');
     expect(gettingStarted).toContain('audioRouteChanged');
-    expect(gettingStarted).toContain('current `getStatus()` snapshot');
-    expect(gettingStarted).toContain('recent runtime events');
     expect(gettingStarted).toContain('normalized error categories');
-    expect(gettingStarted).toContain('application-owned STT handoff');
+    // getStatus() returns only state/isAvailable/isListening/canStart/reason/
+    // lastError. It never carried an event history, so the docs must not imply
+    // one — that surface belongs to the event listeners.
+    expect(gettingStarted).toContain('It does not carry an event history');
     expect(gettingStarted).toContain(
-      'TTS response step can run after detection or transcript handling'
+      'You supply the STT and TTS providers; the package calls them.'
     );
-    expect(gettingStarted).toContain(
-      'those speech flows remain outside the package runtime and use public APIs only'
+    expect(gettingStarted).toContain('### What `recoverable` means');
+    // Guard against the old, inaccurate framing returning to this page too.
+    expect(gettingStarted).not.toContain(
+      'those speech flows remain outside the package runtime'
     );
     expect(gettingStarted).toContain('Wake-to-Transcribe-to-Speak Guide');
-    expect(gettingStarted).toContain(
-      'That wake -> transcribe -> optional speak flow is the supported extension model.'
-    );
-    expect(gettingStarted).toContain(
-      'Your app can own steps 2 and 3 through custom providers'
-    );
     expect(gettingStarted).toContain('Built-In Engine Defaults');
     expect(gettingStarted).toContain('native-managed Sherpa-ONNX');
     expect(gettingStarted).toContain('engineConfig.assetKeys.modelAssetKey');
@@ -355,6 +372,19 @@ describe('documentation and example contract', () => {
     expect(troubleshooting).toContain('current runtime status');
     expect(troubleshooting).toContain('latest structured error');
     expect(troubleshooting).toContain('recent runtime events');
+    // The page must describe the real ownership split and the timeout surface.
+    expect(troubleshooting).toContain(
+      'You supply the STT and TTS provider implementations; the package calls them.'
+    );
+    expect(troubleshooting).toContain('## Nothing Happens At All (Hangs)');
+    expect(troubleshooting).toContain('## Is This Error Worth Retrying?');
+    expect(troubleshooting).toContain('ai_handler_timeout');
+    expect(troubleshooting).toContain('runtime_unavailable');
+    // Guard against the stale framing returning.
+    expect(troubleshooting).not.toContain('simulated host implementations');
+    expect(troubleshooting).not.toContain(
+      'downstream application integrations only'
+    );
     expect(troubleshooting).toContain('normalized error categories');
     expect(troubleshooting).toContain('## Troubleshooting by Error Category');
     expect(troubleshooting).toContain('### `permission`');
@@ -366,18 +396,8 @@ describe('documentation and example contract', () => {
     expect(troubleshooting).toContain('Expo Go is unsupported');
     expect(troubleshooting).toContain('primary runtime validation path today');
     expect(troubleshooting).toContain(
-      'optional STT/TTS extension-point examples'
-    );
-    expect(troubleshooting).toContain(
-      'app-level handoff code separately from the package runtime itself'
-    );
-    expect(troubleshooting).toContain(
       'Troubleshoot the Provider Pattern Separately'
     );
-    expect(troubleshooting).toContain(
-      'The example app previews that provider pattern with simulated host implementations.'
-    );
-    expect(troubleshooting).toContain('optional STT/TTS provider adapters');
   });
 
   it('keeps the example app aligned with the public runtime flow and limitation note', () => {

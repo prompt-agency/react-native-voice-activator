@@ -41,21 +41,6 @@
       _loadedModelPath = nil;
     }
 
-    NSFileManager *fm = [NSFileManager defaultManager];
-    BOOL modelExists  = [fm fileExistsAtPath:modelPath];
-    BOOL tokensExists = [fm fileExistsAtPath:tokensPath];
-    BOOL dataDirExists = [fm fileExistsAtPath:dataDir];
-    NSDictionary *modelAttrs = modelExists ? [fm attributesOfItemAtPath:modelPath error:nil] : nil;
-    NSLog(@"[SherpaOnnxTTS] modelPath=%@ exists=%d size=%lld",
-          modelPath, modelExists, [modelAttrs[NSFileSize] longLongValue]);
-    NSLog(@"[SherpaOnnxTTS] tokensPath=%@ exists=%d", tokensPath, tokensExists);
-    NSLog(@"[SherpaOnnxTTS] dataDir=%@ exists=%d", dataDir, dataDirExists);
-    if (dataDirExists) {
-      NSArray *dataDirContents = [fm contentsOfDirectoryAtPath:dataDir error:nil];
-      NSLog(@"[SherpaOnnxTTS] dataDir contents count=%lu first=%@",
-            (unsigned long)dataDirContents.count, dataDirContents.firstObject);
-    }
-
     SherpaOnnxOfflineTtsVitsModelConfig vitsConfig;
     memset(&vitsConfig, 0, sizeof(vitsConfig));
     vitsConfig.model       = [modelPath UTF8String];
@@ -71,7 +56,7 @@
     memset(&modelConfig, 0, sizeof(modelConfig));
     modelConfig.vits        = vitsConfig;
     modelConfig.num_threads = 2;
-    modelConfig.debug       = 1;  // enable for crash diagnosis
+    modelConfig.debug       = 0;  // vendored lib logs to stdout; off in a library build
     modelConfig.provider    = "cpu";
 
     SherpaOnnxOfflineTtsConfig ttsConfig;
@@ -79,7 +64,6 @@
     ttsConfig.model            = modelConfig;
     ttsConfig.max_num_sentences = 1;
 
-    NSLog(@"[SherpaOnnxTTS] calling SherpaOnnxCreateOfflineTts...");
     try {
       _tts = SherpaOnnxCreateOfflineTts(&ttsConfig);
     } catch (const std::exception &e) {
@@ -91,7 +75,6 @@
       }
       return NO;
     } catch (...) {
-      NSLog(@"[SherpaOnnxTTS] Unknown C++ exception in SherpaOnnxCreateOfflineTts");
       if (error) {
         *error = [NSError errorWithDomain:@"SherpaOnnxTTS" code:-4
                       userInfo:@{NSLocalizedDescriptionKey :
@@ -100,7 +83,6 @@
       }
       return NO;
     }
-    NSLog(@"[SherpaOnnxTTS] SherpaOnnxCreateOfflineTts returned %s", _tts ? "non-null" : "NULL");
 
     if (!_tts) {
       if (error) {
@@ -116,7 +98,6 @@
       return NO;
     }
     _loadedModelPath = [modelPath copy];
-    NSLog(@"[SherpaOnnxTTS] engine loaded: %@", modelPath);
   }
 
   // ── Synthesize ─────────────────────────────────────────────────────────────
@@ -132,7 +113,6 @@
     }
     return NO;
   } catch (...) {
-    NSLog(@"[SherpaOnnxTTS] Unknown C++ exception in SherpaOnnxOfflineTtsGenerate");
     if (error) {
       *error = [NSError errorWithDomain:@"SherpaOnnxTTS" code:-5
                     userInfo:@{NSLocalizedDescriptionKey :

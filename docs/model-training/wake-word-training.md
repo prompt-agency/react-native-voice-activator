@@ -1,6 +1,25 @@
 # Wake word model training (Sherpa-ONNX KWS)
 
-This guide is for **teams that need a custom English phrase** compatible with this package’s built-in **Sherpa-ONNX keyword spotter**. Training runs **offline** on a workstation or CI; the mobile app only loads ONNX artifacts and a keyword file.
+> [!IMPORTANT]
+> **You almost certainly do not need this guide.**
+>
+> A custom English wake phrase needs no training at all:
+>
+> ```typescript
+> await initialize({ wakePhrase: 'hey acme' });
+> ```
+>
+> The bundled keyword spotter is open-vocabulary, and the phrase is tokenized on
+> device using the `bpe.model` already in the model bundle. See
+> [Wake Words](../../README.md#wake-words).
+>
+> This guide covers the remaining cases: fine-tuning the acoustic model for a
+> phrase the open-vocabulary path detects poorly, a non-English language, or a
+> domain with unusual acoustics. That is a real training run — a GPU, hundreds of
+> positive utterances and thousands of negatives — so exhaust `wakePhrase` and
+> `engineConfig.sensitivity` tuning first.
+
+This guide is for **teams that need a fine-tuned model** compatible with this package’s built-in **Sherpa-ONNX keyword spotter**. Training runs **offline** on a workstation or CI; the mobile app only loads ONNX artifacts and a keyword file.
 
 ## Prerequisites
 

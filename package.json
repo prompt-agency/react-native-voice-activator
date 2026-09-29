@@ -33,6 +33,9 @@
     "!android/gradlew",
     "!android/gradlew.bat",
     "!android/local.properties",
+    "!android/libs",
+    "!ios/Assets",
+    "!android/src/main/assets",
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
@@ -45,16 +48,18 @@
     "verify:expo-config-resolution": "node scripts/verify-expo-config-resolution.mjs",
     "verify:expo-prebuild": "node scripts/verify-expo-prebuild.mjs",
     "evaluate:reliability": "node scripts/run-reliability-evaluation.mjs",
+    "generate:model-manifest": "node scripts/generate-model-manifest.mjs",
+    "package:models": "node scripts/package-models.mjs",
     "package:ios-vendor": "node scripts/package-ios-vendor-frameworks.mjs",
-    "verify:ios-vendor-checksums": "node scripts/verify-ios-vendor-checksums.mjs",
-    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs && node scripts/verify-podspec-source-globs.mjs && yarn verify:ios-vendor-checksums",
+    "verify:vendor-checksums": "node scripts/verify-vendor-checksums.mjs",
+    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs && node scripts/verify-podspec-source-globs.mjs && yarn verify:vendor-checksums",
     "verify:release-readiness": "yarn lint && yarn typecheck && yarn test --runInBand --watchman=false && yarn prepare && yarn typecheck && npm_config_cache=.npm-cache npm pack --dry-run",
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint app.plugin.js plugin/index.js \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"plugin/build/**\" --ignore-pattern \"lib/**\" --no-warn-ignored && yarn verify:contracts",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "build:plugin": "tsc -p tsconfig.plugin.json",
-    "prepare": "node scripts/fetch-silero-vad-model.mjs && bob build && yarn build:plugin",
+    "prepare": "node scripts/fetch-silero-vad-model.mjs && node scripts/generate-model-manifest.mjs && bob build && yarn build:plugin",
     "release": "release-it --only-version"
   },
   "keywords": [
@@ -117,7 +122,6 @@
   "peerDependencies": {
     "@dr.pogodin/react-native-fs": ">=2.40.0",
     "@expo/config-plugins": ">=8.0.0",
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4",
     "onnxruntime-react-native": ">=1.20.0",
     "react": "*",
     "react-native": "*",
@@ -130,9 +134,6 @@
       "optional": true
     },
     "@expo/config-plugins": {
-      "optional": true
-    },
-    "@fugood/react-native-audio-pcm-stream": {
       "optional": true
     },
     "onnxruntime-react-native": {
@@ -154,13 +155,16 @@
   "packageManager": "yarn@3.6.1",
   "jest": {
     "preset": "@react-native/jest-preset",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
-      "<rootDir>/lib/"
+      "<rootDir>/lib/",
+      "<rootDir>/.claude/"
     ],
     "moduleNameMapper": {
       "^whisper\\.rn$": "<rootDir>/src/__mocks__/whisper.rn.js",
-      "^@fugood/react-native-audio-pcm-stream$": "<rootDir>/src/__mocks__/@fugood/react-native-audio-pcm-stream.js",
       "^onnxruntime-react-native$": "<rootDir>/src/__mocks__/onnxruntime-react-native.js"
     }
   },
@@ -181,15 +185,18 @@
       "release": true,
       "assets": [
         "sherpa-onnx.xcframework.zip",
-        "sherpa-onnxruntime.xcframework.zip"
+        "sherpa-onnxruntime.xcframework.zip",
+        "android/libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar",
+        "dist-models/*"
       ]
     },
     "hooks": {
       "before:init": [
-        "node scripts/verify-ios-vendor-checksums.mjs --require-assets"
+        "node scripts/verify-vendor-checksums.mjs --require-assets",
+        "node scripts/package-models.mjs"
       ],
       "after:release": [
-        "rm -f sherpa-onnx.xcframework.zip sherpa-onnxruntime.xcframework.zip"
+        "rm -rf sherpa-onnx.xcframework.zip sherpa-onnxruntime.xcframework.zip dist-models"
       ]
     },
     "plugins": {

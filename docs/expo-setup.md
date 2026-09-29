@@ -23,15 +23,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native interface uses [Nitro Modules](https://nitro.margelo.com). Without it the native module will not load.
-
-## Step 3 — Add the Config Plugin
+## Step 2 — Add the Config Plugin
 
 Add the plugin to `app.json` (or `app.config.js`):
 
@@ -52,7 +44,7 @@ Add the plugin to `app.json` (or `app.config.js`):
 
 The `microphonePermissionText` string is shown to users in the iOS microphone permission prompt.
 
-## Step 4 — Run Prebuild
+## Step 3 — Run Prebuild
 
 ```sh
 npx expo prebuild
@@ -68,13 +60,13 @@ This generates your `ios/` and `android/` native project folders and applies the
 | Android | `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` permissions, `WakeWordForegroundService` manifest entry |
 | Both | Sherpa-ONNX asset manifests inside the generated native projects |
 
-## Step 5 — Install iOS Pods
+## Step 4 — Install iOS Pods
 
 ```sh
 cd ios && pod install
 ```
 
-## Step 6 — Build and Run
+## Step 5 — Build and Run
 
 Once prebuild is complete, start a development server or run on a device:
 
@@ -88,7 +80,7 @@ npx expo run:android
 
 The Expo integration uses the same public runtime API used by bare React Native consumers — `initialize`, `startDetection`, `stopDetection`, `addWakeWordListener`, `getStatus`, and `dispose`.
 
-## Step 7 — Request Android Microphone Permission at Runtime
+## Step 6 — Request Android Microphone Permission at Runtime
 
 The plugin adds the `RECORD_AUDIO` permission to `AndroidManifest.xml`, but Android requires you to request it at runtime before calling `startDetection()`:
 
@@ -141,7 +133,6 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | `whisper.rn` | `WhisperRNSTTAdapter` |
 | `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
-| `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
 
 After installing:
@@ -151,19 +142,7 @@ npx expo prebuild
 cd ios && pod install
 ```
 
-**Android New Architecture note:** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge. If your Expo app targets New Architecture, disable it in `app.json`:
-
-```json
-{
-  "expo": {
-    "android": {
-      "newArchEnabled": false
-    }
-  }
-}
-```
-
-Then re-run `expo prebuild`.
+Android recording uses the package's own native capture, so no additional audio module is required.
 
 ## Built-In Sherpa Asset Model
 
@@ -186,7 +165,7 @@ cd ios && pod install
 
 ### `permission` error at runtime on Android
 
-The plugin adds the manifest entry, but you must still call `PermissionsAndroid.request(RECORD_AUDIO)` at runtime. See [Step 7](#step-7--request-android-microphone-permission-at-runtime).
+The plugin adds the manifest entry, but you must still call `PermissionsAndroid.request(RECORD_AUDIO)` at runtime. See [Step 6](#step-6--request-android-microphone-permission-at-runtime).
 
 ### `platform` error on Android
 

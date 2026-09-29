@@ -12058,8 +12058,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "react-native-voice-activator@portal:..::locator=react-native-voice-activator-example%40workspace%3Aexample"
   peerDependencies:
+    "@dr.pogodin/react-native-fs": ">=2.40.0"
     "@expo/config-plugins": ">=8.0.0"
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
@@ -12067,9 +12067,9 @@ __metadata:
     react-native-nitro-modules: ">=0.31.3 <0.32.0"
     whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
-    "@expo/config-plugins":
+    "@dr.pogodin/react-native-fs":
       optional: true
-    "@fugood/react-native-audio-pcm-stream":
+    "@expo/config-plugins":
       optional: true
     onnxruntime-react-native:
       optional: true
@@ -12117,8 +12117,8 @@ __metadata:
     turbo: ^2.5.6
     typescript: ^5.9.2
   peerDependencies:
+    "@dr.pogodin/react-native-fs": ">=2.40.0"
     "@expo/config-plugins": ">=8.0.0"
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
@@ -12126,9 +12126,9 @@ __metadata:
     react-native-nitro-modules: ">=0.31.3 <0.32.0"
     whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
-    "@expo/config-plugins":
+    "@dr.pogodin/react-native-fs":
       optional: true
-    "@fugood/react-native-audio-pcm-stream":
+    "@expo/config-plugins":
       optional: true
     onnxruntime-react-native:
       optional: true

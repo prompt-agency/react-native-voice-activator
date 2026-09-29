@@ -44,7 +44,9 @@ static NSDictionary *VoiceActivatorMakeError(
 {
   self = [super init];
   if (self) {
-    _audioSessionController = [VoiceActivatorAudioSessionController new];
+    // Shared, not per-instance: arbitration between listening and playback only
+    // works if every caller mutates the same owner.
+    _audioSessionController = [VoiceActivatorAudioSessionController sharedController];
     _assetLoader = [SherpaOnnxAssetLoader new];
     _detector = [SherpaOnnxDetector new];
     _runtimeStateStore = [[VoiceActivatorRuntimeStateStore alloc]
@@ -111,7 +113,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   if (requiresSessionCleanup) {
     NSError *audioSessionError = nil;
-    [_audioSessionController deactivateSession:&audioSessionError];
+    [_audioSessionController endListening];
     if (audioSessionError != nil) {
       [self setErrorStateWithCategory:@"platform"
                                  code:@"audio_session_deactivation_failed"
@@ -149,10 +151,23 @@ static NSDictionary *VoiceActivatorMakeError(
   NSString *keywordAssetKey = [assetKeys[@"keywordAssetKey"] isKindOfClass:[NSString class]]
       ? assetKeys[@"keywordAssetKey"]
       : nil;
+  NSNumber *rawTextKeywordsValue =
+      [engineConfig[@"keywordsAreRawText"] isKindOfClass:[NSNumber class]]
+          ? engineConfig[@"keywordsAreRawText"]
+          : nil;
+  BOOL rawTextKeywords = rawTextKeywordsValue != nil && rawTextKeywordsValue.boolValue;
+
   SherpaOnnxAssetPaths *assetPaths =
       [_assetLoader loadAssetPathsWithModelAssetKey:modelAssetKey
                                     keywordAssetKey:keywordAssetKey
+                                    rawTextKeywords:rawTextKeywords
                                               error:&assetError];
+  // Stop the tap before reconfiguring. configureWithAssetPaths: drains the
+  // processing queue, but an installed tap would keep delivering buffers while
+  // the spotter is being torn down and rebuilt. The Android coordinator refuses
+  // the same situation rather than reconfiguring under a live reader.
+  [_detector stop:nil];
+
   if (assetPaths == nil || ![_detector configureWithAssetPaths:assetPaths
                                                    sensitivity:sensitivity
                                                          error:&assetError]) {
@@ -195,7 +210,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   NSError *audioSessionError = nil;
-  if (![_audioSessionController activateSession:&audioSessionError]) {
+  if (![_audioSessionController beginListening:&audioSessionError]) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_activation_failed"
                             message:audioSessionError.localizedDescription
@@ -242,7 +257,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   NSError *audioSessionError = nil;
   [_detector stop:nil];
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_deactivation_failed"
@@ -271,7 +286,7 @@ static NSDictionary *VoiceActivatorMakeError(
 {
   NSError *audioSessionError = nil;
   [_detector dispose];
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"
                                code:@"audio_session_deactivation_failed"
@@ -322,7 +337,7 @@ static NSDictionary *VoiceActivatorMakeError(
 
   if (shouldResume) {
     NSError *audioSessionError = nil;
-    if (![_audioSessionController activateSession:&audioSessionError]) {
+    if (![_audioSessionController beginListening:&audioSessionError]) {
       [self setErrorStateWithCategory:@"platform"
                                  code:@"audio_session_activation_failed"
                               message:audioSessionError.localizedDescription
@@ -491,7 +506,7 @@ static NSDictionary *VoiceActivatorMakeError(
   }
 
   NSError *audioSessionError = nil;
-  [_audioSessionController deactivateSession:&audioSessionError];
+  [_audioSessionController endListening];
   [self stopObservingInterruptions];
   if (audioSessionError != nil) {
     [self setErrorStateWithCategory:@"platform"

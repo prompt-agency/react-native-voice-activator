@@ -26,6 +26,12 @@ Pod::Spec.new do |s|
   s.private_header_files = "ios/*.h",
                            "ios/Runtime/**/*.h",
                            "ios/Engines/**/*.h"
+  # s.resources normally matches nothing: the ONNX models are NOT shipped in the
+  # npm tarball (see the "!ios/Assets" entry in package.json's files array);
+  # prepareModels() downloads them at runtime into the app's own storage. The
+  # glob is kept so an app that vendors its own model bundle into the package
+  # directory still gets it copied into the app bundle. CocoaPods does not fail
+  # on an empty glob.
   s.resources = "ios/Assets/**/*"
 
   # The xcframeworks are far too large for the npm tarball, so they are fetched
@@ -52,8 +58,31 @@ Pod::Spec.new do |s|
     fetch_framework() {
       name="$1"
       expected="$2"
+      # A cache hit used to return early on directory existence alone, so a
+      # framework left by an earlier build was reused forever with no integrity
+      # check. The digest of the zip it came from is now recorded beside it, which
+      # catches the cases that actually bite: a truncated or corrupt download, and
+      # a framework left over from a different package version.
+      #
+      # It is not a defence against a local attacker — anyone who can write to
+      # node_modules can write the stamp too. Android's fetchSherpaOnnxAar can
+      # re-hash its single .aar directly; a directory tree has no comparable
+      # digest, hence the stamp.
+      stamp="$VENDOR_DIR/$name.sha256"
       if [ -d "$VENDOR_DIR/$name" ]; then
-        return 0
+        if [ ! -f "$stamp" ]; then
+          # Predates the stamp. Adopt it rather than deleting: it was almost
+          # certainly verified when it was downloaded, and deleting it strands any
+          # checkout whose matching release is not published yet.
+          echo "[VoiceActivator] $name has no recorded digest; adopting the existing framework."
+          printf '%s' "$expected" > "$stamp"
+          return 0
+        fi
+        if [ "$(cat "$stamp")" = "$expected" ]; then
+          return 0
+        fi
+        echo "[VoiceActivator] $name was built from a different version; re-downloading."
+        rm -rf "$VENDOR_DIR/$name" "$stamp"
       fi
 
       echo "[VoiceActivator] Downloading $name..."
@@ -75,6 +104,7 @@ Pod::Spec.new do |s|
       unzip -q "$WORK_DIR/$name.zip" -d "$WORK_DIR/extract"
       rm -rf "$VENDOR_DIR/$name"
       mv "$WORK_DIR/extract/$name" "$VENDOR_DIR/$name"
+      printf '%s' "$expected" > "$stamp"
     }
 
     fetch_framework "sherpa-onnx.xcframework" "#{sherpa_onnx_sha}"

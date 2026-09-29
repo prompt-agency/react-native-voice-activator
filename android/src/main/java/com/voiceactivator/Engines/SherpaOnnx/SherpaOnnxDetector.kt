@@ -50,8 +50,12 @@ internal class SherpaOnnxDetector(
         debug = false,
         provider = "cpu",
         modelType = "",
-        modelingUnit = "",
-        bpeVocab = "",
+        // Setting these switches sherpa-onnx from expecting a pre-tokenized
+        // keywords file to tokenizing plain text itself, via the
+        // simple-sentencepiece implementation linked into the native library.
+        // That is what makes an arbitrary wakePhrase work with no training.
+        modelingUnit = if (assets.bpeVocab != null) "bpe" else "",
+        bpeVocab = assets.bpeVocab ?: "",
       ),
       maxActivePaths = 4,
       keywordsFile = assets.keywords,
@@ -60,7 +64,16 @@ internal class SherpaOnnxDetector(
       numTrailingBlanks = 1,
     )
 
-    keywordSpotter = KeywordSpotter(context.assets, config)
+    // Sherpa-ONNX routes to a different native entry point depending on this
+    // argument: newFromAsset when an AssetManager is supplied, newFromFile when
+    // it is null. Models downloaded on demand live on the filesystem, so passing
+    // the AssetManager for them would look for APK entries that do not exist.
+    keywordSpotter =
+      if (assets.fromFileSystem) {
+        KeywordSpotter(null, config)
+      } else {
+        KeywordSpotter(context.assets, config)
+      }
     stream = keywordSpotter?.createStream()
   }
 

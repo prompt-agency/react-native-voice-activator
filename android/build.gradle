@@ -60,6 +60,10 @@ android {
         "generated/java",
         "generated/jni"
       ]
+      // Normally matches nothing: the ONNX models are NOT shipped in the npm
+      // tarball (see "!android/src/main/assets" in package.json's files array) —
+      // prepareModels() downloads them at runtime. Kept so an app that vendors
+      // its own model bundle into the package directory still gets it packaged.
       assets.srcDirs += ["src/main/assets"]
     }
   }
@@ -72,8 +76,127 @@ repositories {
 
 def kotlin_version = getExtOrDefault("kotlinVersion")
 
+// ─── Sherpa-ONNX AAR: fetched at build time, not shipped in the npm tarball ───
+//
+// The AAR is ~28 MB. Shipping it inside the package meant every consumer
+// downloaded it on `npm install` whether or not they built for Android, and it
+// dominated the tarball. iOS already fetches its XCFrameworks in the podspec's
+// prepare_command; this is the Android equivalent.
+//
+// Native code cannot be downloaded at runtime — both app stores prohibit it and
+// it has to be linked into the build — so this is a build-time fetch, verified
+// against a pinned SHA-256 before it is ever put on the compile classpath.
+
+import java.security.MessageDigest
+
+def sherpaAarName = "sherpa-onnx-static-link-onnxruntime-1.12.29.aar"
+def sherpaAarFile = file("libs/${sherpaAarName}")
+
+def sherpaChecksum = {
+  def manifest = file("vendor-checksums.json")
+  if (!manifest.exists()) {
+    throw new GradleException("Missing android/vendor-checksums.json — cannot verify the Sherpa-ONNX AAR.")
+  }
+  def parsed = new groovy.json.JsonSlurper().parseText(manifest.text)
+  def expected = parsed.assets?.get(sherpaAarName)
+  if (!expected) {
+    throw new GradleException("android/vendor-checksums.json has no entry for ${sherpaAarName}.")
+  }
+  return expected
+}
+
+def sha256Of = { File f ->
+  def digest = MessageDigest.getInstance("SHA-256")
+  f.withInputStream { stream ->
+    byte[] buffer = new byte[16 * 1024]
+    int read
+    while ((read = stream.read(buffer)) != -1) {
+      digest.update(buffer, 0, read)
+    }
+  }
+  return digest.digest().encodeHex().toString()
+}
+
+tasks.register("fetchSherpaOnnxAar") {
+  description = "Downloads and verifies the Sherpa-ONNX AAR if it is not already present."
+  outputs.file(sherpaAarFile)
+
+  doLast {
+    def expected = sherpaChecksum()
+
+    if (sherpaAarFile.exists()) {
+      def actual = sha256Of(sherpaAarFile)
+      if (actual == expected) {
+        return
+      }
+      logger.lifecycle("[VoiceActivator] ${sherpaAarName} checksum mismatch, re-downloading.")
+      sherpaAarFile.delete()
+    }
+
+    // Allow an offline/air-gapped build to supply the file out of band.
+    def override = project.findProperty("VoiceActivator_sherpaAarPath")
+    if (override) {
+      def source = file(override)
+      if (!source.exists()) {
+        throw new GradleException("VoiceActivator_sherpaAarPath points at a missing file: ${override}")
+      }
+      sherpaAarFile.parentFile.mkdirs()
+      source.withInputStream { input -> sherpaAarFile.withOutputStream { it << input } }
+    } else {
+      def version = project.findProperty("VoiceActivator_packageVersion") ?: packageJsonVersion()
+      def url = "https://github.com/prompt-agency/react-native-voice-activator/releases/download/v${version}/${sherpaAarName}"
+      logger.lifecycle("[VoiceActivator] Downloading ${sherpaAarName}...")
+
+      sherpaAarFile.parentFile.mkdirs()
+      // Download beside the target, then move, so an interrupted build cannot
+      // leave a truncated file that looks complete on the next run.
+      def temp = new File(sherpaAarFile.parentFile, "${sherpaAarName}.part")
+      temp.delete()
+      try {
+        new URL(url).withInputStream { input -> temp.withOutputStream { it << input } }
+      } catch (Exception cause) {
+        temp.delete()
+        throw new GradleException(
+          "Failed to download ${sherpaAarName} from ${url}.\n" +
+          "If this machine has no network access, supply the file directly with\n" +
+          "  -PVoiceActivator_sherpaAarPath=/path/to/${sherpaAarName}",
+          cause
+        )
+      }
+      temp.renameTo(sherpaAarFile)
+    }
+
+    def actual = sha256Of(sherpaAarFile)
+    if (actual != expected) {
+      sherpaAarFile.delete()
+      throw new GradleException(
+        "[VoiceActivator] Checksum mismatch for ${sherpaAarName}.\n" +
+        "  expected ${expected}\n" +
+        "  actual   ${actual}\n" +
+        "Refusing to link an unverified binary."
+      )
+    }
+  }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  dependsOn("fetchSherpaOnnxAar")
+}
+tasks.withType(JavaCompile).configureEach {
+  dependsOn("fetchSherpaOnnxAar")
+}
+
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  implementation files("libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar")
+  implementation files(sherpaAarFile)
+}
+
+
+def packageJsonVersion() {
+  def pkg = file("../package.json")
+  if (!pkg.exists()) {
+    throw new GradleException("Cannot resolve the package version: ../package.json is missing.")
+  }
+  return new groovy.json.JsonSlurper().parseText(pkg.text).version
 }

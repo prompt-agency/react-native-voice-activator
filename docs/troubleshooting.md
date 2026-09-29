@@ -23,20 +23,103 @@ The example app now exposes the same diagnostics surface for evaluation:
 - recent runtime events
 - normalized error categories for quick failure triage
 
-The example app also contains optional STT/TTS extension-point examples. Those
-examples are downstream application integrations only. If they fail, debug
-the app-level handoff code separately from the package runtime itself. Concrete
-reference adapters live in `docs/examples/`.
-
 ## Troubleshoot the Provider Pattern Separately
 
-Use this split when debugging a wake -> transcribe -> optional speak flow:
+You supply the STT and TTS provider implementations; the package calls them. So
+a failure is either in the package's wake-word runtime, in the orchestration
+between the providers, or inside a provider implementation. Split it this way:
 
 - if `wakeWordDetected` never fires, debug the package-owned wake-word runtime
-- if `wakeWordDetected` fires but no transcript appears, debug the app-owned `sttProvider` handoff
-- if transcription succeeds but no speech response happens, debug the app-owned `ttsProvider` path together with `autoSpeak` configuration
+- if `wakeWordDetected` fires but no transcript appears, the package called
+  `sttProvider.transcribe()` and it failed or hung — check for a
+  `transcriptionError` event
+- if transcription succeeds but nothing is spoken, check `autoSpeak` (it
+  defaults to `false` in the single-shot flow) and then `speechError`
 
-The example app previews that provider pattern with simulated host implementations. The preview is useful for integration understanding, but it is not proof that a real vendor SDK executed successfully in CI. See `docs/examples/` for optional STT/TTS provider adapters you can use in your own app.
+The example app wires the real `WhisperRNSTTAdapter` and `SherpaOnnxTTSAdapter`
+(see `example/src/providers.ts`), not stubs — but a green example run is still
+not proof that a given vendor SDK works in your app's build. Reference adapters
+live in `docs/examples/`.
+
+## Nothing Happens At All (Hangs)
+
+A provider call that never settles used to wedge the package. Both paths are now
+bounded, and a hang surfaces as a distinct error code rather than silence:
+
+| Symptom | Code | Bound | Default |
+|---|---|---|---|
+| Transcription never returns | `stt_timeout` | `providerTimeoutMs` | 30s |
+| AI handler never returns (session only) | `ai_handler_timeout` | `aiHandlerTimeoutMs` | 60s |
+| Speech never finishes | `tts_timeout` | `providerTimeoutMs` | 30s |
+
+`providerTimeoutMs` goes on `initialize()` for the single-shot flow and on
+`session` for a managed session; `aiHandlerTimeoutMs` is session-only. Set
+either to `0` to disable the bound.
+
+Note that `silenceTimeoutMs` does **not** cover these. It only arms during the
+listening stage and is cleared as soon as STT resolves, so it guards a user who
+never speaks, not a provider that never returns.
+
+If you see these codes with a provider you believe is healthy, raise the bound
+before assuming a bug: on-device transcription of a long utterance on an older
+device legitimately takes seconds.
+
+## `models_not_prepared`
+
+`initialize()` rejects with this when the on-demand model bundle is absent or
+fails verification. It is a `configuration` error and **not recoverable**:
+retrying `initialize()` with the same options cannot succeed.
+
+```typescript
+const status = await getModelStatus();
+// status.missing lists the manifest-relative paths that are absent or corrupt
+if (!status.ready) await prepareModels();
+```
+
+Common causes:
+
+- `prepareModels()` was never called
+- the device was offline the first time it ran, so the download never completed
+- the app was reinstalled, or iOS reclaimed the storage — call `prepareModels()`
+  again, it re-fetches only what is missing
+- `react-native-fs` is not installed; it is required for the download. Either
+  install it, or ship the models in your app and pass
+  `engineConfig.assetKeys.modelAssetKey`
+
+## A custom `wakePhrase` never fires
+
+Nothing errors — the keyword simply never matches. Work through these:
+
+- **Say it the way it is spelled.** The phrase is tokenized from text, so "hey
+  acme" matches someone saying "hey ack-me", not "hey A-C-M-E".
+- **Is it distinctive enough?** Two or more words, at least 6 letters. A short or
+  common phrase either misses or fires constantly.
+- **Raise `engineConfig.sensitivity`.** The default is `0.5`. Higher detects more
+  and false-fires more; find the operating point in your own acoustic conditions.
+- **Check the generated file.** `getModelStatus().directory` plus
+  `generated-keywords/` is where it lives. It should be plain uppercase text, one
+  phrase per line, with no `▁` characters. A `▁` means a pre-tokenized file is
+  being used with the raw-text path, which cannot match.
+- **Confirm the models are the on-demand bundle.** `wakePhrase` needs `bpe.model`,
+  which the bundle carries. It is rejected outright with an app-bundled model root.
+
+Detection rates for arbitrary phrases are not yet measured on physical devices —
+see [Reliability Validation](/reliability-validation). Measure before shipping.
+
+## Is This Error Worth Retrying?
+
+Every error carries `recoverable`. It answers one question: will the same call
+with the same options possibly succeed?
+
+| `recoverable` | Meaning | Examples |
+|---|---|---|
+| `true` | Retry may work | `stt_timeout`, `tts_timeout`, `stt_transcribe_failed`, most `permission` and `lifecycle` errors |
+| `false` | Retry cannot work — change something first | any `configuration` error (including `models_not_prepared`), and `runtime_unavailable` |
+
+`runtime_unavailable` (category `platform`) means the native module is absent
+from the build. No amount of retrying helps; rebuild with `pod install` or
+`expo prebuild`. A `configuration` error means an asset path, keyword file or
+bundle is wrong — fix the options and call `initialize()` again.
 
 ## Common Failure Classes
 
@@ -124,6 +207,8 @@ What to do:
 
 Typical causes:
 
+- the native module is missing from the build (`runtime_unavailable`, not
+  recoverable — rebuild, do not retry)
 - iOS app backgrounded without `UIBackgroundModes: ["audio"]`
 - Android detection started without a visible activity context
 - Android foreground-service ownership could not be established or maintained
