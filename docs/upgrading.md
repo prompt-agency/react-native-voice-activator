@@ -55,6 +55,41 @@ If you construct the recorder yourself, note v4's default export is a
 singleton instance rather than a class, and `AVEncodingOption` is now a
 string-literal type that no longer includes `wav`.
 
+### `RUNANYWHERE_ONNX_COMPAT` unset now means "auto", not "vendor ours"
+
+This is a behaviour change with no source change on your side, so it is easy
+to miss: the same app, built from the same commit, can now get a different
+binary.
+
+Before this release, the iOS podspec always vendored our
+`sherpa-onnxruntime.xcframework` (ONNX Runtime 1.17.1) unless you explicitly
+set `RUNANYWHERE_ONNX_COMPAT=1`. An unset variable meant "vendor ours".
+
+As of this release, an unset variable means "decide automatically". At
+`pod install` time the podspec inspects the resolved Podfile and skips
+vendoring our runtime when the target that links `VoiceActivator` already
+links an ONNX Runtime pod (`onnxruntime-react-native` and friends). That is
+what fixes the `The requested API version [30] is not available` SIGSEGV that
+the old default reintroduced on every `pod install`, including the one
+`expo prebuild` runs for you.
+
+What this means for you:
+
+- **You never set the variable and your app has no other ONNX Runtime.** No
+  change: ours is still vendored.
+- **You never set the variable and your app does link `onnxruntime-react-native`.**
+  Ours is now dropped. This is the fix; the old behaviour was the crash.
+- **You set `RUNANYWHERE_ONNX_COMPAT=1` to work around the old default.** You
+  can drop it. Keeping it is harmless: it still forces the skip.
+- **You depend on our runtime always being vendored.** Set
+  `RUNANYWHERE_ONNX_COMPAT=0` explicitly rather than relying on the old
+  default.
+
+The decision is printed on every `pod install`, and when detection cannot tell,
+it vendors ours and says so. Details, including how to verify which way the
+link went, are in
+[iOS ONNX Runtime conflict resolution](./ios-onnx-conflict-resolution.md).
+
 ### iOS recording container: unverified on device
 
 `WhisperRNSTTAdapter`'s iOS recording path currently configures
