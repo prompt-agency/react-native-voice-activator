@@ -1,7 +1,7 @@
 {
   "version": 1,
   "scenario": "noisy-acceptance",
-  "description": "Higher-noise wake word validation set for the current Porcupine-backed runtime.",
+  "description": "Higher-noise wake word validation set for the current Sherpa-ONNX-backed runtime.",
   "expectedBehavior": {
     "minimumDetections": 1,
     "maximumFalseTriggers": 1,
