@@ -69,7 +69,6 @@ if (!existsSync(wakeWordScreenPath)) {
     'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
-    'WhisperRNSTTAdapter',
     'sttProvider',
     'autoSpeak: true',
     'engineConfig',
@@ -104,7 +103,6 @@ if (!existsSync(sessionScreenPath)) {
     'useVoiceSession',
     'aiHandler',
     'reListenMode',
-    'WhisperRNSTTAdapter',
     'sttProvider',
     'initialize',
     'startDetection',
@@ -114,6 +112,22 @@ if (!existsSync(sessionScreenPath)) {
   for (const token of required) {
     if (!src.includes(token)) {
       errors.push(`SessionScreen.tsx does not reference: ${token}`);
+    }
+  }
+}
+
+// ─── providers.ts ─────────────────────────────────────────────────────────────
+
+const providersPath = join(root, 'example/src/providers.ts');
+
+if (!existsSync(providersPath)) {
+  errors.push('example/src/providers.ts is missing');
+} else {
+  const providers = readFileSync(providersPath, 'utf8');
+
+  for (const token of ['WhisperRNSTTAdapter', 'sttProvider']) {
+    if (!providers.includes(token)) {
+      errors.push(`providers.ts does not reference: ${token}`);
     }
   }
 }
