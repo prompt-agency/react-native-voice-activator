@@ -4,12 +4,12 @@
 
 ## Prerequisites
 
-Install `react-native-fs` if you haven't already — it is an optional peer dependency and must be explicitly added:
+Install `@dr.pogodin/react-native-fs` if you haven't already: it is an optional peer dependency and must be explicitly added:
 
 ```sh
-yarn add react-native-fs
+yarn add @dr.pogodin/react-native-fs
 # or
-npm install react-native-fs
+npm install @dr.pogodin/react-native-fs
 ```
 
 ## Step 1 — Bundle Model Assets
@@ -71,7 +71,7 @@ Add this utility to your app — it is Android-specific and must only be called 
 
 ```typescript
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 
 // The destination directory name is arbitrary — choose any value consistent
 // with the rest of your app.

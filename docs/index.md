@@ -49,9 +49,9 @@ flowchart LR
 npm install react-native-voice-activator react-native-nitro-modules
 ```
 
-Continue with [Getting Started](/getting-started) for platform setup (bare React Native or Expo), then [Conversation Session](/conversation-session) for the full session API.
+Continue with [Getting Started](/getting-started) for platform setup (bare React Native or Expo), then [Conversation Session](/conversation-session) for the full session API. Upgrading from an earlier release? See [Upgrading](/upgrading).
 
-> **Supports:** React Native `0.83+` &middot; Expo SDK `55+` &middot; iOS &middot; Android
+> **Supports:** React Native `0.86+` &middot; Expo SDK `57+` &middot; iOS &middot; Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
 ---

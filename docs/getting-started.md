@@ -8,12 +8,12 @@ Confirm your environment before installing:
 
 | Requirement | How to check |
 |---|---|
-| React Native `0.83+` | `npx react-native --version` |
+| React Native `0.86+` | `npx react-native --version` |
 | Node.js `18+` | `node --version` |
 | iOS: Xcode `15+` | Xcode → About Xcode |
 | iOS: CocoaPods installed | `pod --version` |
 | Android: Android Studio | NDK and SDK must be installed via SDK Manager |
-| Expo SDK `55+` | *(Expo users only)* `npx expo --version` |
+| Expo SDK `57+` | *(Expo users only)* `npx expo --version` |
 
 **Expo Go is not supported.** You must generate native projects with `expo prebuild` or EAS Build.
 

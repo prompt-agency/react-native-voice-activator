@@ -88,24 +88,22 @@ duplicate-symbol check above. If versions are incompatible, keep Sherpa’s
 bundled `sherpa-onnxruntime.xcframework` and avoid a second ORT in the same
 process, or pursue a dedicated upgrade task for Sherpa/ORT alignment.
 
-### Compile error: missing `AddExternalInitializersFromFilesInMemory` on `SessionOptions`
+### Header shadowing is fixed as of this release
 
-CocoaPods exposes VoiceActivator’s vendored Sherpa ONNX headers under
-`Pods/Headers/Private/VoiceActivator/`. The `onnxruntime-react-native` target can
-then pick that older `onnxruntime_cxx_api.h` instead of the `onnxruntime-c` pod’s
-headers, which produces errors such as “no member named
-`AddExternalInitializersFromFilesInMemory`”.
+Earlier releases of this package globbed `ios/**/*.h` in the podspec's
+`source_files` and `private_header_files`, which swept the vendored ORT 1.17
+headers under `ios/Vendor` into `Pods/Headers/Private/VoiceActivator/`. The
+`onnxruntime-react-native` target could then pick up that older
+`onnxruntime_cxx_api.h` instead of the `onnxruntime-c` pod's own headers,
+producing compile errors such as "no member named
+`AddExternalInitializersFromFilesInMemory`" on `SessionOptions`.
 
-**Fix:** In your app `ios/Podfile` `post_install`, for the `onnxruntime-react-native`
-target:
-
-1. Set `HEADER_SEARCH_PATHS` to
-   `["\"${PODS_ROOT}/onnxruntime-c/Headers\"", "$(inherited)"]` (or the equivalent
-   string ending in `$(inherited)`). You must keep **`$(inherited)`** so the pod’s
-   xcconfig paths (React-jsi, ReactCommon, etc.) are not dropped—replacing
-   `HEADER_SEARCH_PATHS` without inherited causes `jsi/jsi.h` not found.
-2. Set **`USE_HEADERMAP` = `NO`** for that target so CocoaPods’ VFS/header map does
-   not still resolve `onnxruntime_cxx_api.h` to Sherpa’s copy.
-
-The example app’s Podfile includes this; copy it if you integrate both packages in
-another app.
+As of this release, the podspec enumerates its own source directories
+(`ios/*`, `ios/Runtime/**`, `ios/Engines/**`) instead of globbing `ios/**`, so
+the vendored `ios/Vendor` headers are no longer swept into
+`Pods/Headers/Private/VoiceActivator/` and no longer shadow the
+`onnxruntime-c` pod's headers. `scripts/verify-podspec-source-globs.mjs` runs
+as part of `yarn verify:contracts` to keep it that way. Consumers integrating
+`onnxruntime-react-native` alongside this package should no longer need the
+`HEADER_SEARCH_PATHS` / `USE_HEADERMAP` Podfile workaround this section
+previously documented.

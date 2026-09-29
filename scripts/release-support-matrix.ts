@@ -1,6 +1,6 @@
 const supportMatrix = {
-  reactNative: '0.83+',
-  expo: 'SDK 55+',
+  reactNative: '0.86+',
+  expo: 'SDK 57+',
   platforms: ['iOS', 'Android'],
   bareReactNative: {
     validationSurface:

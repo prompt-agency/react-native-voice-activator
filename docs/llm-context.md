@@ -10,7 +10,7 @@
 
 On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase and the package drives the full loop: listen for speech, transcribe it, call your AI handler, speak the response, then listen again. No cloud required for wake word detection. Speech-to-text and text-to-speech are opt-in, provider-injected, and run on-device.
 
-**Supports:** React Native `0.83+` · Expo SDK `55+` · iOS 13+ · Android API 26+. Expo Go is NOT supported -- use `expo prebuild` or EAS Build.
+**Supports:** React Native `0.86+` · Expo SDK `57+` · iOS 13+ · Android API 26+. Expo Go is NOT supported -- use `expo prebuild` or EAS Build.
 
 ---
 

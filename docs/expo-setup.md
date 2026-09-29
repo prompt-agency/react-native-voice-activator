@@ -6,12 +6,12 @@ Setup guide for `react-native-voice-activator` in an Expo project.
 
 ## Supported Versions
 
-Requires Expo SDK `55+` and React Native `0.83+`. The support matrix source in this repo is `scripts/release-support-matrix.ts`.
+Requires Expo SDK `57+` and React Native `0.86+`. The support matrix source in this repo is `scripts/release-support-matrix.ts`.
 
 | | Required |
 |---|---|
-| Expo SDK | `55+` |
-| React Native | `0.83+` |
+| Expo SDK | `57+` |
+| React Native | `0.86+` |
 | iOS | `13+` |
 | Android | API `26+` |
 
@@ -139,7 +139,7 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | Peer | Required for |
 |---|---|
 | `whisper.rn` | `WhisperRNSTTAdapter` |
-| `react-native-fs` | `WhisperRNSTTAdapter` model caching |
+| `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
 | `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |

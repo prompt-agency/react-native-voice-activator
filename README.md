@@ -8,7 +8,7 @@ On-device wake word detection and managed multi-turn voice conversation sessions
 
 No cloud required for wake word detection. Speech-to-text and text-to-speech run on-device through opt-in providers.
 
-> **Supports:** React Native `0.83+` · Expo SDK `55+` · iOS · Android
+> **Supports:** React Native `0.86+` · Expo SDK `57+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
 📖 **[Full documentation site](https://prompt-agency.github.io/react-native-voice-activator/)**
@@ -52,8 +52,8 @@ flowchart LR
 
 | Requirement | Minimum |
 |---|---|
-| React Native | `0.83+` |
-| Expo SDK | `55+` *(Expo users only)* |
+| React Native | `0.86+` |
+| Expo SDK | `57+` *(Expo users only)* |
 | iOS | `13+` |
 | Android | API `26+` |
 
@@ -261,7 +261,7 @@ To train a custom wake word, see the [Wake Word Training guide](docs/model-train
 
 ```sh
 # All platforms
-yarn add whisper.rn react-native-fs
+yarn add whisper.rn @dr.pogodin/react-native-fs
 
 # iOS only
 yarn add react-native-audio-recorder-player
@@ -461,6 +461,7 @@ Expo config and prebuild compatibility are validated through docs, contract chec
 | [Wake Word Training](docs/model-training/wake-word-training.md) | Train a custom wake word offline |
 | [TTS Voice Cloning](docs/model-training/tts-voice-cloning.md) | Train a custom TTS voice |
 | [Troubleshooting](docs/troubleshooting.md) | Full error category reference |
+| [Upgrading](docs/upgrading.md) | Breaking peer dependency changes and how to move between versions |
 | [Professional Services](docs/professional-services.md) | Get help with custom model training and integration |
 
 ## Contributing

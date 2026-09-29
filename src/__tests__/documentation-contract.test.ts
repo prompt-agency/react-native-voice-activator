@@ -174,7 +174,7 @@ describe('documentation and example contract', () => {
     expect(exampleReadme).toContain('local plugin path (`../app.plugin.js`)');
     expect(exampleAppConfig).toContain('../app.plugin.js');
     expect(exampleAppConfig).toContain('voice-activator-example');
-    expect(examplePackage).toContain('"expo": "^55.0.0"');
+    expect(examplePackage).toContain('"expo": "^57.0.0"');
     expect(examplePackage).toContain('"expo-dev-client"');
     expect(examplePackage).toContain('"start": "expo start"');
     expect(examplePackage).toContain(

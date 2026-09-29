@@ -106,7 +106,7 @@ resolves the bare filename from the main bundle.
 
 ```ts
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 
 async function resolveVadModelPath(): Promise<string | undefined> {
   if (Platform.OS !== 'android') return undefined;

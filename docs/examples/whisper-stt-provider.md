@@ -8,7 +8,7 @@ Install the peer dependencies that `WhisperRNSTTAdapter` requires:
 
 ```bash
 # All platforms
-yarn add whisper.rn react-native-fs
+yarn add whisper.rn @dr.pogodin/react-native-fs
 
 # iOS only
 yarn add react-native-audio-recorder-player

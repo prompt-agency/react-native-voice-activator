@@ -4,11 +4,11 @@ Setup guide for `react-native-voice-activator` in a bare React Native project â€
 
 ## Supported Versions
 
-Requires React Native `0.83+`, iOS `13+`, and Android API `26+`. The support boundary is tracked in `scripts/release-support-matrix.ts`.
+Requires React Native `0.86+`, iOS `13+`, and Android API `26+`. The support boundary is tracked in `scripts/release-support-matrix.ts`.
 
 | | Required |
 |---|---|
-| React Native | `0.83+` |
+| React Native | `0.86+` |
 | iOS | `13+` |
 | Android | API `26+` |
 
