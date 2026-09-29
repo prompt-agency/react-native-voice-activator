@@ -94,7 +94,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.35.0",
     "@evilmartians/lefthook": "^1.12.3",
-    "@expo/config-plugins": "^55.0.6",
+    "@expo/config-plugins": "^57.0.9",
     "@react-native-community/cli": "20.2.0",
     "@react-native/babel-preset": "0.86.3",
     "@react-native/eslint-config": "^0.86.3",
