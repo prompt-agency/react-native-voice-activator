@@ -198,7 +198,7 @@ describe('documentation and example contract', () => {
     expect(bareSetup).toContain('What Is Automatic vs Manual');
     expect(bareSetup).toContain(`React Native \`${reactNativeSupport}\``);
     expect(bareSetup).toContain('scripts/release-support-matrix.ts');
-    expect(bareSetup).toContain('react-native-fs');
+    expect(bareSetup).toContain('@dr.pogodin/react-native-fs');
     expect(bareSetup).toContain('react-native-audio-recorder-player');
     expect(expoSetup).toContain('What Is Automatic vs Manual');
     expect(expoSetup).toContain('Expo Go is NOT supported.');

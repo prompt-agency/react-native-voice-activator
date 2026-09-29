@@ -330,11 +330,11 @@ export class VoiceSessionOrchestrator implements VoiceSession {
         wavBase64 = float32PcmBase64ChunksToWavBase64(slice);
       }
 
-      const RNFS = await import('react-native-fs');
-      const dir = `${RNFS.default.CachesDirectoryPath}/voice-activator`;
-      await RNFS.default.mkdir(dir);
+      const RNFS = await import('@dr.pogodin/react-native-fs');
+      const dir = `${RNFS.CachesDirectoryPath}/voice-activator`;
+      await RNFS.mkdir(dir);
       const wavPath = `${dir}/vad-utterance-${Date.now()}.wav`;
-      await RNFS.default.writeFile(wavPath, wavBase64, 'base64');
+      await RNFS.writeFile(wavPath, wavBase64, 'base64');
 
       if (this._closed || ac.signal.aborted) {
         throw new VoiceSessionListenAbortedError();
@@ -344,7 +344,7 @@ export class VoiceSessionOrchestrator implements VoiceSession {
         return await transcribeFile.call(this.sttProvider, wavPath);
       } finally {
         try {
-          await RNFS.default.unlink(wavPath);
+          await RNFS.unlink(wavPath);
         } catch {
           /* ignore */
         }

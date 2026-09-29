@@ -123,7 +123,7 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | Peer | Required for |
 |---|---|
 | `whisper.rn` | `WhisperRNSTTAdapter` |
-| `react-native-fs` | `WhisperRNSTTAdapter` model caching |
+| `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
 | `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |

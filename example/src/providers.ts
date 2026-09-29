@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 import {
   initialize,
   SherpaOnnxSpeakerVerificationAdapter,
@@ -70,7 +70,9 @@ export async function getDownloadedSpeakerModelPath(): Promise<string | null> {
   try {
     if (!(await RNFS.exists(SPEAKER_MODEL_PATH))) return null;
     const stat = await RNFS.stat(SPEAKER_MODEL_PATH);
-    return Number(stat.size) === SPEAKER_MODEL_BYTES ? SPEAKER_MODEL_PATH : null;
+    return Number(stat.size) === SPEAKER_MODEL_BYTES
+      ? SPEAKER_MODEL_PATH
+      : null;
   } catch {
     return null;
   }

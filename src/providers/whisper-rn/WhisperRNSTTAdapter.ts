@@ -12,7 +12,7 @@ import type { WhisperContext } from '../../vendor-types/whisper-rn';
 
 type AudioRecorderPlayerModule =
   typeof import('react-native-audio-recorder-player');
-type RNFSModule = typeof import('react-native-fs');
+type RNFSModule = typeof import('@dr.pogodin/react-native-fs');
 type LiveAudioStreamModule =
   typeof import('@fugood/react-native-audio-pcm-stream');
 type LiveAudioStreamType = LiveAudioStreamModule['default'];
@@ -160,7 +160,7 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
 
     const [whisperModule, rnfsModule] = await Promise.all([
       import('whisper.rn'),
-      import('react-native-fs'),
+      import('@dr.pogodin/react-native-fs'),
     ]);
 
     const { initWhisper } = whisperModule;

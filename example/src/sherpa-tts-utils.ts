@@ -14,7 +14,7 @@
  */
 
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ async function copyAndroidAssetDir(
   assetDir: string,
   destDir: string
 ): Promise<void> {
-  const entries = await (RNFS as any).readDirAssets(assetDir);
+  const entries = await RNFS.readDirAssets(assetDir);
   await RNFS.mkdir(destDir);
   for (const entry of entries) {
     const destPath = `${destDir}/${entry.name}`;
@@ -191,10 +191,7 @@ async function copyAndroidAssetDir(
       await copyAndroidAssetDir(`${assetDir}/${entry.name}`, destPath);
     } else {
       if (!(await RNFS.exists(destPath))) {
-        await (RNFS as any).copyFileAssets(
-          `${assetDir}/${entry.name}`,
-          destPath
-        );
+        await RNFS.copyFileAssets(`${assetDir}/${entry.name}`, destPath);
       }
     }
   }
@@ -245,10 +242,7 @@ export async function ensureRyanSherpaAssets(
       onProgress?.('Copying model from assets…');
       if (await RNFS.exists(docModelPath)) await RNFS.unlink(docModelPath);
       try {
-        await (RNFS as any).copyFileAssets(
-          `sherpa-tts/${MODEL_FILENAME}`,
-          docModelPath
-        );
+        await RNFS.copyFileAssets(`sherpa-tts/${MODEL_FILENAME}`, docModelPath);
         await RNFS.writeFile(versionMarker, ANDROID_ASSET_VERSION, 'utf8');
       } catch (e) {
         throw new Error(
@@ -269,7 +263,9 @@ export async function ensureRyanSherpaAssets(
       if (docExists) {
         const stat = await RNFS.stat(docModelPath);
         if (Number(stat.size) < MIN_MODEL_BYTES) {
-          console.warn('[SherpaAssets] Cached model too small, re-downloading…');
+          console.warn(
+            '[SherpaAssets] Cached model too small, re-downloading…'
+          );
           await RNFS.unlink(docModelPath);
         }
       }
@@ -289,13 +285,18 @@ export async function ensureRyanSherpaAssets(
           headers: { 'User-Agent': 'react-native-voice-activator/1.0' },
           progress: (res) => {
             if (res.contentLength > 0) {
-              const pct = Math.round((res.bytesWritten / res.contentLength) * 100);
+              const pct = Math.round(
+                (res.bytesWritten / res.contentLength) * 100
+              );
               onProgress?.('Downloading ryan-low model…', pct);
             }
           },
         }).promise;
 
-        if (result.statusCode !== 200 || result.bytesWritten < MIN_MODEL_BYTES) {
+        if (
+          result.statusCode !== 200 ||
+          result.bytesWritten < MIN_MODEL_BYTES
+        ) {
           await RNFS.exists(docModelPath).then((e) =>
             e ? RNFS.unlink(docModelPath) : Promise.resolve()
           );
@@ -342,10 +343,7 @@ export async function ensureRyanSherpaAssets(
     if (!(await RNFS.exists(docTokens))) {
       onProgress?.('Copying tokens.txt from assets…');
       try {
-        await (RNFS as any).copyFileAssets(
-          `sherpa-tts/${TOKENS_FILENAME}`,
-          docTokens
-        );
+        await RNFS.copyFileAssets(`sherpa-tts/${TOKENS_FILENAME}`, docTokens);
       } catch {
         // Fall back to embedded constant if asset copy fails
         await RNFS.writeFile(docTokens, TOKENS_CONTENT, 'utf8');

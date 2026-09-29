@@ -23,11 +23,34 @@ const mockRNFS = {
   writeFile: jest.fn().mockResolvedValue(undefined),
 };
 
-// react-native-fs uses named exports (no default) — spread the mock object directly
-jest.mock('react-native-fs', () => ({
+// The fork uses named exports (no default) — spread the mock object directly
+jest.mock('@dr.pogodin/react-native-fs', () => ({
   __esModule: true,
   ...mockRNFS,
 }));
+
+// Legacy package mock, kept only to prove our code never resolves it.
+// { virtual: true } is required: the real package is removed from node_modules
+// in Task 6 step 6, so without it Jest would fail to resolve the specifier
+// even with a factory supplied.
+const mockLegacyRNFS = {
+  DocumentDirectoryPath: '/legacy/documents',
+  CachesDirectoryPath: '/legacy/caches',
+  exists: jest.fn().mockResolvedValue(true),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+  downloadFile: jest.fn(),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+};
+
+jest.mock(
+  'react-native-fs',
+  () => ({
+    __esModule: true,
+    ...mockLegacyRNFS,
+  }),
+  { virtual: true }
+);
 
 // iOS recorder mock — same shape as production react-native-audio-recorder-player usage
 const mockRecorderInstance = {
@@ -133,6 +156,19 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     );
     // iOS: WAV cleanup via rnfs.unlink
     expect(mockRNFS.unlink).toHaveBeenCalledWith('/tmp/recording.wav');
+  });
+
+  it('resolves the file system peer from the fork, not the legacy package', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // The legacy mock must never be touched, even when both are registered.
+    expect(mockRNFS.mkdir).toHaveBeenCalledWith('/mock/documents/whisper-rn');
+    expect(mockLegacyRNFS.mkdir).not.toHaveBeenCalled();
   });
 
   it('iOS transcribe normalizes stopRecorder path when it already has file://', async () => {
