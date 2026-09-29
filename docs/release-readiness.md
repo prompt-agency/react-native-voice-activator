@@ -106,8 +106,17 @@ Neither platform can fetch its binary without network access. Supply the files
 out of band instead:
 
 - Android: `./gradlew ... -PVoiceActivator_sherpaAarPath=/path/to/sherpa-onnx-static-link-onnxruntime-1.12.29.aar`
-- iOS: place the extracted frameworks under `ios/Vendor/SherpaOnnx/` before
-  `pod install`; the `prepare_command` skips anything already present.
+- iOS: set `VOICEACTIVATOR_SHERPA_BASE_URL` to anywhere the two zips live, such
+  as an internal mirror, a prerelease tag, or a `file://` directory:
+
+  ```bash
+  VOICEACTIVATOR_SHERPA_BASE_URL=file:///path/to/zips pod install
+  ```
+
+  Or place the extracted frameworks under `ios/Vendor/SherpaOnnx/` before
+  `pod install`; the `prepare_command` skips anything already present. The
+  environment variable is the one that works on a hosted CI builder, where the
+  checkout is fresh and nothing can be pre-placed.
 
 Both paths still verify the checksum.
 

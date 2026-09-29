@@ -46,7 +46,19 @@ Pod::Spec.new do |s|
   s.prepare_command = <<-CMD
     set -eu
     VENDOR_DIR="ios/Vendor/SherpaOnnx"
-    BASE_URL="https://github.com/prompt-agency/react-native-voice-activator/releases/download/v#{s.version}"
+
+    # Android accepts -PVoiceActivator_sherpaAarPath to supply its binary from
+    # somewhere other than the matching GitHub release. iOS had no equivalent,
+    # so the only way to build against anything but a published v<version>
+    # release was to pre-place the frameworks under ios/Vendor/SherpaOnnx --
+    # impossible on a hosted builder with a fresh checkout, and the reason a CI
+    # build could not be verified until after the release it depends on existed.
+    #
+    # VOICEACTIVATOR_SHERPA_BASE_URL closes that gap: point it at a prerelease
+    # tag, an internal mirror, or a file:// directory. The checksum pin in
+    # ios/vendor-checksums.json still governs, so an override can change where
+    # the bytes come from but not which bytes are accepted.
+    BASE_URL="${VOICEACTIVATOR_SHERPA_BASE_URL:-https://github.com/prompt-agency/react-native-voice-activator/releases/download/v#{s.version}}"
 
     mkdir -p "$VENDOR_DIR"
 
