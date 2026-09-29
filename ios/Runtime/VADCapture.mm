@@ -7,6 +7,11 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   AVAudioEngine *_audioEngine;
   AVAudioConverter *_converter;
   AVAudioFormat *_targetFormat;
+  // Converted samples that have not yet formed a whole VAD frame. Rate
+  // conversion returns a variable number of frames per callback, but Silero
+  // requires exactly kVADFrameSize samples per inference, so the remainder
+  // carries into the next callback.
+  NSMutableData *_pendingSamples;
   BOOL _running;
 }
 
@@ -15,6 +20,7 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   self = [super init];
   if (self) {
     _audioEngine = [[AVAudioEngine alloc] init];
+    _pendingSamples = [NSMutableData data];
     _running = NO;
   }
   return self;
@@ -162,13 +168,28 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
                            return;
                          }
 
+                         // Silero rejects anything other than exactly
+                         // kVADFrameSize samples: a short frame changes the
+                         // encoder output shape and the decoder LSTM fails on
+                         // the tensor rank. Accumulate and emit whole frames,
+                         // carrying the remainder to the next callback.
                          float *samples = converted.floatChannelData[0];
-                         NSData *pcmData =
-                             [NSData dataWithBytes:samples
-                                            length:converted.frameLength * sizeof(float)];
-                         NSString *base64 =
-                             [pcmData base64EncodedStringWithOptions:0];
-                         strongSelf.pcmFrameHandler(base64);
+                         [strongSelf->_pendingSamples
+                             appendBytes:samples
+                                  length:converted.frameLength * sizeof(float)];
+
+                         const NSUInteger frameBytes = kVADFrameSize * sizeof(float);
+                         while (strongSelf->_pendingSamples.length >= frameBytes) {
+                           NSData *frame = [strongSelf->_pendingSamples
+                               subdataWithRange:NSMakeRange(0, frameBytes)];
+                           [strongSelf->_pendingSamples
+                               replaceBytesInRange:NSMakeRange(0, frameBytes)
+                                         withBytes:NULL
+                                            length:0];
+                           NSString *base64 =
+                               [frame base64EncodedStringWithOptions:0];
+                           strongSelf.pcmFrameHandler(base64);
+                         }
                        }];
   } @catch (NSException *exception) {
     _converter = nil;
@@ -212,10 +233,12 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   [_audioEngine.inputNode removeTapOnBus:0];
   [_audioEngine stop];
   // The converter carries resampler state across calls, so a restart at a
-  // different hardware rate must not inherit it.
+  // different hardware rate must not inherit it. The same applies to a partial
+  // frame, which would otherwise be spliced onto the start of the next session.
   [_converter reset];
   _converter = nil;
   _targetFormat = nil;
+  [_pendingSamples setLength:0];
 }
 
 - (void)dealloc
