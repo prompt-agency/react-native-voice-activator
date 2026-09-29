@@ -12,9 +12,22 @@ open Xcode or Android Studio, and before running `pod install` by hand:
 yarn example prebuild
 ```
 
-`yarn example ios`, `yarn example ios:real` and `yarn example android` run
+`yarn example ios`, `yarn example ios:device` and `yarn example android` run
 prebuild for you, so use those unless you specifically need the native project
 on its own.
+
+`ios:device` builds onto a physical device. It passes `--device` with no value,
+so Expo prompts you to pick from the devices actually attached, and signing
+needs your own Apple team:
+
+```sh
+APPLE_TEAM_ID=XXXXXXXXXX yarn example ios:device
+```
+
+`example/app.config.js` reads that variable and merges it over `app.json`. It is
+deliberately not committed to `app.json`: a hardcoded team belongs to one
+person, and everybody else gets a signing failure against a team they are not a
+member of.
 
 Note that `expo run:ios` and `expo run:android` prebuild **only when the native
 directory is missing**. If `ios/` already exists they build it as-is, however

@@ -3,11 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "expo prebuild --platform android && expo run:android",
-    "ios": "expo prebuild --platform ios && expo run:ios",
-    "ios:real": "expo prebuild --platform ios && expo run:ios --device 00008130-0008584E1AC0001C",
+    "android": "CI=1 expo prebuild --no-install --platform android && expo run:android",
+    "ios": "CI=1 expo prebuild --no-install --platform ios && expo run:ios",
+    "ios:device": "CI=1 expo prebuild --no-install --platform ios && expo run:ios --device",
     "start": "expo start",
-    "prebuild": "CI=1 expo prebuild --clean",
+    "prebuild": "CI=1 expo prebuild --no-install --clean",
     "build:android": "react-native build-android --extra-params \"--no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a\"",
     "build:ios": "react-native build-ios --mode Debug --verbose",
     "postinstall": "patch-package"

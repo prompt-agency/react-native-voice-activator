@@ -199,15 +199,42 @@ describe('documentation and example contract', () => {
     expect(examplePackage).toContain('"expo": "^57.0.0"');
     expect(examplePackage).toContain('"expo-dev-client"');
     expect(examplePackage).toContain('"start": "expo start"');
-    expect(examplePackage).toContain(
-      '"prebuild": "CI=1 expo prebuild --clean"'
+    // EVERY prebuild invocation, not just the dedicated `prebuild` script, has
+    // to carry both flags. Asserting the one script's exact text is what let
+    // the run scripts drift: they were added later, without either flag, and
+    // this test stayed green.
+    //
+    // CI=1 stops prebuild prompting when it wants to resolve something, which
+    // hangs a non-interactive run forever. --no-install stops it running a
+    // package install of its own, which in this Yarn workspace re-resolves the
+    // `portal:` link to the library being developed and can silently replace
+    // the working tree's build with a registry copy.
+    const scripts: Record<string, string> = JSON.parse(examplePackage).scripts;
+    const prebuildScripts = Object.entries(scripts).filter(([, command]) =>
+      command.includes('expo prebuild')
     );
+    expect(prebuildScripts.length).toBeGreaterThan(0);
+    for (const [name, command] of prebuildScripts) {
+      expect([name, command]).toEqual([name, expect.stringContaining('CI=1')]);
+      expect([name, command]).toEqual([
+        name,
+        expect.stringContaining('--no-install'),
+      ]);
+    }
+
     // The run scripts must invoke a development build rather than Expo Go.
     // They are allowed to prefix it: they run `expo prebuild` first, because
     // `expo run:<platform>` only prebuilds when the native directory is
     // absent, so a stale ios/ or android/ would otherwise be built as-is.
     expect(examplePackage).toContain('expo run:ios');
     expect(examplePackage).toContain('expo run:android');
+
+    // No developer-specific identity may be committed here. A pinned device
+    // UDID or Apple team belongs to one machine and one account; everybody
+    // else gets "device not found" or a signing failure against a team they
+    // are not in. Both belong in the environment (see example/app.config.js).
+    expect(examplePackage).not.toMatch(/--device\s+\S/);
+    expect(exampleAppConfig).not.toContain('appleTeamId');
   });
 
   it('documents dedicated bare React Native and Expo setup guides with aligned support boundaries', () => {
