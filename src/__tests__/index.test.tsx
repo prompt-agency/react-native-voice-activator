@@ -368,6 +368,11 @@ describe('public runtime state and event contract', () => {
       },
       engineConfig: {
         sensitivity: 0.72,
+        // Resolved from the on-demand model bundle because the caller supplied
+        // no modelAssetKey of its own.
+        assetKeys: {
+          modelAssetKey: '/mock/voice-activator/models',
+        },
       },
       engineMetadata: {
         id: 'default',
@@ -446,6 +451,9 @@ describe('public runtime state and event contract', () => {
       },
       engineConfig: {
         sensitivity: 0.5,
+        assetKeys: {
+          modelAssetKey: '/mock/voice-activator/models',
+        },
       },
       engineMetadata: {
         id: 'default',
@@ -468,6 +476,9 @@ describe('public runtime state and event contract', () => {
         },
         engineConfig: {
           sensitivity: 0.5,
+          assetKeys: {
+            modelAssetKey: '/mock/voice-activator/models',
+          },
         },
         engineMetadata: {
           id: 'default',

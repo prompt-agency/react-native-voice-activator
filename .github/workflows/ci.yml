@@ -37,6 +37,27 @@ jobs:
       - name: Validate Expo prebuild generation
         run: yarn verify:expo-prebuild
 
+  # yarn lint runs verify:native-checks, but that script skips itself on
+  # anything other than macOS because it needs clang and Foundation. Every
+  # other job here is ubuntu-latest, so without this job the host-side
+  # Objective-C++ checks never execute in CI at all. They are the only
+  # regression guard for SherpaOnnxAssetLoader's root-path handling, whose
+  # last bug broke the default on-demand model flow on iOS while leaving the
+  # bundled-asset path the example app uses working. Compiling them needs no
+  # simulator, no CocoaPods and no sherpa-onnx, so this job is seconds long.
+  native-checks:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Run host-side native checks
+        run: yarn verify:native-checks
+
   test:
     runs-on: ubuntu-latest
 

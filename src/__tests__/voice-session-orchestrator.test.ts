@@ -491,28 +491,66 @@ describe('bargeIn()', () => {
     expect(orch.state).toBe('idle');
   });
 
-  it('during listening — is a no-op (session continues normally)', async () => {
+  it('during listening — abandons the utterance and restarts the turn', async () => {
     let orch: VoiceSessionOrchestrator;
+    let attempt = 0;
+
     const stt = makeStt({
       transcribe: jest.fn(async () => {
-        // Simulate: wake word fires while STT is running
-        await orch.bargeIn();
-        return makeTranscription('hello');
+        attempt += 1;
+        if (attempt === 1) {
+          // Wake word fires mid-utterance. The half-spoken phrase must be
+          // abandoned, not transcribed and sent to the AI handler.
+          await orch.bargeIn();
+          return makeTranscription('interrupted half-sentence');
+        }
+        return makeTranscription('the real request');
       }),
     });
     const tts = makeTts();
+    const aiHandler = jest.fn(async () => 'answer');
+
     orch = new VoiceSessionOrchestrator(
-      makeConfig({ reListenMode: 'manual' }),
+      makeConfig({ reListenMode: 'manual', aiHandler }),
       stt,
       tts
     );
     await orch.start();
 
-    // Only one transcription (barge-in was ignored)
-    expect(stt.transcribe as jest.Mock).toHaveBeenCalledTimes(1);
-    // TTS was still called (turn completed normally)
+    // Listened twice: the interrupted turn plus the restarted one.
+    expect(stt.transcribe as jest.Mock).toHaveBeenCalledTimes(2);
+    // The abandoned utterance never reached the AI handler.
+    expect(aiHandler).toHaveBeenCalledTimes(1);
+    expect(aiHandler).toHaveBeenCalledWith('the real request');
     expect(tts.speak as jest.Mock).toHaveBeenCalledTimes(1);
     expect(orch.state).toBe('idle');
+  });
+
+  it('during listening — cancels the STT provider so it stops capturing', async () => {
+    let orch: VoiceSessionOrchestrator;
+    let attempt = 0;
+    const cancel = jest.fn(async () => undefined);
+
+    const stt = makeStt({
+      cancel,
+      transcribe: jest.fn(async () => {
+        attempt += 1;
+        if (attempt === 1) {
+          await orch.bargeIn();
+          return makeTranscription('abandoned');
+        }
+        return makeTranscription('kept');
+      }),
+    });
+
+    orch = new VoiceSessionOrchestrator(
+      makeConfig({ reListenMode: 'manual' }),
+      stt,
+      makeTts()
+    );
+    await orch.start();
+
+    expect(cancel).toHaveBeenCalled();
   });
 
   it('on a closed session — is a no-op', async () => {

@@ -20,25 +20,45 @@ const ANDROID_ASSET_ROOT = path.join(
   'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'
 );
 const SUPPORTING_ASSET_FILES = ['tokens.txt', 'keywords.txt'] as const;
-const MODEL_PREFIXES = ['encoder', 'decoder', 'joiner'] as const;
+type ModelPrefix = 'encoder' | 'decoder' | 'joiner';
 const MANIFEST_FILE_NAME = 'voice-activator-sherpa-assets.json';
 const PACKAGE_ROOT_OVERRIDE_ENV = 'RNVA_PACKAGE_ROOT_OVERRIDE';
 
 type PlatformLabel = 'iOS' | 'Android';
 
-type SherpaAssetManifest = {
-  generatedBy: string;
-  packageName: string;
-  platform: 'ios' | 'android';
-  packageRootRelativeToApp: string;
-  assetRootRelativeToApp: string;
-  modelFilesRelativeToApp: Record<(typeof MODEL_PREFIXES)[number], string>;
-  supportingFilesRelativeToApp: {
-    tokens: string;
-    keywords: string;
-  };
-  runtimeContract: string;
-};
+type SherpaAssetManifest =
+  | {
+      /**
+       * Models are vendored into the package and copied into the app at
+       * prebuild. This is the path taken when an app supplies its own model
+       * bundle inside the package directory.
+       */
+      mode: 'bundled';
+      generatedBy: string;
+      packageName: string;
+      platform: 'ios' | 'android';
+      packageRootRelativeToApp: string;
+      assetRootRelativeToApp: string;
+      modelFilesRelativeToApp: Record<ModelPrefix, string>;
+      supportingFilesRelativeToApp: {
+        tokens: string;
+        keywords: string;
+      };
+      runtimeContract: string;
+    }
+  | {
+      /**
+       * The default. Models are not in the package: they are downloaded once by
+       * prepareModels() into the app's own storage, so there is nothing to copy
+       * at prebuild and the runtime resolves absolute paths instead.
+       */
+      mode: 'on-demand';
+      generatedBy: string;
+      packageName: string;
+      platform: 'ios' | 'android';
+      packageRootRelativeToApp: string;
+      runtimeContract: string;
+    };
 
 function findPackageRoot(startDir: string): string {
   const override = process.env[PACKAGE_ROOT_OVERRIDE_ENV]?.trim();
@@ -78,7 +98,7 @@ function isWithinDirectory(parentDir: string, candidatePath: string): boolean {
   );
 }
 
-function getModelCandidates(prefix: (typeof MODEL_PREFIXES)[number]) {
+function getModelCandidates(prefix: ModelPrefix) {
   return [
     `${prefix}.onnx`,
     `${prefix}-epoch-12-avg-2-chunk-16-left-64.int8.onnx`,
@@ -88,7 +108,7 @@ function getModelCandidates(prefix: (typeof MODEL_PREFIXES)[number]) {
 
 function resolveModelFile(
   assetRoot: string,
-  prefix: (typeof MODEL_PREFIXES)[number],
+  prefix: ModelPrefix,
   platformLabel: PlatformLabel
 ): string {
   const existingCandidate = getModelCandidates(prefix).find((candidate) =>
@@ -110,22 +130,25 @@ function resolveBundledAssets(
   platformLabel: PlatformLabel
 ) {
   const assetRoot = path.join(packageRoot, relativeRoot);
+
+  // Absent is the normal case: models are downloaded on demand rather than
+  // shipped in the tarball, so there is nothing to copy. Returning null keeps
+  // prebuild working instead of failing on models the package no longer carries.
   if (!existsSync(assetRoot)) {
-    throw new Error(
-      `[${PACKAGE_NAME}] Missing bundled Sherpa-ONNX ${platformLabel} asset directory at ${assetRoot}. ` +
-        'The Expo config plugin expects package-owned native assets to be present before prebuild.'
-    );
+    return null;
   }
 
   const missingSupportingFiles = SUPPORTING_ASSET_FILES.filter(
     (fileName) => !existsSync(path.join(assetRoot, fileName))
   );
 
+  // A directory that exists but is incomplete is a genuine problem (an app
+  // vendoring its own models has got it half right), so that still fails loudly.
   if (missingSupportingFiles.length > 0) {
     throw new Error(
-      `[${PACKAGE_NAME}] Missing bundled Sherpa-ONNX ${platformLabel} asset files: ${missingSupportingFiles.join(
-        ', '
-      )}. Checked under ${assetRoot}.`
+      `[${PACKAGE_NAME}] Incomplete bundled Sherpa-ONNX ${platformLabel} assets under ${assetRoot}: ` +
+        `missing ${missingSupportingFiles.join(', ')}. Remove the directory to use ` +
+        'on-demand models via prepareModels(), or complete the bundle.'
     );
   }
 
@@ -157,7 +180,28 @@ function writeAssetManifest(
     platformLabel
   );
   const manifestPath = path.join(platformProjectRoot, MANIFEST_FILE_NAME);
+
+  if (!resolvedAssets) {
+    const onDemandManifest: SherpaAssetManifest = {
+      mode: 'on-demand',
+      generatedBy: `${PACKAGE_NAME} Expo config plugin`,
+      packageName: PACKAGE_NAME,
+      platform,
+      packageRootRelativeToApp: path.relative(appRoot, packageRoot),
+      runtimeContract:
+        'Models are not bundled in the package. Call prepareModels() once at ' +
+        'runtime to download them, then initialize(). The runtime resolves the ' +
+        'downloaded directory as an absolute modelAssetKey.',
+    };
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify(onDemandManifest, null, 2)}\n`,
+      'utf8'
+    );
+    return;
+  }
   const manifest: SherpaAssetManifest = {
+    mode: 'bundled',
     generatedBy: `${PACKAGE_NAME} Expo config plugin`,
     packageName: PACKAGE_NAME,
     platform,

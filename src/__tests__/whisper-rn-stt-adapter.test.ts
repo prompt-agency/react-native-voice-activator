@@ -23,11 +23,34 @@ const mockRNFS = {
   writeFile: jest.fn().mockResolvedValue(undefined),
 };
 
-// react-native-fs uses named exports (no default) — spread the mock object directly
-jest.mock('react-native-fs', () => ({
+// The fork uses named exports (no default), so spread the mock object directly
+jest.mock('@dr.pogodin/react-native-fs', () => ({
   __esModule: true,
   ...mockRNFS,
 }));
+
+// Legacy package mock, kept only to prove our code never resolves it.
+// { virtual: true } is required: the real package is not in node_modules
+// (it was replaced by @dr.pogodin/react-native-fs), so without it Jest would
+// fail to resolve the specifier even with a factory supplied.
+const mockLegacyRNFS = {
+  DocumentDirectoryPath: '/legacy/documents',
+  CachesDirectoryPath: '/legacy/caches',
+  exists: jest.fn().mockResolvedValue(true),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+  downloadFile: jest.fn(),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+};
+
+jest.mock(
+  'react-native-fs',
+  () => ({
+    __esModule: true,
+    ...mockLegacyRNFS,
+  }),
+  { virtual: true }
+);
 
 // iOS recorder mock — same shape as production react-native-audio-recorder-player usage
 const mockRecorderInstance = {
@@ -37,50 +60,76 @@ const mockRecorderInstance = {
   removeRecordBackListener: jest.fn(),
 };
 
-const mockAudioRecorderPlayer = jest.fn(() => mockRecorderInstance);
-
 jest.mock('react-native-audio-recorder-player', () => ({
   __esModule: true,
-  default: mockAudioRecorderPlayer,
+  default: mockRecorderInstance,
   AudioSourceAndroidType: { VOICE_RECOGNITION: 6 },
   OutputFormatAndroidType: { MPEG_4: 2 },
   AudioEncoderAndroidType: { AAC: 3 },
-  AVEncodingOption: { wav: 'wav' },
   AVEncoderAudioQualityIOSType: { high: 96 },
   AVLinearPCMBitDepthKeyIOSType: { bit16: 16 },
 }));
 
-// Android PCM stream mock
-const mockPcmStreamSubscription = { remove: jest.fn() };
+// Android now records through the package's own native capture, so there is no
+// third-party audio module to mock — only the native module and its event
+// emitter.
+const mockNativeSubscription = { remove: jest.fn() };
 
-const mockPcmStream = {
-  init: jest.fn(),
-  start: jest.fn(),
-  stop: jest.fn(),
-  on: jest.fn(() => mockPcmStreamSubscription),
+const mockNativeCapture = {
+  startVADCapture: jest.fn().mockResolvedValue(undefined),
+  stopVADCapture: jest.fn().mockResolvedValue(undefined),
 };
 
-jest.mock('@fugood/react-native-audio-pcm-stream', () => ({
-  __esModule: true,
-  default: mockPcmStream,
-}));
+const mockAddListener = jest.fn(() => mockNativeSubscription);
 
 // react-native Platform mock — factory must not reference outer variables (hoisting)
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' as 'ios' | 'android' },
+  NativeModules: {
+    VoiceActivator: {
+      startVADCapture: jest.fn().mockResolvedValue(undefined),
+      stopVADCapture: jest.fn().mockResolvedValue(undefined),
+    },
+  },
+  NativeEventEmitter: jest.fn(),
 }));
 
-// Grab the mutable Platform ref after mock is registered
-const mockPlatform = jest.requireMock('react-native').Platform as {
-  OS: 'ios' | 'android';
+// Grab the mutable refs after the mock is registered
+const reactNativeMock = jest.requireMock('react-native') as {
+  Platform: { OS: 'ios' | 'android' };
+  NativeModules: { VoiceActivator: typeof mockNativeCapture };
+  NativeEventEmitter: jest.Mock;
 };
+const mockPlatform = reactNativeMock.Platform;
+reactNativeMock.NativeModules.VoiceActivator = mockNativeCapture;
+
+/**
+ * Re-arm the mocks that jest.clearAllMocks() strips.
+ *
+ * clearAllMocks() removes implementations set with mockImplementation, so
+ * wiring NativeEventEmitter once at module scope leaves addListener returning
+ * undefined from the second test onwards — which throws inside the adapter
+ * before it ever reaches the microphone.
+ */
+function armNativeMocks() {
+  reactNativeMock.NativeEventEmitter.mockImplementation(() => ({
+    addListener: mockAddListener,
+  }));
+  mockAddListener.mockReturnValue(mockNativeSubscription);
+  mockNativeCapture.startVADCapture.mockResolvedValue(undefined);
+  mockNativeCapture.stopVADCapture.mockResolvedValue(undefined);
+}
+
+armNativeMocks();
 
 // ─── Imports ─────────────────────────────────────────────────────────────────
 
 import {
   WhisperRNSTTAdapter,
   WhisperRNSTTCancelledError,
+  WhisperRNSTTUnreadableAudioError,
 } from '../providers/whisper-rn/WhisperRNSTTAdapter';
+import { __resetNativeCaptureRefCountForTests } from '../internal/native-pcm-capture';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +138,8 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockPlatform.OS = 'ios';
+    __resetNativeCaptureRefCountForTests();
+    armNativeMocks();
     mockRNFS.exists.mockResolvedValue(false);
     mockRNFS.downloadFile.mockReturnValue({ promise: Promise.resolve() });
     mockRecorderInstance.startRecorder.mockResolvedValue('/tmp/recording.wav');
@@ -135,6 +186,19 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     );
     // iOS: WAV cleanup via rnfs.unlink
     expect(mockRNFS.unlink).toHaveBeenCalledWith('/tmp/recording.wav');
+  });
+
+  it('resolves the file system peer from the fork, not the legacy package', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // The legacy mock must never be touched, even when both are registered.
+    expect(mockRNFS.mkdir).toHaveBeenCalledWith('/mock/documents/whisper-rn');
+    expect(mockLegacyRNFS.mkdir).not.toHaveBeenCalled();
   });
 
   it('iOS transcribe normalizes stopRecorder path when it already has file://', async () => {
@@ -256,6 +320,31 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     );
   });
 
+  it('throws a typed error when whisper cannot read the recorded file', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    mockWhisperContext.transcribe.mockImplementationOnce(() => ({
+      stop: jest.fn(),
+      promise: Promise.reject(new Error('failed to read audio file')),
+    }));
+
+    const transcriptionPromise = adapter.transcribe();
+    // Attach a handler immediately so the fake-timer advance below doesn't
+    // leave the promise rejection unobserved across a real macrotask
+    // boundary, which Node reports as an unhandled rejection.
+    transcriptionPromise.catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTUnreadableAudioError
+    );
+  });
+
   it('throws if transcribe() is called while another is already in progress on iOS', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
@@ -305,6 +394,176 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
     expect(mockWhisperContext.transcribe).not.toHaveBeenCalled();
   });
+
+  it('leaves no record-back listener behind for the next transcription', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const first = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await first;
+
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await second;
+
+    // One add and one remove per transcription, balanced, on the shared instance.
+    expect(mockRecorderInstance.addRecordBackListener).toHaveBeenCalledTimes(2);
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      2
+    );
+  });
+
+  it('a cancelled transcription does not deafen the next one', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const first = adapter.transcribe();
+    await adapter.cancel();
+    await expect(first).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
+
+    mockRecorderInstance.addRecordBackListener.mockClear();
+    mockRecorderInstance.startRecorder.mockClear();
+
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+
+    expect(mockRecorderInstance.startRecorder).toHaveBeenCalledTimes(1);
+    expect(mockRecorderInstance.addRecordBackListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose during an active transcription leaves the recorder reusable', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const pending = adapter.transcribe();
+    await adapter.dispose();
+    await expect(pending).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    // The singleton is shared process-wide; dispose() must not leave it
+    // mid-recording for whoever constructs the next adapter.
+    expect(mockRecorderInstance.stopRecorder).toHaveBeenCalled();
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalled();
+
+    const next = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await next.initialize();
+    const after = next.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(after).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('an early-cancel whose stopRecorder() rejects still frees the listener and does not wedge the next transcription', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // Simulate the native race the early-cancel branch exists to handle:
+    // stopRecorder() rejects because the recorder is not in a recording state.
+    mockRecorderInstance.stopRecorder.mockRejectedValueOnce(
+      new Error('not recording')
+    );
+
+    const first = adapter.transcribe();
+    await adapter.cancel();
+    await expect(first).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    // The listener must be freed even though stopRecorder() rejected, or it
+    // bleeds into the next transcription on the shared singleton.
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
+
+    // A stranded activeTranscription would make this throw "already in
+    // progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('a cancellation that arrives while the whisper promise is in flight throws WhisperRNSTTCancelledError, not WhisperRNSTTUnreadableAudioError', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    let rejectWhisperPromise: (e: unknown) => void = () => undefined;
+    const whisperPromise = new Promise<{ result: string }>((_, reject) => {
+      rejectWhisperPromise = reject;
+    });
+    // cancel() calls this stop() (activeStop). In production this aborts the
+    // native transcription, which can make the in-flight whisper promise
+    // reject: modeled here by having stop() reject that promise itself.
+    const stop = jest.fn().mockImplementation(async () => {
+      rejectWhisperPromise(new Error('native transcription aborted'));
+    });
+    mockWhisperContext.transcribe.mockReturnValueOnce({
+      stop,
+      promise: whisperPromise,
+    });
+
+    const transcriptionPromise = adapter.transcribe();
+    transcriptionPromise.catch(() => undefined);
+
+    // Let recording finish so ctx.transcribe() is called and activeStop is set.
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await adapter.cancel();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+  });
+
+  it('startRecorder() failure does not wedge the adapter for future transcriptions', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    mockRecorderInstance.startRecorder.mockRejectedValueOnce(
+      new Error(
+        'Recording permission denied. Please enable microphone access in Settings.'
+      )
+    );
+
+    await expect(adapter.transcribe()).rejects.toThrow(
+      'Recording permission denied'
+    );
+
+    // A stranded activeTranscription would make this throw "transcription
+    // already in progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
 });
 
 describe('WhisperRNSTTAdapter — Android path', () => {
@@ -312,6 +571,8 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockPlatform.OS = 'android';
+    __resetNativeCaptureRefCountForTests();
+    armNativeMocks();
     mockRNFS.exists.mockResolvedValue(false);
     mockRNFS.downloadFile.mockReturnValue({ promise: Promise.resolve() });
     mockWhisperContext.transcribe.mockReturnValue({
@@ -324,18 +585,18 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     jest.useRealTimers();
   });
 
-  it('initializes PCM stream on Android — no audio-recorder-player loaded', async () => {
+  it('records through the package native capture, not a third-party module', async () => {
     const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
     await adapter.initialize();
 
-    expect(mockPcmStream.init).toHaveBeenCalledWith({
-      sampleRate: 16_000,
-      channels: 1,
-      bitsPerSample: 16,
-      audioSource: 6, // AudioSource.VOICE_RECOGNITION
-      bufferSize: 4096,
-    });
-    expect(mockAudioRecorderPlayer).not.toHaveBeenCalled();
+    // initialize() must not touch the microphone at all on Android: capture is
+    // acquired per transcription and released again, so the wake-word engine
+    // keeps the mic between turns.
+    expect(mockNativeCapture.startVADCapture).not.toHaveBeenCalled();
+    // And the iOS recorder is not used on Android. In v4 the module default is
+    // a process-wide singleton rather than a constructor, so the observable
+    // signal is that no recording was ever started on it.
+    expect(mockRecorderInstance.startRecorder).not.toHaveBeenCalled();
   });
 
   it('transcribeFromWavPath passes bare path to ctx.transcribe on Android', async () => {
@@ -357,7 +618,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     );
   });
 
-  it('transcribes on Android: starts PCM stream, assembles WAV, passes bare path to ctx.transcribe()', async () => {
+  it('transcribes on Android: acquires native capture, assembles WAV, passes a bare path to ctx.transcribe()', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 2000,
@@ -365,20 +626,26 @@ describe('WhisperRNSTTAdapter — Android path', () => {
 
     await adapter.initialize();
 
-    // Simulate one PCM chunk arriving during recording
-    let pcmCallback: ((data: string) => void) | undefined;
-    (mockPcmStream.on as jest.Mock).mockImplementationOnce(
-      (_event: string, callback: (data: string) => void) => {
-        pcmCallback = callback;
-        return mockPcmStreamSubscription;
-      }
-    );
+    // Simulate one PCM frame arriving during recording
+    let pcmCallback: ((event: { pcm: string }) => void) | undefined;
+    mockAddListener.mockImplementationOnce(((
+      _event: string,
+      callback: (e: { pcm: string }) => void
+    ) => {
+      pcmCallback = callback;
+      return mockNativeSubscription;
+    }) as unknown as typeof mockAddListener);
 
     const transcriptionPromise = adapter.transcribe();
     await Promise.resolve(); // let on() + start() register
 
-    // Emit a PCM chunk (valid base64 of some bytes)
-    pcmCallback?.(btoa('\x00\x01\x02\x03'));
+    // Native capture emits 16 kHz float32 frames, so the payload is a float32
+    // buffer rather than the 16-bit stream the old module produced.
+    pcmCallback?.({
+      pcm: Buffer.from(new Float32Array([0, 0.1, -0.1, 0.2]).buffer).toString(
+        'base64'
+      ),
+    });
 
     await jest.advanceTimersByTimeAsync(2000);
 
@@ -389,16 +656,22 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       provider: 'whisper-rn',
     });
 
-    expect(mockPcmStream.start).toHaveBeenCalledTimes(1);
-    expect(mockPcmStream.stop).toHaveBeenCalledTimes(1);
+    expect(mockNativeCapture.startVADCapture).toHaveBeenCalledWith(16000);
+    // Released before transcription, so the mic is not held while Whisper runs.
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalledTimes(1);
+    // Unique per call, so two overlapping transcriptions cannot clobber each other.
     expect(mockRNFS.writeFile).toHaveBeenCalledWith(
-      '/mock/caches/voice-activator/recording.wav',
+      expect.stringMatching(
+        /^\/mock\/caches\/voice-activator\/whisper-android-\d+-\d+\.wav$/
+      ),
       expect.any(String), // base64-encoded WAV
       'base64'
     );
     // Android: bare path — NO file:// prefix
     expect(mockWhisperContext.transcribe).toHaveBeenCalledWith(
-      '/mock/caches/voice-activator/recording.wav',
+      expect.stringMatching(
+        /^\/mock\/caches\/voice-activator\/whisper-android-\d+-\d+\.wav$/
+      ),
       { language: 'en' }
     );
   });
@@ -419,11 +692,11 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       WhisperRNSTTCancelledError
     );
 
-    expect(mockPcmStream.stop).toHaveBeenCalled();
-    expect(mockPcmStreamSubscription.remove).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
+    expect(mockNativeSubscription.remove).toHaveBeenCalled();
   });
 
-  it('cancel() stops PCM stream on Android', async () => {
+  it('cancel() releases native capture on Android', async () => {
     const adapter = new WhisperRNSTTAdapter({
       modelId: 'whisper-tiny-en',
       maxRecordingMs: 5000,
@@ -439,7 +712,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       WhisperRNSTTCancelledError
     );
 
-    expect(mockPcmStream.stop).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
     expect(mockWhisperContext.transcribe).not.toHaveBeenCalled();
   });
 
@@ -477,7 +750,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     await expect(disposePromise).resolves.toBeUndefined();
 
     expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
-    expect(mockPcmStream.stop).toHaveBeenCalled();
+    expect(mockNativeCapture.stopVADCapture).toHaveBeenCalled();
   });
 
   it('throws if transcribe() is called while another is already in progress on Android', async () => {
@@ -498,6 +771,158 @@ describe('WhisperRNSTTAdapter — Android path', () => {
     await adapter.cancel();
     await expect(firstTranscription).rejects.toBeInstanceOf(
       WhisperRNSTTCancelledError
+    );
+  });
+
+  it('a failed cache-directory mkdir does not wedge the adapter for future transcriptions', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    mockRNFS.mkdir.mockRejectedValueOnce(
+      new Error('ENOSPC: no space left on device')
+    );
+
+    await expect(adapter.transcribe()).rejects.toThrow('ENOSPC');
+
+    // A stranded activeTranscription would make this throw "transcription
+    // already in progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('a missing native capture module does not wedge the adapter for future transcriptions', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // A consumer that has not rebuilt the app gets a native module without the
+    // VAD methods, so requireVADNativeModule() throws.
+    const linkedModule = reactNativeMock.NativeModules.VoiceActivator;
+    reactNativeMock.NativeModules.VoiceActivator =
+      {} as typeof mockNativeCapture;
+
+    await expect(adapter.transcribe()).rejects.toThrow(
+      'missing VAD capture methods'
+    );
+
+    reactNativeMock.NativeModules.VoiceActivator = linkedModule;
+
+    // A stranded activeTranscription would make this throw "transcription
+    // already in progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('a cancellation that arrives while the whisper promise is in flight throws WhisperRNSTTCancelledError on Android', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    let rejectWhisperPromise: (e: unknown) => void = () => undefined;
+    const whisperPromise = new Promise<{ result: string }>((_, reject) => {
+      rejectWhisperPromise = reject;
+    });
+    // cancel() calls this stop() (activeStop). In production this aborts the
+    // native transcription, which can make the in-flight whisper promise
+    // reject: modeled here by having stop() reject that promise itself.
+    const stop = jest.fn().mockImplementation(async () => {
+      rejectWhisperPromise(new Error('native transcription aborted'));
+    });
+    mockWhisperContext.transcribe.mockReturnValueOnce({
+      stop,
+      promise: whisperPromise,
+    });
+
+    const transcriptionPromise = adapter.transcribe();
+    transcriptionPromise.catch(() => undefined);
+
+    // Let recording finish so ctx.transcribe() is called and activeStop is set.
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await adapter.cancel();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+  });
+
+  it('a cancellation during transcribeFromWavPath throws WhisperRNSTTCancelledError, not a raw whisper error', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    let rejectWhisperPromise: (e: unknown) => void = () => undefined;
+    const whisperPromise = new Promise<{ result: string }>((_, reject) => {
+      rejectWhisperPromise = reject;
+    });
+    const stop = jest.fn().mockImplementation(async () => {
+      rejectWhisperPromise(new Error('native transcription aborted'));
+    });
+    mockWhisperContext.transcribe.mockReturnValueOnce({
+      stop,
+      promise: whisperPromise,
+    });
+
+    const transcriptionPromise = adapter.transcribeFromWavPath(
+      '/mock/caches/voice-activator/vad.wav'
+    );
+    transcriptionPromise.catch(() => undefined);
+    await Promise.resolve();
+
+    await adapter.cancel();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+  });
+
+  it('an unreadable WAV in transcribeFromWavPath surfaces as WhisperRNSTTUnreadableAudioError', async () => {
+    const adapter = new WhisperRNSTTAdapter({ modelId: 'whisper-tiny-en' });
+    await adapter.initialize();
+
+    mockWhisperContext.transcribe.mockReturnValueOnce({
+      stop: jest.fn().mockResolvedValue(undefined),
+      promise: Promise.reject(new Error('failed to read audio file')),
+    });
+
+    await expect(
+      adapter.transcribeFromWavPath('/mock/caches/voice-activator/vad.wav')
+    ).rejects.toBeInstanceOf(WhisperRNSTTUnreadableAudioError);
+  });
+
+  it('an unreadable WAV on the Android recording path surfaces as WhisperRNSTTUnreadableAudioError', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // mockImplementationOnce, not mockReturnValueOnce: the rejected promise
+    // must be created when the adapter asks for it, not 5 simulated seconds
+    // earlier, or Node reports it as an unhandled rejection in between.
+    mockWhisperContext.transcribe.mockImplementationOnce(() => ({
+      stop: jest.fn().mockResolvedValue(undefined),
+      promise: Promise.reject(new Error('failed to read audio file')),
+    }));
+
+    const transcriptionPromise = adapter.transcribe();
+    transcriptionPromise.catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTUnreadableAudioError
     );
   });
 });

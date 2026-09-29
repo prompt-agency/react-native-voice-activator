@@ -1,7 +1,10 @@
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 import {
+  BUNDLED_MODEL_ASSET_KEY,
+  getModelStatus,
   initialize,
+  prepareModels,
   SherpaOnnxSpeakerVerificationAdapter,
   WhisperRNSTTAdapter,
 } from 'react-native-voice-activator';
@@ -24,6 +27,22 @@ export const speakerVerificationProvider =
   new SherpaOnnxSpeakerVerificationAdapter();
 
 const DEFAULT_KEYWORD_ASSET = 'keywords.txt';
+
+/**
+ * The acoustic model bundle that ships inside the app, re-exported from the
+ * package so the screens can keep importing it from here.
+ *
+ * Preset-keyword flows pass this to load the model already on disk instead of
+ * falling through to the on-demand download path. wakePhrase flows must NOT
+ * use it: `initialize()` requires an absolute path for `modelAssetKey` when
+ * `wakePhrase` is set, because it writes the generated keywords file next to
+ * the model bundle.
+ *
+ * The value is platform specific and the package owns it, kept in step with
+ * both native loaders by a contract test. An app should never spell these
+ * roots out itself.
+ */
+export { BUNDLED_MODEL_ASSET_KEY };
 
 // ─── Speaker model download ───────────────────────────────────────────────────
 
@@ -70,7 +89,9 @@ export async function getDownloadedSpeakerModelPath(): Promise<string | null> {
   try {
     if (!(await RNFS.exists(SPEAKER_MODEL_PATH))) return null;
     const stat = await RNFS.stat(SPEAKER_MODEL_PATH);
-    return Number(stat.size) === SPEAKER_MODEL_BYTES ? SPEAKER_MODEL_PATH : null;
+    return Number(stat.size) === SPEAKER_MODEL_BYTES
+      ? SPEAKER_MODEL_PATH
+      : null;
   } catch {
     return null;
   }
@@ -180,11 +201,21 @@ export async function ensureSpeakerRuntime(
   onProgress?: (p: DownloadProgress) => void
 ): Promise<void> {
   if (speakerRuntimeReady) return;
+
+  // Uses the preset keyword bundled in the app (DEFAULT_KEYWORD_ASSET), so the
+  // acoustic model it needs is the bundled one too (BUNDLED_MODEL_ASSET_KEY)
+  // rather than the on-demand download path; no ensureModelsReady() call.
+
   // Must complete before initialize(): the model is loaded lazily on the first
   // embedding extraction, and a missing file is unrecoverable at that point.
   const modelPath = await ensureSpeakerModel(onProgress);
   await initialize({
-    engineConfig: { assetKeys: { keywordAssetKey: DEFAULT_KEYWORD_ASSET } },
+    engineConfig: {
+      assetKeys: {
+        keywordAssetKey: DEFAULT_KEYWORD_ASSET,
+        modelAssetKey: BUNDLED_MODEL_ASSET_KEY,
+      },
+    },
     speakerVerificationProvider,
     speakerModelPath: modelPath,
     verificationFailureBehavior: 'open',
@@ -233,7 +264,11 @@ export function ensureSttProvider(
  * path and fails with "File doesn't exist". Extract it once to disk and hand
  * the absolute path to VADConfig.modelPath.
  *
- * iOS needs none of this — ORT resolves the bare filename from the bundle.
+ * iOS hits the same wall for the same reason. ORT used to resolve a bare
+ * filename against NSBundle.mainBundle, so passing "silero_vad.onnx" was
+ * enough. Newer ORT treats it as a plain filesystem path and fails with the
+ * same "File doesn't exist". The model is already inside the app bundle, so
+ * no extraction is needed there, only an absolute path.
  */
 const VAD_MODEL_ASSET = 'silero_vad.onnx';
 const VAD_MODEL_PATH = `${RNFS.DocumentDirectoryPath}/${VAD_MODEL_ASSET}`;
@@ -249,6 +284,14 @@ export function ensureVadModelPath(): Promise<string | undefined> {
 }
 
 async function extractVadModel(): Promise<string | undefined> {
+  if (Platform.OS === 'ios') {
+    // Bundled as a pod resource, so it sits at the app bundle root. Returning
+    // undefined here would fall back to the bare filename, which newer ORT
+    // cannot resolve.
+    return RNFS.MainBundlePath
+      ? `${RNFS.MainBundlePath}/${VAD_MODEL_ASSET}`
+      : undefined;
+  }
   if (Platform.OS !== 'android') return undefined;
   const stat = await RNFS.exists(VAD_MODEL_PATH)
     .then((exists) => (exists ? RNFS.stat(VAD_MODEL_PATH) : null))
@@ -258,4 +301,36 @@ async function extractVadModel(): Promise<string | undefined> {
   if (stat && Number(stat.size) > 0) return VAD_MODEL_PATH;
   await RNFS.copyFileAssets(VAD_MODEL_ASSET, VAD_MODEL_PATH);
   return VAD_MODEL_PATH;
+}
+
+// ─── Wake word models ─────────────────────────────────────────────────────────
+
+/**
+ * Download the wake word models if they are not already present.
+ *
+ * The package does not ship them, and `initialize()` rejects with a
+ * non-recoverable `models_not_prepared` error when they are absent — so every
+ * screen that initializes has to do this first.
+ *
+ * Idempotent: once the bundle is complete this only re-verifies checksums.
+ */
+export async function ensureModelsReady(
+  onProgress?: (update: { message: string; progress?: number }) => void
+): Promise<void> {
+  const status = await getModelStatus();
+  if (status.ready) return;
+
+  onProgress?.({
+    message: `Downloading wake word models (${(status.bytesTotal / 1e6).toFixed(1)} MB)...`,
+    progress: 0,
+  });
+
+  await prepareModels({
+    onProgress: ({ percent }) => {
+      onProgress?.({
+        message: 'Downloading wake word models...',
+        progress: percent,
+      });
+    },
+  });
 }

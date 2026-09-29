@@ -8,13 +8,28 @@
         {
           "microphonePermissionText": "This app uses the microphone to detect wake words."
         }
-      ]
+      ],
+      "./plugins/with-ui-scene-lifecycle.js",
+      "./plugins/with-sherpa-tts-assets.js"
     ],
     "android": {
       "package": "com.anonymous.voiceactivatorexample"
     },
     "ios": {
-      "bundleIdentifier": "com.anonymous.voiceactivatorexample"
+      "bundleIdentifier": "com.anonymous.voiceactivatorexample",
+      "infoPlist": {
+        "UIApplicationSceneManifest": {
+          "UIApplicationSupportsMultipleScenes": false,
+          "UISceneConfigurations": {
+            "UIWindowSceneSessionRoleApplication": [
+              {
+                "UISceneConfigurationName": "Default Configuration",
+                "UISceneDelegateClassName": "EXExpoAppSceneDelegate"
+              }
+            ]
+          }
+        }
+      }
     }
   }
 }

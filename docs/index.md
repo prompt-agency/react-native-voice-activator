@@ -18,11 +18,11 @@ hero:
 
 features:
   - title: On-device wake word detection
-    details: No cloud, no API key. Engine-backed local wake word detection via a native-managed engine (Sherpa-ONNX with bundled models).
+    details: Any phrase you like — wakePhrase 'hey acme' and you are done. No training, no cloud, no API key. Models download once, then run locally.
   - title: Managed conversation sessions
     details: The package drives the full wake, listen, AI, speak, re-listen loop for you.
   - title: Barge-in
-    details: Say the wake word while the AI is speaking to interrupt and start a new turn immediately (~300ms).
+    details: Say the wake word while the AI is speaking to interrupt TTS and start a new turn.
   - title: React hooks
     details: useWakeWord() and useVoiceSession() for reactive component updates.
   - title: Expo config plugin
@@ -46,12 +46,12 @@ flowchart LR
 ## Quick Install
 
 ```sh
-npm install react-native-voice-activator react-native-nitro-modules
+npm install react-native-voice-activator
 ```
 
-Continue with [Getting Started](/getting-started) for platform setup (bare React Native or Expo), then [Conversation Session](/conversation-session) for the full session API.
+Continue with [Getting Started](/getting-started) for platform setup (bare React Native or Expo), then [Conversation Session](/conversation-session) for the full session API. Upgrading from an earlier release? See [Upgrading](/upgrading).
 
-> **Supports:** React Native `0.83+` &middot; Expo SDK `55+` &middot; iOS &middot; Android
+> **Supports:** React Native `0.86+` &middot; Expo SDK `57+` &middot; iOS &middot; Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
 ---

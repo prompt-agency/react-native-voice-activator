@@ -31,14 +31,13 @@ jest.mock('../providers/vad/SileroVADEngine', () => ({
   })),
 }));
 
-jest.mock('react-native-fs', () => ({
+// The fork uses named exports (no default), so spread the mock object directly
+jest.mock('@dr.pogodin/react-native-fs', () => ({
   __esModule: true,
-  default: {
-    CachesDirectoryPath: '/mock/caches',
-    mkdir: jest.fn().mockResolvedValue(undefined),
-    writeFile: jest.fn().mockResolvedValue(undefined),
-    unlink: jest.fn().mockResolvedValue(undefined),
-  },
+  CachesDirectoryPath: '/mock/caches',
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
 import * as sessionEvents from '../internal/session-events';
@@ -253,7 +252,7 @@ describe('VoiceSessionOrchestrator — VAD listening', () => {
       resolveWriteFile = resolve;
     });
 
-    const rnfs = jest.requireMock('react-native-fs').default as {
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
       mkdir: jest.Mock;
       writeFile: jest.Mock;
       unlink: jest.Mock;

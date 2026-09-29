@@ -29,6 +29,7 @@ NSError *SherpaAssetError(NSString *message)
                          joinerPath:(NSString *)joinerPath
                          tokensPath:(NSString *)tokensPath
                        keywordsPath:(NSString *)keywordsPath
+                       bpeVocabPath:(nullable NSString *)bpeVocabPath
 {
   self = [super init];
   if (self) {
@@ -37,6 +38,7 @@ NSError *SherpaAssetError(NSString *message)
     _joinerPath = [joinerPath copy];
     _tokensPath = [tokensPath copy];
     _keywordsPath = [keywordsPath copy];
+    _bpeVocabPath = [bpeVocabPath copy];
   }
   return self;
 }
@@ -125,11 +127,23 @@ NSError *SherpaAssetError(NSString *message)
 
 - (nullable SherpaOnnxAssetPaths *)loadAssetPathsWithModelAssetKey:(nullable NSString *)modelAssetKey
                                                    keywordAssetKey:(nullable NSString *)keywordAssetKey
+                                                  rawTextKeywords:(BOOL)rawTextKeywords
                                                              error:(NSError * _Nullable * _Nullable)error
 {
-  NSString *trimmedModelAssetKey =
-      [[modelAssetKey stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
-          stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];
+  // Only a TRAILING slash is noise. A leading slash is load-bearing: it is what
+  // marks the key as an absolute filesystem path rather than a directory inside
+  // the app bundle, and the on-demand model bundle is always absolute (see
+  // src/public/voice-activator.ts, which passes the downloaded directory
+  // through as modelAssetKey). Trimming both ends, as this used to, silently
+  // reclassified every downloaded bundle as a bundle-relative path and made the
+  // default flow fail with "Missing bundled Sherpa-ONNX encoder model in
+  // var/mobile/...". Mirrors normalizeAssetRoot in the Android loader.
+  NSString *trimmedModelAssetKey = [modelAssetKey
+      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  while (trimmedModelAssetKey.length > 1 && [trimmedModelAssetKey hasSuffix:@"/"]) {
+    trimmedModelAssetKey =
+        [trimmedModelAssetKey substringToIndex:trimmedModelAssetKey.length - 1];
+  }
   NSString *modelRoot = trimmedModelAssetKey.length > 0 ? trimmedModelAssetKey : kAssetRoot;
   BOOL bundleSearch = ![modelRoot hasPrefix:@"/"] && ![modelRoot hasPrefix:@"file://"];
   if (!bundleSearch) {
@@ -190,11 +204,27 @@ NSError *SherpaAssetError(NSString *message)
     return nil;
   }
 
+  // A generated wakePhrase keywords file is plain text, so sherpa-onnx needs
+  // bpe.model to tokenize it. The bundled presets are already tokenized and must
+  // not go through that path, hence the explicit flag rather than always loading
+  // the vocabulary when it happens to be present.
+  NSString *bpeVocabPath = nil;
+  if (rawTextKeywords) {
+    bpeVocabPath = [self resolvePathForAsset:@"bpe.model"
+                                    rootPath:modelRoot
+                                bundleSearch:bundleSearch
+                                       error:error];
+    if (bpeVocabPath == nil) {
+      return nil;
+    }
+  }
+
   return [[SherpaOnnxAssetPaths alloc] initWithEncoderPath:encoderPath
                                                decoderPath:decoderPath
                                                 joinerPath:joinerPath
                                                 tokensPath:tokensPath
-                                              keywordsPath:keywordsPath];
+                                              keywordsPath:keywordsPath
+                                              bpeVocabPath:bpeVocabPath];
 }
 
 @end

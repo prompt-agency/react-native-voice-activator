@@ -20,12 +20,20 @@ import { ExpoSpeechTtsProvider } from '../expo-speech-tts-provider';
 import {
   markSpeakerRuntimeDisposed,
   markSpeakerRuntimeReady,
+  BUNDLED_MODEL_ASSET_KEY,
   ensureSttProvider,
   ensureVadModelPath,
   getDownloadedSpeakerModelPath,
   speakerVerificationProvider,
 } from '../providers';
-import { Btn, C, EventLog, SectionCard, StatusPill, type EventEntry } from '../shared';
+import {
+  Btn,
+  C,
+  EventLog,
+  SectionCard,
+  StatusPill,
+  type EventEntry,
+} from '../shared';
 
 // ─── Mock AI Handler ──────────────────────────────────────────────────────────
 
@@ -39,8 +47,15 @@ let seq = 0;
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export function SessionScreen() {
-  const { sessionState, lastTranscript, lastSpeechText, turnCount, lastError, listen, close } =
-    useVoiceSession();
+  const {
+    sessionState,
+    lastTranscript,
+    lastSpeechText,
+    turnCount,
+    lastError,
+    listen,
+    close,
+  } = useVoiceSession();
 
   const [wakeStatus, setWakeStatus] = useState(() => getStatus());
   const [reListenMode, setReListenMode] = useState<'auto' | 'manual'>('auto');
@@ -48,7 +63,9 @@ export function SessionScreen() {
   const [events, setEvents] = useState<EventEntry[]>([]);
 
   function pushEvent(label: string, detail: string) {
-    setEvents((prev) => [{ id: String(seq++), label, detail }, ...prev].slice(0, 5));
+    setEvents((prev) =>
+      [{ id: String(seq++), label, detail }, ...prev].slice(0, 5)
+    );
   }
 
   // Sync wake word status for canStart / isListening
@@ -59,7 +76,10 @@ export function SessionScreen() {
   // Trace the session state machine into the event log. Without this a session
   // that never starts is indistinguishable from one that starts and stalls.
   useEffect(() => {
-    pushEvent('sessionState', sessionState === null ? 'null (no session)' : sessionState);
+    pushEvent(
+      'sessionState',
+      sessionState === null ? 'null (no session)' : sessionState
+    );
   }, [sessionState]);
 
   // Surface wake word and runtime errors. Without this the screen is blind to
@@ -68,7 +88,10 @@ export function SessionScreen() {
   useEffect(() => {
     const subs = [
       addWakeWordListener('wakeWordDetected', (e) => {
-        pushEvent('wakeWordDetected', `"${e.detectedPhrase}" at ${e.detectedAt}`);
+        pushEvent(
+          'wakeWordDetected',
+          `"${e.detectedPhrase}" at ${e.detectedAt}`
+        );
         setWakeStatus(getStatus());
       }),
       addWakeWordListener('error', (e) => {
@@ -87,7 +110,12 @@ export function SessionScreen() {
     if (Platform.OS !== 'android') return true;
     const result = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      { title: 'Microphone', message: 'Required for voice session.', buttonPositive: 'Allow', buttonNegative: 'Cancel' }
+      {
+        title: 'Microphone',
+        message: 'Required for voice session.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Cancel',
+      }
     );
     return result === PermissionsAndroid.RESULTS.GRANTED;
   }
@@ -97,6 +125,9 @@ export function SessionScreen() {
     try {
       const speakerModelPath = await getDownloadedSpeakerModelPath();
       // Must be initialized by the app before use — see ensureSttProvider().
+      // Uses a preset keyword (MERRY CHRISTMAS), so the acoustic model comes
+      // from the bundle that ships in the app (BUNDLED_MODEL_ASSET_KEY); no
+      // on-demand model download needed here.
       setProgressText('Preparing speech-to-text model...');
       const sttProvider = await ensureSttProvider((u) =>
         setProgressText(
@@ -106,7 +137,12 @@ export function SessionScreen() {
       const vadModelPath = await ensureVadModelPath();
       setProgressText('');
       await initialize({
-        engineConfig: { assetKeys: { keywordAssetKey: 'keywords-merry-christmas.txt' } },
+        engineConfig: {
+          assetKeys: {
+            keywordAssetKey: 'keywords-merry-christmas.txt',
+            modelAssetKey: BUNDLED_MODEL_ASSET_KEY,
+          },
+        },
         sttProvider,
         // Required: session mode only engages when BOTH stt and tts are set.
         ttsProvider: new ExpoSpeechTtsProvider(),
@@ -155,14 +191,20 @@ export function SessionScreen() {
   }
 
   async function handleListen() {
-    try { await listen(); } catch (e: any) { pushEvent('error', String(e?.message ?? e)); }
+    try {
+      await listen();
+    } catch (e: any) {
+      pushEvent('error', String(e?.message ?? e));
+    }
   }
 
   async function handleClose() {
     try {
       await close();
       pushEvent('close', 'session closed');
-    } catch (e: any) { pushEvent('error', String(e?.message ?? e)); }
+    } catch (e: any) {
+      pushEvent('error', String(e?.message ?? e));
+    }
   }
 
   async function handleDispose() {
@@ -171,14 +213,15 @@ export function SessionScreen() {
       markSpeakerRuntimeDisposed();
       setWakeStatus(getStatus());
       pushEvent('dispose', 'runtime torn down');
-    } catch { setWakeStatus(getStatus()); }
+    } catch {
+      setWakeStatus(getStatus());
+    }
   }
 
   const sessionActive = sessionState !== null && sessionState !== 'closed';
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
-
       {/* Header */}
       <View style={s.hero}>
         <Text style={s.heroTitle}>③ Conversation</Text>
@@ -186,19 +229,28 @@ export function SessionScreen() {
           After wake word detection, the library manages the full listen{' '}
           <Text style={s.heroCode}>→</Text> transcribe{' '}
           <Text style={s.heroCode}>→</Text> respond{' '}
-          <Text style={s.heroCode}>→</Text> speak loop.
-          Say <Text style={s.heroCode}>MERRY CHRISTMAS</Text> to start a session.
+          <Text style={s.heroCode}>→</Text> speak loop. Say{' '}
+          <Text style={s.heroCode}>MERRY CHRISTMAS</Text> to start a session.
         </Text>
         <View style={s.pillRow}>
-          <StatusPill label={wakeStatus.state} active={wakeStatus.isListening} />
-          {sessionState ? <StatusPill label={sessionState} active={sessionActive} /> : null}
-          {turnCount > 0 ? <StatusPill label={`turn ${turnCount}`} active /> : null}
+          <StatusPill
+            label={wakeStatus.state}
+            active={wakeStatus.isListening}
+          />
+          {sessionState ? (
+            <StatusPill label={sessionState} active={sessionActive} />
+          ) : null}
+          {turnCount > 0 ? (
+            <StatusPill label={`turn ${turnCount}`} active />
+          ) : null}
         </View>
       </View>
 
       {lastError ? (
         <View style={s.errorBanner}>
-          <Text style={s.errorTitle}>{lastError.category}: {lastError.code}</Text>
+          <Text style={s.errorTitle}>
+            {lastError.category}: {lastError.code}
+          </Text>
           <Text style={s.errorBody}>{lastError.message}</Text>
         </View>
       ) : null}
@@ -211,8 +263,8 @@ export function SessionScreen() {
         <Text style={s.echoNoticeBody}>
           This demo echoes your words back. Replace the{' '}
           <Text style={s.code}>mockAiHandler</Text> constant in{' '}
-          <Text style={s.code}>SessionScreen.tsx</Text> with a call to
-          your AI API to get a real conversation.
+          <Text style={s.code}>SessionScreen.tsx</Text> with a call to your AI
+          API to get a real conversation.
         </Text>
       </View>
 
@@ -230,7 +282,8 @@ export function SessionScreen() {
           ))}
         </View>
         <Text style={s.hint}>
-          Wake word: <Text style={s.code}>MERRY CHRISTMAS</Text>{'\n'}
+          Wake word: <Text style={s.code}>MERRY CHRISTMAS</Text>
+          {'\n'}
           silenceTimeoutMs: <Text style={s.code}>10 000</Text>
         </Text>
       </SectionCard>
@@ -238,7 +291,11 @@ export function SessionScreen() {
       {/* Controls */}
       <SectionCard title="Controls">
         <Btn label="Initialize" onPress={handleInitialize} tone="primary" />
-        <Btn label="Start detection" onPress={handleStart} disabled={!wakeStatus.canStart} />
+        <Btn
+          label="Start detection"
+          onPress={handleStart}
+          disabled={!wakeStatus.canStart}
+        />
         {reListenMode === 'manual' && sessionState === 'idle' ? (
           <Btn label="Listen again" onPress={handleListen} />
         ) : null}
@@ -266,7 +323,10 @@ export function SessionScreen() {
             ) : null}
           </View>
         ) : (
-          <Text style={s.hint}>No conversation yet. Initialize, start detection, then say the wake word.</Text>
+          <Text style={s.hint}>
+            No conversation yet. Initialize, start detection, then say the wake
+            word.
+          </Text>
         )}
       </SectionCard>
 
@@ -274,7 +334,6 @@ export function SessionScreen() {
       <SectionCard title="Recent runtime events">
         <EventLog events={events} />
       </SectionCard>
-
     </ScrollView>
   );
 }
@@ -340,6 +399,11 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
     maxWidth: '85%',
   },
-  bubbleLabel: { fontSize: 10, fontWeight: '700', color: C.label, letterSpacing: 0.5 },
+  bubbleLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.label,
+    letterSpacing: 0.5,
+  },
   bubbleText: { fontSize: 14, color: C.heading, lineHeight: 20 },
 });

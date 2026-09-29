@@ -45,15 +45,47 @@ import {
   VAD_NATIVE_PCM_FRAME_EVENT,
 } from '../providers/vad/SileroVADEngine';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import {
+  DEFAULT_PROVIDER_TIMEOUT_MS,
+  isOperationTimeoutError,
+  withTimeout,
+} from '../internal/with-timeout';
+import {
+  getModelBundleStatus,
+  modelBundleManifest,
+  prepareModelBundle,
+  type ModelBundleStatus,
+  type ModelPreparationOptions,
+} from '../internal/model-store';
+import {
+  WakePhraseError,
+  writeWakePhraseKeywords,
+} from '../internal/wake-phrase';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
+
+/**
+ * Incremented on every initialize() call so an overlapping pair cannot both
+ * claim ownership of the runtime.
+ *
+ * initialize() builds a fresh engine runtime, awaits native initialize(), and
+ * only then assigns activeEngineRuntime. Two concurrent calls used to both
+ * reach that assignment, so the last writer won and the loser's
+ * already-initialized native handle leaked — disposeEngineRuntime() only ever
+ * touches the current pointer. Reachable from React 19 StrictMode's
+ * double-invoke, a double-tap, or two screens initializing on mount.
+ */
+let initializeToken = 0;
 let nativeStatusUpdateQueue: Promise<void> = Promise.resolve();
 let activeRuntimeConfiguration: ReturnType<
   typeof createRuntimeConfiguration
 > | null = null;
 let providerOrchestrationQueue: Promise<void> = Promise.resolve();
 let providerOrchestrationGeneration = 0;
+
+let activeProviderTimeoutMs: number = DEFAULT_PROVIDER_TIMEOUT_MS;
+
 type ActiveProviderFlow = {
   id: number;
   stage: 'transcribing' | 'speaking';
@@ -162,8 +194,36 @@ function emitWakeWordDetected(payload: WakeWordDetectedEvent) {
   emitRuntimeEvent('wakeWordDetected', payload);
 }
 
-function invalidateProviderOrchestration() {
+/**
+ * Bump the generation so queued and in-flight provider callbacks discard their
+ * results, without touching the queue itself.
+ *
+ * Use this from *inside* a queued callback. Resetting the queue from within it
+ * would let a concurrent wake word run in parallel with the work still running.
+ */
+function bumpProviderOrchestrationGeneration() {
   providerOrchestrationGeneration += 1;
+}
+
+/**
+ * Invalidate queued provider work and detach the queue.
+ *
+ * The generation bump alone is not sufficient. `providerOrchestrationQueue` is a
+ * single serially-chained promise, and each queued callback only reaches its
+ * generation check once it runs. If the callback currently holding the chain
+ * never settles — a `transcribe()` or `speak()` that hangs — every later wake
+ * word is chained behind it and never runs at all.
+ *
+ * A promise cannot be cancelled, so the wedged one is left to settle (or not)
+ * on its own; its generation check makes it a no-op either way. Replacing the
+ * queue reference means new work no longer waits behind it.
+ *
+ * Only call this from lifecycle paths (initialize, stopDetection, dispose,
+ * native status teardown), never from inside a queued callback.
+ */
+function invalidateProviderOrchestration() {
+  bumpProviderOrchestrationGeneration();
+  providerOrchestrationQueue = Promise.resolve();
 }
 
 function createProviderError(
@@ -241,8 +301,10 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
 
   // Fast path: barge-in an actively-running session immediately, outside the queue.
   // In auto mode, orchestrator.start() holds the queue indefinitely (recursive _runTurn
-  // loop that only exits on close/error), so barge-in MUST be handled here to fire
-  // within the 300ms TTS-stop window and not be serialised behind the running session.
+  // loop that only exits on close/error), so barge-in MUST be handled here rather
+  // than be serialised behind the running session. The design target for the
+  // TTS-stop window is 300ms; that is a target, not a measured figure, and the
+  // latency has never been measured on a physical device.
   // Only non-idle, non-closed states are interrupted — idle falls through to the queue
   // so a wake word after a manual-mode turn naturally starts a fresh session.
   if (
@@ -290,7 +352,7 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
         // Invalidate the provider orchestration generation before closing the old session
         // so that any pending verification IIFEs from the previous session are discarded
         // by the generation-ID guard (VERIFY-02).
-        invalidateProviderOrchestration();
+        bumpProviderOrchestrationGeneration();
         await closeActiveVoiceSession();
         const orchestrator = new VoiceSessionOrchestrator(
           activeSessionConfig,
@@ -403,7 +465,12 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
       });
 
       try {
-        const transcription = await sttProvider.transcribe();
+        const transcription = await withTimeout(
+          'transcribe',
+          sttProvider.name,
+          activeProviderTimeoutMs,
+          () => sttProvider.transcribe()
+        );
 
         if (
           providerOrchestrationGeneration !== generation ||
@@ -431,7 +498,12 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           provider: ttsProvider.name,
         });
 
-        await ttsProvider.speak(transcription.text);
+        await withTimeout(
+          'speak',
+          ttsProvider.name,
+          activeProviderTimeoutMs,
+          () => ttsProvider.speak(transcription.text)
+        );
 
         if (
           providerOrchestrationGeneration !== generation ||
@@ -451,23 +523,42 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
           return;
         }
 
+        const timedOut = isOperationTimeoutError(cause);
+
         if (activeProviderFlow?.stage === 'speaking' && ttsProvider) {
+          // Ask the provider to stand down. It may not comply — that is exactly
+          // why the bound exists — so the result is not awaited on the queue.
+          if (timedOut) {
+            Promise.resolve(ttsProvider.stop()).catch(() => undefined);
+          }
+
           emitRuntimeEvent(
             'speechError',
             createProviderErrorFromCause(
               ttsProvider.name,
-              'tts_speak_failed',
+              timedOut ? 'tts_timeout' : 'tts_speak_failed',
               cause,
-              'Speech playback failed.'
+              timedOut
+                ? 'Speech playback timed out.'
+                : 'Speech playback failed.'
             )
           );
         } else {
-          const errorCode = isCancelledTranscriptionError(cause)
-            ? 'stt_cancelled'
-            : 'stt_transcribe_failed';
-          const fallbackMessage = isCancelledTranscriptionError(cause)
-            ? 'Transcription was cancelled.'
-            : 'Transcription failed.';
+          if (timedOut) {
+            Promise.resolve(sttProvider.cancel()).catch(() => undefined);
+          }
+
+          let errorCode = 'stt_transcribe_failed';
+          let fallbackMessage = 'Transcription failed.';
+
+          if (timedOut) {
+            errorCode = 'stt_timeout';
+            fallbackMessage = 'Transcription timed out.';
+          } else if (isCancelledTranscriptionError(cause)) {
+            errorCode = 'stt_cancelled';
+            fallbackMessage = 'Transcription was cancelled.';
+          }
+
           emitRuntimeEvent(
             'transcriptionError',
             createProviderErrorFromCause(
@@ -653,12 +744,49 @@ function rejectUnsupportedRuntime(methodName: string): Promise<void> {
   return Promise.reject(new Error(error.message));
 }
 
+/**
+ * Fail initialize() when the on-demand model bundle is absent.
+ *
+ * Non-recoverable on purpose: retrying initialize() with the same options cannot
+ * succeed. The app has to call prepareModels() first, or supply its own model
+ * root, which is exactly the distinction `recoverable: false` exists to draw.
+ */
+/**
+ * Fail initialize() with a non-recoverable configuration error.
+ *
+ * Non-recoverable because every caller of this is a mistake in the options: a
+ * retry with the same options produces the same result.
+ */
+function rejectConfiguration(code: string, message: string): Promise<void> {
+  const error: WakeWordError = {
+    category: 'configuration',
+    code,
+    message,
+    recoverable: false,
+  };
+  runtimeStore.recordError(error, 'error');
+  return Promise.reject(new Error(message));
+}
+
+function rejectModelsUnavailable(detail: string): Promise<void> {
+  const error: WakeWordError = {
+    category: 'configuration',
+    code: 'models_not_prepared',
+    message: `Wake word models are not available. ${detail}`,
+    recoverable: false,
+  };
+  runtimeStore.recordError(error, 'error');
+  return Promise.reject(new Error(error.message));
+}
+
 function createRuntimeUnavailableError(methodName: string): WakeWordError {
   return {
-    category: 'internal',
+    // The native module is absent — a property of the build, not of package
+    // internals, and nothing the app can retry its way out of.
+    category: 'platform',
     code: 'runtime_unavailable',
     message: createUnsupportedRuntimeError(methodName).message,
-    recoverable: true,
+    recoverable: false,
   };
 }
 
@@ -719,10 +847,19 @@ function isWakeWordError(value: unknown): value is WakeWordError {
   );
 }
 
+/**
+ * Mark a configuration failure non-recoverable.
+ *
+ * This previously forced `recoverable: true`, discarding whatever the caller
+ * supplied. A configuration error is a missing or invalid model asset, a bad
+ * keyword path, an unreadable bundle — none of which a retry with the same
+ * options will fix. The app has to change the configuration and call
+ * initialize() again, which is exactly what `recoverable: false` is for.
+ */
 function createConfigurationFailure(error: WakeWordError): WakeWordError {
   return {
     ...error,
-    recoverable: true,
+    recoverable: false,
   };
 }
 
@@ -791,6 +928,16 @@ async function disposeEngineRuntime() {
   engineRuntimeRunning = false;
 }
 
+/**
+ * @internal Exposed for unit tests only. Not part of the public API and not
+ * re-exported from src/index.ts.
+ */
+export const __testables = {
+  createConfigurationFailure,
+  createRuntimeUnavailableError,
+  createProviderError,
+};
+
 const addListener: VoiceActivatorApi['addListener'] = addRuntimeListener;
 
 export const voiceActivator: VoiceActivatorApi = {
@@ -807,6 +954,91 @@ export const voiceActivator: VoiceActivatorApi = {
     }
     const runtimeConfiguration = createRuntimeConfiguration(options);
     const nextEngineRuntime = resolveEngineRuntime();
+    const token = ++initializeToken;
+
+    // Models are downloaded on demand rather than shipped in the package, so
+    // point the engine at the downloaded bundle unless the app supplied its own
+    // model root. Failing here with a specific, non-recoverable error is far
+    // easier to act on than a native "missing asset" thrown several layers down.
+    let resolvedEngineConfig = runtimeConfiguration.engineConfig;
+    if (!resolvedEngineConfig?.assetKeys?.modelAssetKey) {
+      let modelStatus: ModelBundleStatus;
+      try {
+        modelStatus = await getModelBundleStatus();
+      } catch (cause) {
+        return rejectModelsUnavailable(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not inspect model storage.'
+        );
+      }
+
+      if (!modelStatus.ready) {
+        return rejectModelsUnavailable(
+          `${modelStatus.missing.length} of ${modelBundleManifest.files.length} model ` +
+            `files are missing from ${modelStatus.directory}. Call prepareModels() ` +
+            `once before initialize() to download them ` +
+            `(${(modelStatus.bytesTotal / 1e6).toFixed(1)} MB), or pass ` +
+            `engineConfig.assetKeys.modelAssetKey to use a model bundle you ship yourself.`
+        );
+      }
+
+      resolvedEngineConfig = {
+        ...resolvedEngineConfig,
+        assetKeys: {
+          ...resolvedEngineConfig?.assetKeys,
+          modelAssetKey: modelStatus.directory,
+        },
+      };
+    }
+
+    if (options.wakePhrase !== undefined) {
+      if (resolvedEngineConfig?.assetKeys?.keywordAssetKey) {
+        return rejectConfiguration(
+          'wake_phrase_conflict',
+          'Pass either wakePhrase or engineConfig.assetKeys.keywordAssetKey, not ' +
+            'both. wakePhrase generates a plain-text keywords file that the native ' +
+            'side tokenizes; keywordAssetKey selects a pre-tokenized file.'
+        );
+      }
+
+      const modelRoot = resolvedEngineConfig?.assetKeys?.modelAssetKey;
+      if (!modelRoot || !modelRoot.startsWith('/')) {
+        return rejectConfiguration(
+          'wake_phrase_unsupported_root',
+          'wakePhrase requires the on-demand model bundle, because the generated ' +
+            'keywords file is written next to it. It cannot be combined with a ' +
+            'bundled modelAssetKey; generate a keywords file offline and pass ' +
+            'engineConfig.assetKeys.keywordAssetKey instead.'
+        );
+      }
+
+      let generated: Awaited<ReturnType<typeof writeWakePhraseKeywords>>;
+      try {
+        generated = await writeWakePhraseKeywords(
+          options.wakePhrase,
+          modelRoot
+        );
+      } catch (cause) {
+        return rejectConfiguration(
+          cause instanceof WakePhraseError
+            ? 'wake_phrase_invalid'
+            : 'wake_phrase_write_failed',
+          cause instanceof Error
+            ? cause.message
+            : 'Could not prepare the wake phrase keywords file.'
+        );
+      }
+
+      resolvedEngineConfig = {
+        ...resolvedEngineConfig,
+        keywordsAreRawText: true,
+        assetKeys: {
+          ...resolvedEngineConfig?.assetKeys,
+          keywordAssetKey: generated.path,
+        },
+      };
+    }
     let resolvedSttProvider = runtimeConfiguration.sttProvider;
     let resolvedTtsProvider = runtimeConfiguration.ttsProvider;
 
@@ -825,6 +1057,7 @@ export const voiceActivator: VoiceActivatorApi = {
 
       const resolvedRuntimeConfiguration = {
         ...runtimeConfiguration,
+        ...(resolvedEngineConfig ? { engineConfig: resolvedEngineConfig } : {}),
         ...(resolvedSttProvider ? { sttProvider: resolvedSttProvider } : {}),
         ...(resolvedTtsProvider ? { ttsProvider: resolvedTtsProvider } : {}),
       };
@@ -840,6 +1073,14 @@ export const voiceActivator: VoiceActivatorApi = {
           applyRuntimeError(error);
         },
       });
+      // A newer initialize() started while this one was awaiting native work.
+      // It owns the runtime now, so dispose what this call built rather than
+      // orphaning it, and leave every shared global to the newer call.
+      if (token !== initializeToken) {
+        await nextEngineRuntime.dispose().catch(() => undefined);
+        return;
+      }
+
       activeRuntimeConfiguration = resolvedRuntimeConfiguration;
       activeSessionConfig = options.session ?? null;
       activeSpeakerVerificationProvider =
@@ -848,6 +1089,8 @@ export const voiceActivator: VoiceActivatorApi = {
         options?.audioPreprocessingProvider ?? null;
       activeAntiSpoofingProvider = options?.antiSpoofingProvider ?? null;
       activeSpoofingThreshold = options?.spoofingThreshold ?? 0.5;
+      activeProviderTimeoutMs =
+        options?.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
       activeVerificationThreshold = options?.verificationThreshold ?? 0.55;
       activeVerificationFailureBehavior =
         options?.verificationFailureBehavior ?? 'closed';
@@ -1024,6 +1267,14 @@ export const voiceActivator: VoiceActivatorApi = {
     return getCurrentStatus();
   },
 
+  async prepareModels(options: ModelPreparationOptions = {}) {
+    return prepareModelBundle(options);
+  },
+
+  async getModelStatus() {
+    return getModelBundleStatus();
+  },
+
   async dispose() {
     const activeRuntime = getVoiceActivatorRuntimeBridge();
     if (!activeRuntime?.dispose) {
@@ -1128,6 +1379,8 @@ export const voiceActivator: VoiceActivatorApi = {
   },
 };
 
+export const prepareModels = voiceActivator.prepareModels;
+export const getModelStatus = voiceActivator.getModelStatus;
 export const initialize = voiceActivator.initialize;
 export const startDetection = voiceActivator.startDetection;
 export const stopDetection = voiceActivator.stopDetection;

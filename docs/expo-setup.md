@@ -6,12 +6,12 @@ Setup guide for `react-native-voice-activator` in an Expo project.
 
 ## Supported Versions
 
-Requires Expo SDK `55+` and React Native `0.83+`. The support matrix source in this repo is `scripts/release-support-matrix.ts`.
+Requires Expo SDK `57+` and React Native `0.86+`. The support matrix source in this repo is `scripts/release-support-matrix.ts`.
 
 | | Required |
 |---|---|
-| Expo SDK | `55+` |
-| React Native | `0.83+` |
+| Expo SDK | `57+` |
+| React Native | `0.86+` |
 | iOS | `13+` |
 | Android | API `26+` |
 
@@ -23,15 +23,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native interface uses [Nitro Modules](https://nitro.margelo.com). Without it the native module will not load.
-
-## Step 3 — Add the Config Plugin
+## Step 2 — Add the Config Plugin
 
 Add the plugin to `app.json` (or `app.config.js`):
 
@@ -52,7 +44,7 @@ Add the plugin to `app.json` (or `app.config.js`):
 
 The `microphonePermissionText` string is shown to users in the iOS microphone permission prompt.
 
-## Step 4 — Run Prebuild
+## Step 3 — Run Prebuild
 
 ```sh
 npx expo prebuild
@@ -68,13 +60,13 @@ This generates your `ios/` and `android/` native project folders and applies the
 | Android | `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE` permissions, `WakeWordForegroundService` manifest entry |
 | Both | Sherpa-ONNX asset manifests inside the generated native projects |
 
-## Step 5 — Install iOS Pods
+## Step 4 — Install iOS Pods
 
 ```sh
 cd ios && pod install
 ```
 
-## Step 6 — Build and Run
+## Step 5 — Build and Run
 
 Once prebuild is complete, start a development server or run on a device:
 
@@ -88,7 +80,7 @@ npx expo run:android
 
 The Expo integration uses the same public runtime API used by bare React Native consumers — `initialize`, `startDetection`, `stopDetection`, `addWakeWordListener`, `getStatus`, and `dispose`.
 
-## Step 7 — Request Android Microphone Permission at Runtime
+## Step 6 — Request Android Microphone Permission at Runtime
 
 The plugin adds the `RECORD_AUDIO` permission to `AndroidManifest.xml`, but Android requires you to request it at runtime before calling `startDetection()`:
 
@@ -139,10 +131,15 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | Peer | Required for |
 |---|---|
 | `whisper.rn` | `WhisperRNSTTAdapter` |
-| `react-native-fs` | `WhisperRNSTTAdapter` model caching |
+| `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
-| `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
+| `react-native-nitro-modules@0.31.10` | `react-native-audio-recorder-player` (it is a Nitro module) |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
+
+Pin `react-native-nitro-modules` to `0.31.10` specifically. It must satisfy this package's peer
+range `>=0.31.3 <0.32.0`, but the recorder's own peer range is `*`, so a plain install can resolve
+a newer Nitro (0.32+) whose API the recorder's v4.5.0 pre-generated bindings do not compile
+against (`Unresolved reference 'updateNative'`).
 
 After installing:
 
@@ -151,19 +148,7 @@ npx expo prebuild
 cd ios && pod install
 ```
 
-**Android New Architecture note:** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge. If your Expo app targets New Architecture, disable it in `app.json`:
-
-```json
-{
-  "expo": {
-    "android": {
-      "newArchEnabled": false
-    }
-  }
-}
-```
-
-Then re-run `expo prebuild`.
+Android recording uses the package's own native capture, so no additional audio module is required.
 
 ## Built-In Sherpa Asset Model
 
@@ -186,7 +171,7 @@ cd ios && pod install
 
 ### `permission` error at runtime on Android
 
-The plugin adds the manifest entry, but you must still call `PermissionsAndroid.request(RECORD_AUDIO)` at runtime. See [Step 7](#step-7--request-android-microphone-permission-at-runtime).
+The plugin adds the manifest entry, but you must still call `PermissionsAndroid.request(RECORD_AUDIO)` at runtime. See [Step 6](#step-6--request-android-microphone-permission-at-runtime).
 
 ### `platform` error on Android
 
@@ -203,6 +188,38 @@ Adding `onnxruntime-react-native` (for `CustomTTSAdapter`) introduces a second O
 ### `WakeWordForegroundService` crash on Android
 
 Confirm `expo prebuild` ran successfully with the plugin enabled. The foreground service manifest entry is required for Android background detection and is added by the plugin during prebuild.
+
+### iOS launch failure: "UIScene life cycle is required for apps built with this SDK"
+
+Symptom, on launch rather than at build time:
+
+```
+Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+```
+
+This is an Xcode 26+ / iOS SDK 26+ requirement and is not specific to this package. Any app built with that SDK must adopt the scene-based life cycle. Expo SDK 57 ships the scene delegate (`ExpoAppSceneDelegate`, Objective-C name `EXExpoAppSceneDelegate`) but `expo prebuild` on SDK 57 still generates the pre-scene `AppDelegate.swift` and no scene manifest, so you have to opt in yourself.
+
+Two things are needed, and both must survive `expo prebuild --clean`:
+
+1. Register the scene delegate in `app.json` under `expo.ios.infoPlist`:
+
+```json
+"UIApplicationSceneManifest": {
+  "UIApplicationSupportsMultipleScenes": false,
+  "UISceneConfigurations": {
+    "UIWindowSceneSessionRoleApplication": [
+      {
+        "UISceneConfigurationName": "Default Configuration",
+        "UISceneDelegateClassName": "EXExpoAppSceneDelegate"
+      }
+    ]
+  }
+}
+```
+
+2. Patch the generated `AppDelegate.swift` with a local config plugin, because `ExpoAppSceneDelegate` casts the app delegate to `ExpoReactNativeFactoryProvider` and calls `fatalError` if that fails. The plugin must declare the conformance (`class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {`) and remove the `#if os(iOS) || os(tvOS)` block that creates its own `UIWindow` and calls `factory.startReactNative(...)`, since the scene delegate now does both. The `RCTReactNativeFactory` must still be created and assigned to `reactNativeFactory`.
+
+`example/plugins/with-ui-scene-lifecycle.js` in this repository is a working reference implementation.
 
 ### iOS pod install fails after adding a new peer
 

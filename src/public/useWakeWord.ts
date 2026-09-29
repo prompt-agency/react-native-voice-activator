@@ -249,23 +249,27 @@ function cleanupRuntimeSubscriptions() {
 }
 
 function subscribe(listener: () => void) {
-  const isFirstSubscriber = storeListeners.size === 0;
   storeListeners.add(listener);
 
-  if (isFirstSubscriber) {
-    snapshot = createInitialSnapshot();
-  }
-
+  // Runtime listeners are established once and kept for the module's lifetime.
+  //
+  // They used to be torn down whenever the subscriber count reached zero, and
+  // the snapshot reset with them. Both were wrong: the runtime is a module-level
+  // singleton that keeps detecting regardless of what is mounted, so tearing the
+  // listeners down dropped every event that arrived before the next mount, and
+  // resetting the snapshot reported `idle` for a transcription that was still
+  // running. React 19 StrictMode mounts, unmounts and remounts every effect, so
+  // that was a normal occurrence rather than an edge case.
   ensureRuntimeSubscriptions();
+
+  // Status is re-read rather than kept, because it can have moved on while
+  // nothing was mounted and it is cheap to fetch.
+  syncStatus();
+
   listener();
 
   return () => {
     storeListeners.delete(listener);
-
-    if (storeListeners.size === 0) {
-      cleanupRuntimeSubscriptions();
-      snapshot = createInitialSnapshot();
-    }
   };
 }
 

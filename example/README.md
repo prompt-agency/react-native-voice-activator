@@ -3,6 +3,43 @@
 This example remains the primary runtime validation surface for the React Native
 library path.
 
+## Native projects are generated, not committed
+
+`example/ios/` and `example/android/` are gitignored. Generate them before you
+open Xcode or Android Studio, and before running `pod install` by hand:
+
+```sh
+yarn example prebuild
+```
+
+`yarn example ios`, `yarn example ios:device` and `yarn example android` run
+prebuild for you, so use those unless you specifically need the native project
+on its own.
+
+`ios:device` builds onto a physical device. It passes `--device` with no value,
+so Expo prompts you to pick from the devices actually attached, and signing
+needs your own Apple team:
+
+```sh
+APPLE_TEAM_ID=XXXXXXXXXX yarn example ios:device
+```
+
+`example/app.config.js` reads that variable and merges it over `app.json`. It is
+deliberately not committed to `app.json`: a hardcoded team belongs to one
+person, and everybody else gets a signing failure against a team they are not a
+member of.
+
+Note that `expo run:ios` and `expo run:android` prebuild **only when the native
+directory is missing**. If `ios/` already exists they build it as-is, however
+stale it is. That is why the scripts above call `expo prebuild` explicitly
+first: without it, a config change in `app.json` or a config plugin never
+reaches the project you actually build.
+
+They are not tracked because a committed snapshot goes stale as soon as a
+dependency moves. A project generated for an older Expo SDK fails `pod install`
+with a deployment-target mismatch, which reads as a dependency problem rather
+than a stale-file problem.
+
 It also carries the Expo config and prebuild compatibility contract used by
 the current Expo integration path:
 
@@ -18,6 +55,14 @@ the current Expo integration path:
 - CI executes Expo config resolution against this example app
 - CI executes Expo prebuild generation against a temporary copy of this example app
 - Expo Go is explicitly unsupported
+
+## Wake Word Model Sourcing
+
+Preset wake words (the bundled keyword presets in the Wake Word and Session
+screens) pass `modelAssetKey` and run entirely from the model bundle shipped
+inside the app, so they work offline. Custom `wakePhrase` flows require an
+absolute `modelAssetKey` instead, so they stay on the on-demand download path
+and need a reachable model host to fetch the bundle first.
 
 ## What This Example Proves
 

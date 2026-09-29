@@ -3,7 +3,6 @@ package com.voiceactivator.Runtime
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 
 internal class ServiceLauncher(
   private val applicationContext: Context? = null,
@@ -23,11 +22,7 @@ internal class ServiceLauncher(
 
     val startResult = runCatching {
       val serviceIntent = foregroundServiceIntent(context)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(serviceIntent)
-      } else {
-        context.startService(serviceIntent)
-      }
+      context.startForegroundService(serviceIntent)
     }.getOrNull()
 
     if (startResult == null) {
@@ -53,9 +48,13 @@ internal class ServiceLauncher(
       context.stopService(foregroundServiceIntent(context))
     }.getOrElse { false }
 
-    if (stopSucceeded) {
-      ownsForegroundRuntime = false
-    }
+    // stopService() returns false when the service was not running, which is
+    // indistinguishable from "already stopped" — and keeping ownership latched in
+    // that case left the flag stuck true with no path back down short of a full
+    // dispose(), while the persistent notification may have been gone already.
+    // Ownership is released either way; the return value still reports the
+    // outcome so the caller can surface it.
+    ownsForegroundRuntime = false
 
     return stopSucceeded
   }

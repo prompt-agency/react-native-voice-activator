@@ -419,6 +419,7 @@ describe('withBundledAssets', () => {
         )
       );
 
+      expect(iosManifest.mode).toBe('bundled');
       expect(iosManifest.platform).toBe('ios');
       expect(iosManifest.runtimeContract).toContain(
         'Runtime assets remain package-owned'
@@ -434,39 +435,75 @@ describe('withBundledAssets', () => {
     }
   });
 
-  it('fails fast when the bundled iOS Sherpa assets are missing', async () => {
+  // Absent model assets are the normal case now: the package does not ship them
+  // and prepareModels() downloads them at runtime. Prebuild must therefore
+  // succeed and record which mode is in play, rather than failing on models the
+  // package no longer carries.
+  for (const platform of ['ios', 'android'] as const) {
+    it(`records on-demand mode when the bundled ${platform} Sherpa assets are absent`, async () => {
+      const tempPackageRoot = mkdtempSync(
+        path.join(tmpdir(), `rnva-${platform}-ondemand-`)
+      );
+      const tempProjectRoot = makeTempProjectRoot(`rnva-${platform}-project-`);
+      const config = withBundledAssets(makeMockConfig());
+
+      try {
+        await withPackageRootOverride(tempPackageRoot, async () => {
+          // Must not throw. The manifest assertions below prove it ran.
+          await runDangerousMod(config, platform, tempProjectRoot);
+        });
+
+        const manifest = JSON.parse(
+          readFileSync(
+            path.join(
+              tempProjectRoot,
+              platform,
+              'voice-activator-sherpa-assets.json'
+            ),
+            'utf8'
+          )
+        );
+
+        expect(manifest.mode).toBe('on-demand');
+        expect(manifest.platform).toBe(platform);
+        expect(manifest.runtimeContract).toContain('prepareModels()');
+        // Nothing to copy, so no asset paths should be claimed.
+        expect(manifest.modelFilesRelativeToApp).toBeUndefined();
+      } finally {
+        rmSync(tempPackageRoot, { recursive: true, force: true });
+        rmSync(tempProjectRoot, { recursive: true, force: true });
+      }
+    });
+  }
+
+  // A directory that exists but is incomplete is still a real error: an app
+  // vendoring its own models has got it half right, and silently falling back to
+  // on-demand would hide that.
+  it('still fails fast when a bundled asset directory is incomplete', async () => {
     const tempPackageRoot = mkdtempSync(
-      path.join(tmpdir(), 'rnva-ios-assets-')
+      path.join(tmpdir(), 'rnva-incomplete-assets-')
     );
-    const tempProjectRoot = makeTempProjectRoot('rnva-ios-project-');
+    const tempProjectRoot = makeTempProjectRoot('rnva-incomplete-project-');
     const config = withBundledAssets(makeMockConfig());
+
+    const assetRoot = path.join(
+      tempPackageRoot,
+      'ios',
+      'Assets',
+      'SherpaOnnxKws',
+      'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'
+    );
+    mkdirSync(assetRoot, { recursive: true });
+    // Models present, tokens.txt/keywords.txt absent.
+    for (const name of ['encoder.onnx', 'decoder.onnx', 'joiner.onnx']) {
+      writeFileSync(path.join(assetRoot, name), 'stub', 'utf8');
+    }
 
     try {
       await withPackageRootOverride(tempPackageRoot, async () => {
         await expect(
           runDangerousMod(config, 'ios', tempProjectRoot)
-        ).rejects.toThrow(/Missing bundled Sherpa-ONNX iOS asset directory/);
-      });
-    } finally {
-      rmSync(tempPackageRoot, { recursive: true, force: true });
-      rmSync(tempProjectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('fails fast when the bundled Android Sherpa assets are missing', async () => {
-    const tempPackageRoot = mkdtempSync(
-      path.join(tmpdir(), 'rnva-android-assets-')
-    );
-    const tempProjectRoot = makeTempProjectRoot('rnva-android-project-');
-    const config = withBundledAssets(makeMockConfig());
-
-    try {
-      await withPackageRootOverride(tempPackageRoot, async () => {
-        await expect(
-          runDangerousMod(config, 'android', tempProjectRoot)
-        ).rejects.toThrow(
-          /Missing bundled Sherpa-ONNX Android asset directory/
-        );
+        ).rejects.toThrow(/Incomplete bundled Sherpa-ONNX/);
       });
     } finally {
       rmSync(tempPackageRoot, { recursive: true, force: true });

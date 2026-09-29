@@ -1,3 +1,20 @@
+#!/usr/bin/env node
+/**
+ * Rewrites tests/fixtures/reliability/latest-results.json from the committed
+ * fixtures.
+ *
+ * IMPORTANT: this runs no detector, plays no audio and calls no native code. It
+ * echoes each scenario's declared `expectedMetrics` into the results file under
+ * `evidenceType: "deterministic-fixture-run"` on the `*-host-deterministic`
+ * devices. Those numbers are the contract this runtime is expected to hold, not
+ * observations, which is why iOS and Android report identical values: both read
+ * the same fixture.
+ *
+ * Real detection rate, false-accepts-per-hour and barge-in latency are still
+ * unmeasured. Every `*-physical-primary` row stays `pending` with null metrics
+ * until someone runs the device harness. See docs/reliability-validation.md.
+ */
+
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -60,12 +77,12 @@ for (const device of deterministicHostDevices) {
       deviceId: device.id,
       status: 'passed',
       evidenceType: 'deterministic-fixture-run',
-      latencyMsP95: scenario.metrics.latencyMsP95,
-      falseTriggerCount: scenario.metrics.falseTriggerCount,
-      interruptionCount: scenario.metrics.interruptionCount,
-      unsupportedTransitionCount: scenario.metrics.unsupportedTransitionCount,
-      teardownIssueCount: scenario.metrics.teardownIssueCount,
-      unrecoverableFailureCount: scenario.metrics.unrecoverableFailureCount,
+      latencyMsP95: scenario.expectedMetrics.latencyMsP95,
+      falseTriggerCount: scenario.expectedMetrics.falseTriggerCount,
+      interruptionCount: scenario.expectedMetrics.interruptionCount,
+      unsupportedTransitionCount: scenario.expectedMetrics.unsupportedTransitionCount,
+      teardownIssueCount: scenario.expectedMetrics.teardownIssueCount,
+      unrecoverableFailureCount: scenario.expectedMetrics.unrecoverableFailureCount,
       notes: scenario.notes,
     });
   }

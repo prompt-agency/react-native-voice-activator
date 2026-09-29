@@ -10,7 +10,7 @@ import type { TextToSpeechProvider, TTSOptions } from '../../public/types';
  * All path properties must be absolute local file paths. The model assets
  * (`.onnx`, `tokens.txt`, `espeak-ng-data/`) must be present on-device before
  * the first `speak()` call — download them with your preferred file-transfer
- * library (e.g. react-native-fs) or bundle them via the Expo config plugin.
+ * library (e.g. @dr.pogodin/react-native-fs) or bundle them via the Expo config plugin.
  *
  * Compatible Piper VITS models are available from the sherpa-onnx releases:
  * https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/vits.html
@@ -89,7 +89,7 @@ function getNativeModule(): SherpaOnnxNative {
  * @example
  * ```ts
  * import { SherpaOnnxTTSAdapter } from 'react-native-voice-activator';
- * import RNFS from 'react-native-fs';
+ * import * as RNFS from '@dr.pogodin/react-native-fs';
  *
  * const tts = new SherpaOnnxTTSAdapter({
  *   modelPath:  `${RNFS.DocumentDirectoryPath}/piper-tts/en_US-ryan-low.onnx`,

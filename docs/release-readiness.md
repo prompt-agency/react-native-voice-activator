@@ -2,6 +2,11 @@
 
 This checklist separates automated release gates from the remaining manual proof required before a production publish.
 
+Gates run at two different moments. Everything under **Automated Gates** runs
+*before* publishing. `yarn verify:release-assets` runs *after* the GitHub
+release exists, because it is the only check that can prove the published assets
+resolve; see [iOS Vendored Frameworks](#ios-vendored-frameworks).
+
 ## Automated Gates
 
 The repository is considered release-candidate ready only after these commands are green:
@@ -45,14 +50,75 @@ exact zips that produced it. The release order is therefore fixed:
 1. `yarn package:ios-vendor` — builds both zips and rewrites the manifest
 2. commit `ios/vendor-checksums.json`
 3. release; `release-it`'s `before:init` hook re-runs
-   `verify-ios-vendor-checksums.mjs --require-assets` and aborts if the zips on
+   `verify-vendor-checksums.mjs --require-assets` and aborts if the artifacts on
    disk no longer match the committed manifest
 4. those same zips are uploaded as the `v<version>` release assets
 
+Android works the same way, with the AAR instead of zips: Gradle's
+`fetchSherpaOnnxAar` task downloads
+`sherpa-onnx-static-link-onnxruntime-1.12.29.aar` from the `v<version>` release,
+verifies it against `android/vendor-checksums.json`, and refuses to put an
+unverified binary on the compile classpath. The AAR is uploaded as a release
+asset alongside the iOS zips.
+
 **A published npm version whose GitHub release assets are missing or do not
-match the manifest is unusable on iOS**: `pod install` fails closed rather than
-linking an unverified binary. Verify the release assets resolve before
-announcing a version.
+match the manifests is unusable**: `pod install` fails closed on iOS and the
+Gradle build fails closed on Android, rather than linking an unverified binary.
+
+`yarn verify:release-assets` is the gate for this. It downloads every asset the
+podspec, the Gradle task and `prepareModels()` resolve from
+`releases/download/v<version>/`, and checks each one against the manifest that
+pins it. `release-it` runs it automatically in `after:release`, before the
+local artifacts are cleaned up. Run it again by hand if a release is ever
+re-uploaded, and do not announce a version until it passes.
+
+Note what the earlier checks do *not* cover:
+`verify-vendor-checksums.mjs --require-assets` proves only that the **local**
+build artifacts match their manifest. It never touches the network, and the
+local files are deleted immediately after the release. Without
+`verify:release-assets`, a failed or partial asset upload produces a green
+release and a package that is broken for every consumer.
+
+### Model assets
+
+The ONNX models are not in the npm tarball either. They are uploaded as release
+assets under flattened names (GitHub asset names cannot contain slashes) and
+downloaded once at runtime by `prepareModels()`, verified against
+`src/internal/model-manifest.json`.
+
+Release order:
+
+1. `yarn generate:model-manifest` — rewrites the manifest from the files on disk
+2. commit `src/internal/model-manifest.json`
+3. release; `release-it`'s `before:init` hook runs `scripts/package-models.mjs`,
+   which stages `dist-models/` and fails if any file is missing or disagrees with
+   the committed manifest
+4. every file in `dist-models/` is uploaded as a `v<version>` release asset
+
+**A published version whose model assets are missing is unusable**:
+`prepareModels()` fails, and `initialize()` then rejects with
+`models_not_prepared`. Consumers can work around it with a `baseUrl` pointing at
+their own mirror, but do not rely on that.
+
+### Air-gapped and offline builds
+
+Neither platform can fetch its binary without network access. Supply the files
+out of band instead:
+
+- Android: `./gradlew ... -PVoiceActivator_sherpaAarPath=/path/to/sherpa-onnx-static-link-onnxruntime-1.12.29.aar`
+- iOS: set `VOICEACTIVATOR_SHERPA_BASE_URL` to anywhere the two zips live, such
+  as an internal mirror, a prerelease tag, or a `file://` directory:
+
+  ```bash
+  VOICEACTIVATOR_SHERPA_BASE_URL=file:///path/to/zips pod install
+  ```
+
+  Or place the extracted frameworks under `ios/Vendor/SherpaOnnx/` before
+  `pod install`; the `prepare_command` skips anything already present. The
+  environment variable is the one that works on a hosted CI builder, where the
+  checkout is fresh and nothing can be pre-placed.
+
+Both paths still verify the checksum.
 
 ## Manual Gates
 

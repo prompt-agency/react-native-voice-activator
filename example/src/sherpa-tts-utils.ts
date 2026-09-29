@@ -14,7 +14,7 @@
  */
 
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -177,13 +177,14 @@ z 38
  * No-ops if [destDir] already exists with at least one file inside.
  *
  * Requires espeak-ng-data to be bundled as Android assets under
- * `sherpa-tts/espeak-ng-data/` (added via setup-sherpa-tts-android.sh).
+ * `sherpa-tts/espeak-ng-data/` (wired in by the example/plugins/with-sherpa-tts-assets.js
+ * Expo config plugin from the assets downloaded by example/scripts/setup-sherpa-tts.sh).
  */
 async function copyAndroidAssetDir(
   assetDir: string,
   destDir: string
 ): Promise<void> {
-  const entries = await (RNFS as any).readDirAssets(assetDir);
+  const entries = await RNFS.readDirAssets(assetDir);
   await RNFS.mkdir(destDir);
   for (const entry of entries) {
     const destPath = `${destDir}/${entry.name}`;
@@ -191,10 +192,7 @@ async function copyAndroidAssetDir(
       await copyAndroidAssetDir(`${assetDir}/${entry.name}`, destPath);
     } else {
       if (!(await RNFS.exists(destPath))) {
-        await (RNFS as any).copyFileAssets(
-          `${assetDir}/${entry.name}`,
-          destPath
-        );
+        await RNFS.copyFileAssets(`${assetDir}/${entry.name}`, destPath);
       }
     }
   }
@@ -226,7 +224,7 @@ export async function ensureRyanSherpaAssets(
   // ── Model ──────────────────────────────────────────────────────────────────
   // Priority:
   //   iOS:     MainBundlePath (Xcode bundle) → Documents download
-  //   Android: Android assets (setup-sherpa-tts-android.sh) copied to Documents
+  //   Android: Android assets (wired in by the config plugin) copied to Documents
   //
   // WARNING: The rhasspy/piper-voices HuggingFace model lacks sherpa-onnx ONNX
   // metadata (sample_rate). sherpa-onnx calls exit(-1) if it is missing — an
@@ -245,15 +243,12 @@ export async function ensureRyanSherpaAssets(
       onProgress?.('Copying model from assets…');
       if (await RNFS.exists(docModelPath)) await RNFS.unlink(docModelPath);
       try {
-        await (RNFS as any).copyFileAssets(
-          `sherpa-tts/${MODEL_FILENAME}`,
-          docModelPath
-        );
+        await RNFS.copyFileAssets(`sherpa-tts/${MODEL_FILENAME}`, docModelPath);
         await RNFS.writeFile(versionMarker, ANDROID_ASSET_VERSION, 'utf8');
       } catch (e) {
         throw new Error(
-          'Model asset not found. Run example/scripts/setup-sherpa-tts-android.sh ' +
-            'and rebuild the Android app.\n' +
+          'Model asset not found. Run: bash example/scripts/setup-sherpa-tts.sh ' +
+            'and rebuild the app (the config plugin wires the assets during prebuild).\n' +
             String(e)
         );
       }
@@ -269,17 +264,19 @@ export async function ensureRyanSherpaAssets(
       if (docExists) {
         const stat = await RNFS.stat(docModelPath);
         if (Number(stat.size) < MIN_MODEL_BYTES) {
-          console.warn('[SherpaAssets] Cached model too small, re-downloading…');
+          console.warn(
+            '[SherpaAssets] Cached model too small, re-downloading…'
+          );
           await RNFS.unlink(docModelPath);
         }
       }
 
       if (!(await RNFS.exists(docModelPath))) {
         console.warn(
-          '[SherpaAssets] Bundle model not found — downloading from HuggingFace.\n' +
+          '[SherpaAssets] Bundle model not found, downloading from HuggingFace.\n' +
             'WARNING: rhasspy/piper-voices models lack sherpa-onnx metadata and will\n' +
-            'crash at runtime. Run example/scripts/setup-sherpa-tts.sh and add\n' +
-            'en_US-ryan-low.onnx to Xcode bundle resources to fix this.'
+            'crash at runtime. Run: bash example/scripts/setup-sherpa-tts.sh, then rebuild\n' +
+            'the app (the config plugin wires the assets during prebuild) to fix this.'
         );
         onProgress?.('Downloading ryan-low model…', 0);
         const url = `${HF_BASE}/${MODEL_FILENAME}`;
@@ -289,13 +286,18 @@ export async function ensureRyanSherpaAssets(
           headers: { 'User-Agent': 'react-native-voice-activator/1.0' },
           progress: (res) => {
             if (res.contentLength > 0) {
-              const pct = Math.round((res.bytesWritten / res.contentLength) * 100);
+              const pct = Math.round(
+                (res.bytesWritten / res.contentLength) * 100
+              );
               onProgress?.('Downloading ryan-low model…', pct);
             }
           },
         }).promise;
 
-        if (result.statusCode !== 200 || result.bytesWritten < MIN_MODEL_BYTES) {
+        if (
+          result.statusCode !== 200 ||
+          result.bytesWritten < MIN_MODEL_BYTES
+        ) {
           await RNFS.exists(docModelPath).then((e) =>
             e ? RNFS.unlink(docModelPath) : Promise.resolve()
           );
@@ -338,14 +340,11 @@ export async function ensureRyanSherpaAssets(
   let tokensPath: string;
 
   if (Platform.OS === 'android') {
-    // Copy from Android assets (setup-sherpa-tts-android.sh) on first run.
+    // Copy from Android assets (wired in by the config plugin) on first run.
     if (!(await RNFS.exists(docTokens))) {
       onProgress?.('Copying tokens.txt from assets…');
       try {
-        await (RNFS as any).copyFileAssets(
-          `sherpa-tts/${TOKENS_FILENAME}`,
-          docTokens
-        );
+        await RNFS.copyFileAssets(`sherpa-tts/${TOKENS_FILENAME}`, docTokens);
       } catch {
         // Fall back to embedded constant if asset copy fails
         await RNFS.writeFile(docTokens, TOKENS_CONTENT, 'utf8');
@@ -380,10 +379,10 @@ export async function ensureRyanSherpaAssets(
   // ── espeak-ng-data ─────────────────────────────────────────────────────────
   // Required by sherpa-onnx for espeak-ng text normalisation.
   //
-  // iOS:     App bundle (setup-sherpa-tts.sh + Xcode Copy Bundle Resources)
+  // iOS:     App bundle (setup-sherpa-tts.sh, wired in by the config plugin)
   //          → fallback: Documents/sherpa-tts/espeak-ng-data
   //
-  // Android: Android assets (setup-sherpa-tts-android.sh) copied to
+  // Android: Android assets (wired in by the config plugin) copied to
   //          Documents/sherpa-tts/espeak-ng-data on first run
   const downloadedDataDir = `${dir}/espeak-ng-data`;
 
@@ -402,7 +401,8 @@ export async function ensureRyanSherpaAssets(
       } catch (e) {
         console.warn(
           '[SherpaAssets] espeak-ng-data copy from assets failed.\n' +
-            'Run: bash example/scripts/setup-sherpa-tts-android.sh and rebuild the Android app.\n' +
+            'Run: bash example/scripts/setup-sherpa-tts.sh, then rebuild the app\n' +
+            '(the config plugin wires the assets during prebuild).\n' +
             String(e)
         );
       }
@@ -417,8 +417,8 @@ export async function ensureRyanSherpaAssets(
     } else {
       console.warn(
         '[SherpaAssets] espeak-ng-data not found.\n' +
-          'Run: bash example/scripts/setup-sherpa-tts.sh\n' +
-          'Then add espeak-ng-data/ to Xcode → Copy Bundle Resources and rebuild.'
+          'Run: bash example/scripts/setup-sherpa-tts.sh, then rebuild the app\n' +
+          '(the config plugin wires the assets during prebuild).'
       );
       dataDir = downloadedDataDir; // native layer will report a clear error
     }

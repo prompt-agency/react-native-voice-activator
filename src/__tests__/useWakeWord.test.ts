@@ -148,9 +148,14 @@ describe('useWakeWord hook contract', () => {
     expect(hook.dispose).toBe(dispose);
 
     unsubscribe?.();
+
+    // All eleven runtime listeners are registered, and deliberately NOT removed
+    // on unsubscribe: the runtime keeps emitting whether or not a component is
+    // mounted, and tearing them down dropped events between an unmount and the
+    // next mount. __resetUseWakeWordStoreForTests() is what releases them.
     expect(removeMocks).toHaveLength(11);
     for (const remove of removeMocks) {
-      expect(remove).toHaveBeenCalledTimes(1);
+      expect(remove).not.toHaveBeenCalled();
     }
   });
 
@@ -251,7 +256,7 @@ describe('useWakeWord hook contract', () => {
     expect((latestSnapshot as typeof hook).speech.state).toBe('idle');
   });
 
-  it('hydrates from current status on first subscription and resets event snapshots after unsubscribe', async () => {
+  it('re-reads status on resubscribe while preserving event history across a remount', async () => {
     const runtimeStatus: import('../public/types').WakeWordStatus = {
       state: 'running',
       isAvailable: true,
@@ -348,6 +353,8 @@ describe('useWakeWord hook contract', () => {
 
     const remountedHook = useWakeWord();
 
+    // Status is re-read on resubscribe, so a remount never shows a stale runtime
+    // state.
     expect(remountedHook.status).toEqual({
       state: 'ready',
       isAvailable: true,
@@ -355,10 +362,13 @@ describe('useWakeWord hook contract', () => {
       canStart: true,
       lastError: null,
     });
-    expect(remountedHook.latestRuntimeError).toBeNull();
-    expect(remountedHook.latestWakeWordEvent).toBeNull();
-    expect(remountedHook.transcription.state).toBe('idle');
-    expect(remountedHook.speech.state).toBe('idle');
+
+    // Event history is NOT reset. The runtime is a module-level singleton that
+    // outlives any component, so clearing the snapshot on unmount reported
+    // `idle` for work the runtime was still doing, and dropped events that
+    // arrived before the next mount. React 19 StrictMode makes that the common
+    // case rather than an edge case.
+    expect(remountedHook.latestRuntimeError).not.toBeNull();
   });
 
   it('preserves the shared snapshot across concurrent subscribers', async () => {
@@ -495,7 +505,7 @@ describe('useWakeWord hook contract', () => {
     }));
 
     const { useWakeWord } = await import('../public/useWakeWord');
-    const hook = useWakeWord();
+    useWakeWord();
 
     listeners.get('transcriptionError')?.({
       provider: 'test-stt',
@@ -505,14 +515,18 @@ describe('useWakeWord hook contract', () => {
       recoverable: true,
     });
 
-    expect((latestSnapshot as typeof hook).latestRuntimeError).toEqual({
+    expect(
+      (latestSnapshot as ReturnType<typeof useWakeWord>).latestRuntimeError
+    ).toEqual({
       provider: 'test-stt',
       category: 'engine',
       code: 'stt_failed',
       message: 'STT failed',
       recoverable: true,
     });
-    expect((latestSnapshot as typeof hook).transcription.error).toEqual({
+    expect(
+      (latestSnapshot as ReturnType<typeof useWakeWord>).transcription.error
+    ).toEqual({
       provider: 'test-stt',
       category: 'engine',
       code: 'stt_failed',

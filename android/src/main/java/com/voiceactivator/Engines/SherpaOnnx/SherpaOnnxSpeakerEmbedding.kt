@@ -83,7 +83,10 @@ internal class SherpaOnnxSpeakerEmbedding(private val assetManager: AssetManager
   /**
    * Extracts a speaker embedding from PCM audio data encoded as base64.
    *
-   * @param pcmBase64 Base64-encoded 16-bit PCM audio (LITTLE_ENDIAN float32 after decode)
+   * @param pcmBase64 Base64-encoded LITTLE_ENDIAN FLOAT32 mono PCM. Not 16-bit
+   *   integer PCM: this is decoded as `bytes.size / 4` floats below, so int16
+   *   input is reinterpreted as floats and yields garbage embeddings rather
+   *   than an error.
    * @param sampleRate Audio sample rate in Hz
    * @return Base64-encoded FloatArray embedding (LITTLE_ENDIAN)
    */

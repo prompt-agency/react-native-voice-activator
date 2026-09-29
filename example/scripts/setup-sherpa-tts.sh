@@ -2,23 +2,26 @@
 # setup-sherpa-tts.sh
 #
 # Downloads the vits-piper-en_US-ryan-low model package from sherpa-onnx
-# releases and extracts espeak-ng-data + tokens.txt into the iOS Xcode project
-# so they are bundled with the app at build time.
+# releases and extracts espeak-ng-data, tokens and the ONNX model into
+# example/assets/sherpa-tts/.
+#
+# That directory is deliberately OUTSIDE example/ios and example/android:
+# both of those are gitignored, generated output that `expo prebuild --clean`
+# deletes and recreates. The local Expo config plugin
+# example/plugins/with-sherpa-tts-assets.js picks the assets up from here on
+# every prebuild and wires them into the generated iOS and Android projects.
 #
 # Run once from the repo root:
 #   bash example/scripts/setup-sherpa-tts.sh
-#
-# After running, rebuild the iOS app (pod install not needed — only a clean
-# build is required so Xcode picks up the new bundle resources).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-XCODE_APP_DIR="$SCRIPT_DIR/../ios/VoiceActivatorExample"
-DEST_DATA_DIR="$XCODE_APP_DIR/espeak-ng-data"
-DEST_TOKENS="$XCODE_APP_DIR/piper-tokens.txt"
-DEST_MODEL="$XCODE_APP_DIR/en_US-ryan-low.onnx"
+EXAMPLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ASSET_DIR="$EXAMPLE_DIR/assets/sherpa-tts"
+DEST_DATA_DIR="$ASSET_DIR/espeak-ng-data"
+DEST_TOKENS="$ASSET_DIR/piper-tokens.txt"
+DEST_MODEL="$ASSET_DIR/en_US-ryan-low.onnx"
 
 URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-ryan-low.tar.bz2"
 TMP_DIR="$(mktemp -d)"
@@ -27,6 +30,8 @@ TARBALL="$TMP_DIR/model.tar.bz2"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Sherpa-ONNX TTS asset setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+mkdir -p "$ASSET_DIR"
 
 # ── Download ──────────────────────────────────────────
 echo ""
@@ -65,17 +70,18 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "  $DEST_DATA_DIR"
 echo "  $DEST_TOKENS"
-echo "  $DEST_MODEL  (sherpa-onnx build — has required ONNX metadata)"
+echo "  $DEST_MODEL  (sherpa-onnx build, has required ONNX metadata)"
 echo ""
-echo "  NEXT STEP (one time, in Xcode):"
-echo "  1. Open example/ios/VoiceActivatorExample.xcworkspace"
-echo "  2. In the Project navigator, right-click VoiceActivatorExample group"
-echo "  3. 'Add Files to VoiceActivatorExample…'"
-echo "  4. Select espeak-ng-data/ — choose 'Create folder references' (blue icon)"
-echo "  5. Select piper-tokens.txt"
-echo "  6. Select en_US-ryan-low.onnx"
-echo "  7. Ensure target 'VoiceActivatorExample' is checked → Add"
-echo "  8. Product → Clean Build Folder (⇧⌘K) → Build (⌘B)"
+echo "  NEXT STEP: no Xcode work is needed. The local config plugin"
+echo "  example/plugins/with-sherpa-tts-assets.js copies these into the"
+echo "  generated iOS and Android projects and registers them with the app"
+echo "  target on the next prebuild:"
+echo ""
+echo "    cd example && npx expo prebuild --clean"
+echo ""
+echo "  or just run the app, which prebuilds for you:"
+echo ""
+echo "    yarn example ios"
 echo ""
 echo "  NOTE: The raw Piper model from HuggingFace lacks sherpa-onnx metadata"
 echo "  and will crash at runtime. Always use the bundled model from this script."

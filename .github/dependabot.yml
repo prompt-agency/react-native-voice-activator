@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  # Actions are SHA-pinned throughout this repo, which is good for supply-chain
+  # integrity and bad for noticing updates by hand. Dependabot rewrites the SHA
+  # and the trailing version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Pinned to exactly 0.31.10. react-native-audio-recorder-player@4.5.0
+      # ships pre-generated Nitrogen output built against an older Nitro core;
+      # newer Nitro fails to compile it with "Unresolved reference
+      # 'updateNative'". Widening this needs an Android rebuild of the example
+      # app, so it is a deliberate decision rather than a dependency bump.
+      # See the pin rationale in CLAUDE.md.
+      - dependency-name: react-native-nitro-modules
+
+      # React Native and React majors move the whole native build with them and
+      # are upgrade projects, not PRs.
+      - dependency-name: react-native
+        update-types: ['version-update:semver-major']
+      - dependency-name: react
+        update-types: ['version-update:semver-major']

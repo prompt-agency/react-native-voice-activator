@@ -67,6 +67,7 @@ export default withMermaid({
         text: 'Operations',
         items: [
           { text: 'Troubleshooting', link: '/troubleshooting' },
+          { text: 'Upgrading', link: '/upgrading' },
           { text: 'Android Battery Optimization', link: '/android-battery-optimization' },
           { text: 'Android TTS Setup', link: '/android-tts-setup' },
           { text: 'App Store Submission', link: '/app-store-submission' },

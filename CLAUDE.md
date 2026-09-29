@@ -58,7 +58,7 @@ Internal (src/internal/)
   └── runtime-store.ts         # Mutable state store for runtime status
 
 Native Interface
-  └── src/NativeVoiceActivator.ts  # Codegen spec (Nitro Modules)
+  └── src/NativeVoiceActivator.ts  # Codegen spec (TurboModule, RN Codegen)
 
 Expo Plugin (src/expo/)
   └── Automates Android foreground service, iOS background modes, mic permissions
@@ -70,13 +70,26 @@ Expo Plugin (src/expo/)
 
 **Provider generation invalidation**: A `generationId` counter prevents stale async provider callbacks from completing after a new session has started. Any provider callback checks its captured generation against current before proceeding.
 
-**Barge-in fast-path**: When TTS is speaking and a wake word fires, a dedicated fast-path bypasses the normal queue for <300ms interruption response.
+**Barge-in fast-path**: When TTS is speaking and a wake word fires, a dedicated
+fast-path bypasses the normal queue so the interruption is not serialised behind
+the running session. 300ms is the design target, not a measured result: the
+interruption latency has never been measured on a physical device, and
+`scripts/run-reliability-evaluation.mjs` cannot measure it (it copies each
+fixture's declared metrics into `latest-results.json` and starts no detector).
+Do not quote a figure from that file as evidence. See
+`docs/reliability-validation.md`.
 
 **Event system**: Two separate `EventEmitter` instances—`runtimeEvents` (wake word lifecycle) and `sessionEvents` (conversation turns). Hooks subscribe to these; `voice-activator.ts` emits to both.
 
 **Contract tests**: `src/__tests__/documentation-contract.test.ts` and `reliability-validation-contract.test.ts` verify external-facing documentation links and reliability claims programmatically. These run as part of `yarn lint`.
 
 **Vendor type shims**: `src/vendor-types/` contains hand-written type definitions for optional peers (e.g. `whisper.rn`, `onnxruntime-react-native`) so the library typechecks when those packages are not installed.
+
+**Nitro version pin**: `react-native-nitro-modules` is pinned to exactly
+`0.31.10`, not a range. `react-native-audio-recorder-player@4.5.0` ships
+pre-generated Nitrogen output built against nitro `^0.29.2`; against nitro
+0.37.1 it fails to compile with `Unresolved reference 'updateNative'`. Do not
+widen this pin without rebuilding the example app on Android.
 
 ### Provider Interface Contracts
 
@@ -102,7 +115,7 @@ Errors are typed into categories: `permission`, `lifecycle`, `configuration`, `e
 
 ### Testing
 
-Tests use `react-native` Jest preset. Native module and optional peers are mocked via `moduleNameMapper` and file-local `jest.mock`. Run a single test file:
+Tests use the `@react-native/jest-preset` Jest preset. Native module and optional peers are mocked via `moduleNameMapper` and file-local `jest.mock`. Run a single test file:
 
 ```bash
 yarn test --testPathPattern=whisper-rn-stt-adapter

@@ -17,6 +17,31 @@ and inherit the same attribution obligations.
 | [Silero VAD](https://github.com/snakers4/silero-vad) | v5.1.2 | MIT | `ios/Assets/silero_vad.onnx`, `android/src/main/assets/silero_vad.onnx` |
 | [sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01](https://www.modelscope.cn/pkufool/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01) | 2024-01-01 | Apache-2.0 | Keyword-spotting model weights under `ios/Assets/SherpaOnnxKws/` and `android/src/main/assets/voice-activator-sherpa-onnx/` |
 
+### Provenance of the keyword-spotting model weights
+
+The Apache-2.0 entry for the KWS model above is the license that model
+publishes: `license: Apache License 2.0` appears in the `README.md` bundled
+inside its own release archive, and ModelScope shows the same field.
+
+Two things a redistributor should know, because neither is settled upstream:
+
+- **Training data.** The model was trained on the GigaSpeech XL subset
+  (10,000 hours), per that same bundled README. GigaSpeech's Terms of Access
+  state that SpeechColab "does not own the copyright of the audio files" and
+  grant access for "non-commercial research and educational purposes". The
+  dataset's HuggingFace card simultaneously carries a `license: apache-2.0`
+  metadata tag. Both statements sit on the same page.
+- **The question has been asked and not answered.**
+  [k2-fsa/sherpa-onnx#3802](https://github.com/k2-fsa/sherpa-onnx/issues/3802),
+  "License clarification requested for KWS pretrained models", has been open
+  since 2026-07-24 with no maintainer response. The parallel question on the
+  GigaSpeech dataset card (discussion #13) is likewise unanswered.
+
+We reproduce the license the model publishes. We do not have, and do not claim
+to have, an independent determination that it is correct. If this matters to
+your deployment, follow the two threads above, or supply your own model through
+`keywordAssetKey`.
+
 ## Downloaded at `pod install` time (iOS)
 
 These are too large for the npm tarball and are fetched from this project's
@@ -33,9 +58,13 @@ GitHub release assets, pinned by SHA-256 in
 These are optional peer dependencies or user-supplied assets. They are resolved
 from the consuming application, not shipped here, and carry their own licenses:
 
-- `whisper.rn`, `onnxruntime-react-native`, `react-native-fs`,
-  `react-native-audio-recorder-player`, `@fugood/react-native-audio-pcm-stream`,
-  `react-native-nitro-modules`
+- `whisper.rn`, `onnxruntime-react-native`, `@dr.pogodin/react-native-fs`,
+  `react-native-audio-recorder-player`
+- `react-native-nitro-modules` (MIT, Copyright (c) 2024 Marc Rousavy). No code
+  here imports it. It is pinned to exactly `0.31.10` because
+  `react-native-audio-recorder-player@4.5.0` is itself a Nitro module and ships
+  pre-generated Nitrogen output built against an older Nitro core; see the pin
+  rationale in [`CLAUDE.md`](./CLAUDE.md).
 - Piper / VITS TTS voices and `espeak-ng-data`, which the application supplies
   itself (see [`docs/android-tts-setup.md`](./docs/android-tts-setup.md)).
   **Note:** eSpeak NG is GPL-3.0. It is deliberately not bundled here; an
@@ -46,7 +75,7 @@ from the consuming application, not shipped here, and carry their own licenses:
 ## MIT License
 
 Applies to ONNX Runtime (Copyright (c) Microsoft Corporation) and Silero VAD
-(Copyright (c) 2024 Silero Team).
+(Copyright (c) 2020-present Silero Team).
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy

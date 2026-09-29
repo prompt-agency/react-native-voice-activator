@@ -16,6 +16,7 @@ const requiredDocs = [
   'docs/reliability-validation.md',
   'docs/troubleshooting.md',
   'docs/migration.md',
+  'docs/upgrading.md',
   'docs/android-battery-optimization.md',
   'docs/android-tts-setup.md',
   'docs/app-store-submission.md',
@@ -35,6 +36,20 @@ const reactNativeSupport =
   supportMatrixSource.match(/reactNative:\s*'([^']+)'/)?.[1] ?? null;
 const expoSupport = supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1] ?? null;
 
+// A failed match must not fall back to a hardcoded baseline: that would make
+// the gate silently assert the OLD baseline instead of failing when
+// release-support-matrix.ts's shape changes.
+if (!reactNativeSupport) {
+  throw new Error(
+    'verify-doc-links: could not extract reactNative version from scripts/release-support-matrix.ts'
+  );
+}
+if (!expoSupport) {
+  throw new Error(
+    'verify-doc-links: could not extract expo version from scripts/release-support-matrix.ts'
+  );
+}
+
 if (!existsSync(readmePath)) {
   errors.push('README.md');
 } else {
@@ -46,7 +61,7 @@ if (!existsSync(readmePath)) {
     'startDetection',
     'stopDetection',
     'dispose',
-    'real engine-backed local wake word detection is implemented through the built-in native-managed engine path',
+    'Real engine-backed local detection through the built-in native-managed engine path',
     'Reliability evaluation artifacts',
     'tests/fixtures/reliability/latest-results.json',
     'The example app also exposes evaluator-facing runtime diagnostics',
@@ -57,12 +72,11 @@ if (!existsSync(readmePath)) {
     'Android background continuation requires a visible app context for start, microphone permission, and an active foreground-service notification.',
     'Expo config and prebuild compatibility are validated through docs, contract checks, the Expo-capable example package scripts in `example/package.json`, an Expo CLI config resolution check against the example app, and Expo prebuild generation against a temporary copy of the example app.',
     'Expo Go is NOT supported.',
-    'optional downstream STT/TTS extension examples',
-    'the package itself does not own transcription or synthesis',
     'Wake-to-Transcribe-to-Speak Flow',
-    'The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned',
-    'downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals',
-    'STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features',
+    'STT and TTS providers are **opt-in but package-driven**. You supply the provider; the package calls it.',
+    'If you pass no `sttProvider`, the package emits `wakeWordDetected` and stops there',
+    'the package takes over the flow and drives it for you',
+    'The provider *implementations* are yours (or one of the bundled adapters); the orchestration between them is the package\'s.',
     'docs/examples/',
     '## Built-In Model Configuration',
     'engineConfig.assetKeys.modelAssetKey',
@@ -135,7 +149,7 @@ if (existsSync(backgroundBehaviorPath)) {
 if (existsSync(bareSetupPath)) {
   const bareSetup = readFileSync(bareSetupPath, 'utf8');
   const requiredBareSetupText = [
-    `React Native \`${reactNativeSupport ?? '0.83+'}\``,
+    `React Native \`${reactNativeSupport}\``,
     'microphone permission',
     'UIBackgroundModes',
     'foreground_service_visible_context_required',
@@ -166,7 +180,7 @@ if (existsSync(expoSetupPath)) {
     'Expo Go is NOT supported.',
     'The support matrix source in this repo is',
     'config-plugin and prebuild',
-    `Expo SDK \`${(expoSupport ?? 'SDK 55+').replace('SDK ', '')}\``,
+    `Expo SDK \`${expoSupport.replace('SDK ', '')}\``,
     'Built-In Sherpa Asset Model',
     'engineConfig.assetKeys.modelAssetKey',
     'engineConfig.assetKeys.keywordAssetKey',
@@ -204,10 +218,7 @@ if (existsSync(troubleshootingPath)) {
     '### `internal`',
     'Expo Go is unsupported',
     'primary runtime validation path today',
-    'optional STT/TTS extension-point examples',
-    'downstream application integrations only',
     'Troubleshoot the Provider Pattern Separately',
-    'The example app previews that provider pattern with simulated host implementations.',
     'docs/examples/',
   ];
 
@@ -226,14 +237,12 @@ if (existsSync(gettingStartedPath)) {
     'wakeWordDetected',
     'audioRouteChanged',
     'permission`, `lifecycle`,',
-    'current `getStatus()` snapshot',
-    'recent runtime events',
     'normalized error categories',
-    'application-owned STT handoff',
-    'TTS response step can run after detection or transcript handling',
-    'those speech flows remain outside the package runtime and use public APIs only',
+    'It does not carry an event history',
+    'You supply the STT and TTS providers; the package calls them.',
+    'the orchestration between them is the package',
+    '### What `recoverable` means',
     'Wake-to-Transcribe-to-Speak Guide',
-    'That wake -> transcribe -> optional speak flow is the supported extension model.',
     'docs/examples/',
     'Built-In Engine Defaults',
     'native-managed Sherpa-ONNX',

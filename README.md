@@ -6,9 +6,9 @@
 
 On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase — the package handles listening, transcription, and speech output, you decide what happens with the transcript in between.
 
-No cloud required for wake word detection. Speech-to-text and text-to-speech run on-device through opt-in providers.
+No cloud, no API key, no per-use cost. Detection runs entirely on-device; the models are downloaded once (~7.8 MB) on first setup, after which nothing leaves the device. Speech-to-text and text-to-speech also run on-device through opt-in providers.
 
-> **Supports:** React Native `0.83+` · Expo SDK `55+` · iOS · Android
+> **Supports:** React Native `0.86+` · Expo SDK `57+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
 📖 **[Full documentation site](https://prompt-agency.github.io/react-native-voice-activator/)**
@@ -19,8 +19,9 @@ No cloud required for wake word detection. Speech-to-text and text-to-speech run
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quickstart](#quickstart)
+- [Models Are Downloaded On Demand](#models-are-downloaded-on-demand)
 - [Conversation Session](#conversation-session)
-- [Built-In Wake Words](#built-in-wake-words)
+- [Wake Words](#wake-words)
 - [Optional: Speech-to-Text](#optional-speech-to-text)
 - [Optional: Text-to-Speech](#optional-text-to-speech)
 - [Troubleshooting](#troubleshooting)
@@ -41,9 +42,9 @@ flowchart LR
     E -->|manual| F["Wait for\nlisten()"]
 ```
 
-- **Wake word detection** — on-device, no cloud, no API key. real engine-backed local wake word detection is implemented through the built-in native-managed engine path (Sherpa-ONNX with bundled models).
+- **Any wake phrase, no training** — `wakePhrase: 'hey acme'` and you are done. On-device, no cloud, no API key, no per-keyword model. Real engine-backed local detection through the built-in native-managed engine path (Sherpa-ONNX). Models are [downloaded once on demand](#models-are-downloaded-on-demand), then everything runs locally.
 - **Managed conversation sessions** — the package drives the full wake → listen → AI → speak → re-listen loop.
-- **Barge-in** — say the wake word while the AI is speaking to interrupt and start a new turn immediately (~300ms).
+- **Barge-in** — say the wake word while the AI is speaking to interrupt TTS and start a new turn. (Interruption latency is not yet measured on physical devices; see [Reliability Validation](docs/reliability-validation.md).)
 - **React hooks** — `useWakeWord()` and `useVoiceSession()` for reactive component updates.
 - **Expo config plugin** — automatic native configuration (permissions, background modes, manifest entries).
 - **Extensible** — inject your own STT and TTS providers. The built-in adapters (`WhisperRNSTTAdapter`, `CustomTTSAdapter`) are opt-in.
@@ -52,8 +53,8 @@ flowchart LR
 
 | Requirement | Minimum |
 |---|---|
-| React Native | `0.83+` |
-| Expo SDK | `55+` *(Expo users only)* |
+| React Native | `0.86+` |
+| Expo SDK | `57+` *(Expo users only)* |
 | iOS | `13+` |
 | Android | API `26+` |
 
@@ -69,15 +70,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-### Step 2 — Install the required native peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module surface uses [Nitro Modules](https://nitro.margelo.com). Without it, the native bridge will not load.
-
-### Step 3 — Platform setup
+### Step 2 — Platform setup
 
 **Bare React Native**
 
@@ -130,10 +123,12 @@ For detailed setup, see [Bare React Native Setup](docs/bare-react-native-setup.m
 
 ## Quickstart
 
-This validates the wake word runtime without STT or TTS. Say **"Hello World"** — the event fires.
+This validates the wake word runtime without STT or TTS. Say **"hey acme"** — or whatever phrase you pass — and the event fires.
 
 ```typescript
 import {
+  prepareModels,
+  getModelStatus,
   initialize,
   startDetection,
   stopDetection,
@@ -150,6 +145,14 @@ async function runQuickstart() {
     return;
   }
 
+  // One-time, ~7.8 MB download. Idempotent, so it is safe to call on every
+  // launch — once the models are present it only re-verifies checksums.
+  if (!(await getModelStatus()).ready) {
+    await prepareModels({
+      onProgress: ({ percent }) => console.log(`Models ${percent}%`),
+    });
+  }
+
   const onDetected = addWakeWordListener('wakeWordDetected', (event) => {
     console.log('Detected:', event.detectedPhrase);
   });
@@ -158,7 +161,7 @@ async function runQuickstart() {
   });
 
   try {
-    await initialize();       // load the wake word engine
+    await initialize({ wakePhrase: 'hey acme' }); // any English phrase
     await startDetection();   // start listening
     // Say "Hello World" — wakeWordDetected fires
     await stopDetection();    // stop listening
@@ -169,6 +172,64 @@ async function runQuickstart() {
   }
 }
 ```
+
+## Models Are Downloaded On Demand
+
+The ONNX models are **not** in the npm package. They are downloaded once, verified against a pinned SHA-256 manifest, and stored in your app's own directory.
+
+That keeps the package at ~220 kB instead of ~42 MB, and keeps ~7.8 MB out of every shipped app binary — including for apps that never turn detection on.
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+const status = await getModelStatus();
+// { ready: false, missing: [...], directory: '/…/voice-activator/models/1', bytesTotal: 7829... }
+
+if (!status.ready) {
+  await prepareModels({
+    onProgress: ({ percent, file, fileIndex, fileCount }) => {
+      console.log(`${percent}% — ${file} (${fileIndex}/${fileCount})`);
+    },
+  });
+}
+```
+
+**`initialize()` does not download for you.** If the models are absent it rejects with a non-recoverable `models_not_prepared` error naming `prepareModels()`. A multi-megabyte transfer should be something your app chooses, schedules and can show progress for — not a side effect of a lifecycle call.
+
+| | |
+|---|---|
+| Size | ~7.8 MB across 16 files |
+| Stored in | iOS `Library/voice-activator/models/<v>`, Android `files/voice-activator/models/<v>` |
+| Integrity | every file SHA-256 verified before use; a mismatch is refused, not used |
+| Interrupted download | written to a `.part` file and moved into place, so a truncated file is never trusted |
+| Repeat calls | idempotent — only missing or corrupt files are re-fetched |
+
+### Self-hosting the models
+
+`prepareModels()` defaults to this package's GitHub release. To serve them yourself and drop the runtime dependency on GitHub:
+
+```typescript
+// Mirror of the release assets, flattened names (foo__bar__baz.onnx)
+await prepareModels({ baseUrl: 'https://cdn.example.com/voice-models' });
+
+// Or a mirror of the original directory tree
+await prepareModels({
+  baseUrl: 'https://cdn.example.com/voice-models',
+  flatAssets: false,
+});
+```
+
+### Shipping the models inside your app instead
+
+If you would rather have no runtime download at all, place a model bundle in your app and point at it. `prepareModels()` is then unnecessary:
+
+```typescript
+await initialize({
+  engineConfig: { assetKeys: { modelAssetKey: 'my-models' } },
+});
+```
+
+On Android that is a path relative to `android/app/src/main/assets/`, or an absolute filesystem path. On iOS it is a bundle-relative directory or an absolute path.
 
 ## Conversation Session
 
@@ -221,13 +282,69 @@ function VoiceAssistant() {
 }
 ```
 
-A session requires **both** an STT provider and a TTS provider. Without both, wake word detection works normally but no session starts.
+A session requires **both** an STT provider and a TTS provider.
+
+If you supply only one of them, no session starts — but detection does **not** fall back to plain wake-word-only behaviour. It falls through to the single-shot flow, which still calls your STT provider and emits transcription events on every wake word. Supply both, or neither.
 
 See the [Conversation Session guide](docs/conversation-session.md) for barge-in behavior, manual mode, `maxTurns`, VAD configuration, and the full event reference.
 
-## Built-In Wake Words
+## Wake Words
 
-The bundled Sherpa-ONNX engine recognizes these phrases:
+### Use any phrase you like
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+That is the whole setup. No training run, no GPU, no vendor console, no
+per-keyword model, no API key.
+
+The bundled keyword spotter is **open-vocabulary**: it detects phrases that were
+never in its training data. `bpe.model` ships in the model bundle and
+`simple-sentencepiece` is linked into the native library, so the phrase is
+tokenized on device. The package writes a small plain-text keywords file beside
+the model bundle and reuses it across launches.
+
+Several triggers at once:
+
+```typescript
+await initialize({ wakePhrase: ['hey acme', 'ok acme'] });
+```
+
+**Choosing a phrase that works:**
+
+| Rule | Why |
+|---|---|
+| Two or more distinct words | A single short word scores against everything else the model hears and false-fires on ordinary speech |
+| At least 6 letters | Same reason; this is the enforced floor |
+| A-Z, apostrophes, spaces only | Digits and punctuation cannot be tokenized as spoken — write "hey acme two", not "hey acme 2" |
+| Phonetically distinctive | Avoid phrases that rhyme with common speech in your app's context |
+| Under 40 characters | Users will not say a long phrase consistently |
+
+Invalid phrases are rejected by `initialize()` with a non-recoverable
+`wake_phrase_invalid` error listing every problem, rather than silently producing
+a keyword that never matches.
+
+> **Detection accuracy for arbitrary phrases is not yet measured on physical
+> devices.** Sherpa-ONNX publishes no false-accept rates for its open-vocabulary
+> path, and neither do we yet — so treat `sensitivity` as untuned.
+>
+> The package ships the tooling to measure it against your own corpus:
+> `sweepWakeWordSensitivity()` produces the detection-rate / false-accept curve
+> and `chooseOperatingPoint()` picks a threshold within a false-accept budget. See
+> [Measuring Detection Rate and False Accepts](docs/reliability-validation.md#measuring-detection-rate-and-false-accepts)
+> for the corpus requirements — a false-accept rate needs hours of negative audio
+> to mean anything.
+
+### Pre-tokenized presets
+
+The model bundle also carries nine pre-tokenized keyword files from the upstream
+Sherpa-ONNX demo set. They exist for quick smoke-testing — `keywords-hello-world.txt`
+is handy because "Hello World" is unambiguous — and are **not** recommended for
+shipping: several are trademarked phrases, and none of them is your product's name.
+
+Select one with `engineConfig.assetKeys.keywordAssetKey` instead of `wakePhrase`
+(the two are mutually exclusive):
 
 | Wake Word | `keywordAssetKey` |
 |---|---|
@@ -261,16 +378,19 @@ To train a custom wake word, see the [Wake Word Training guide](docs/model-train
 
 ```sh
 # All platforms
-yarn add whisper.rn react-native-fs
+yarn add whisper.rn @dr.pogodin/react-native-fs
 
 # iOS only
-yarn add react-native-audio-recorder-player
-
-# Android only
-yarn add @fugood/react-native-audio-pcm-stream
+yarn add react-native-audio-recorder-player@^4.0.0 react-native-nitro-modules@0.31.10
 ```
 
-**Android architecture note:** `@fugood/react-native-audio-pcm-stream` requires the Old Architecture bridge. If your app uses New Architecture, set `newArchEnabled=false` in `android/gradle.properties` (or in `app.json` for Expo), or enable legacy interop mode.
+`react-native-audio-recorder-player` v4 is a Nitro module, so it needs `react-native-nitro-modules`
+too. Pin it to `0.31.10`: the recorder's peer range is `*`, but its pre-generated Nitrogen output
+was built against an older Nitro core, and newer Nitro releases (0.32 and above) fail to compile
+it with `Unresolved reference 'updateNative'`. `0.31.10` sits inside this package's own peer range
+(`>=0.31.3 <0.32.0`) and is the version this compatibility window actually works with.
+
+On Android, recording goes through the package's own native capture, so no extra audio module is needed. (It previously used `@fugood/react-native-audio-pcm-stream`, which requires the Old Architecture bridge that RN 0.83+ no longer provides.)
 
 After installing, re-run `cd ios && pod install`.
 
@@ -346,16 +466,45 @@ For the complete error category reference and background detection constraints, 
 
 ## Wake-to-Transcribe-to-Speak Flow
 
-The package owns the wake-word runtime; STT and TTS stay opt-in, application-owned. the package itself does not own transcription or synthesis — it emits `wakeWordDetected` and your app handles what comes next.
+STT and TTS providers are **opt-in but package-driven**. You supply the provider; the package calls it.
 
-optional downstream STT/TTS extension examples in [docs/examples/](docs/examples/) show how to wire transcription and synthesis into the detection flow:
+If you pass no `sttProvider`, the package emits `wakeWordDetected` and stops there — your app handles everything after that.
+
+If you pass an `sttProvider` to `initialize()`, the package takes over the flow and drives it for you:
 
 1. Wake word fires → package emits `wakeWordDetected`
-2. Application-owned STT handoff — your STT provider transcribes the microphone audio
+2. Package calls `sttProvider.transcribe()` and emits `transcriptionStarted`, then `transcriptionResult`
 3. Your AI handler processes the transcript
-4. TTS response step can run after detection or transcript handling in your TTS provider
+4. If `autoSpeak: true`, the package calls `ttsProvider.speak()` and emits `speechStarted`, then `speechCompleted`
 
-downstream STT/TTS integrations can be layered on top of the public event contract without modifying package internals. STT/TTS examples in the repo are illustrative downstream integrations, not built-in package runtime features. those speech flows remain outside the package runtime and use public APIs only.
+The provider *implementations* are yours (or one of the bundled adapters); the orchestration between them is the package's. See [docs/examples/](docs/examples/) for provider implementations you can copy.
+
+### Provider timeouts
+
+Orchestration runs on one shared serial queue, so a provider call that never settles would block every subsequent wake word. Each `transcribe()` and `speak()` call is therefore bounded by `providerTimeoutMs` (default `30000`):
+
+```typescript
+await initialize({
+  sttProvider,
+  ttsProvider,
+  providerTimeoutMs: 30_000, // 0 disables the bound
+});
+```
+
+On expiry the package emits `transcriptionError` with code `stt_timeout` (or `speechError` with `tts_timeout`), asks the provider to `cancel()`/`stop()`, and frees the queue for the next wake word.
+
+A managed session takes its own bounds, because `silenceTimeoutMs` only guards a user who never speaks, not a provider that never returns:
+
+```typescript
+session: {
+  aiHandler,
+  reListenMode: 'auto',
+  providerTimeoutMs: 30_000,  // transcribe() and speak()
+  aiHandlerTimeoutMs: 60_000, // your AI handler
+}
+```
+
+The defaults are deliberately generous: on-device transcription of a long utterance on an older phone takes seconds, and cutting off a slow-but-working provider is worse than waiting. These bound a wedged call, they do not enforce latency. See [Conversation Session](docs/conversation-session.md#timeouts-what-silencetimeoutms-does-not-cover) for the full table.
 
 ## Privacy & Compliance
 
@@ -431,7 +580,7 @@ async function handleAccountDeletion(userId: string) {
 
 ## Built-In Model Configuration
 
-The bundled Sherpa-ONNX model defaults are resolved internally. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Built-In Wake Words](#built-in-wake-words) for the full keyword list.
+The Sherpa-ONNX model defaults are resolved internally, from the on-demand bundle unless you override the root. The supported public override points remain `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file). See [Wake Words](#wake-words) for `wakePhrase` and the preset list.
 
 ## Example App and Reliability
 
@@ -461,6 +610,7 @@ Expo config and prebuild compatibility are validated through docs, contract chec
 | [Wake Word Training](docs/model-training/wake-word-training.md) | Train a custom wake word offline |
 | [TTS Voice Cloning](docs/model-training/tts-voice-cloning.md) | Train a custom TTS voice |
 | [Troubleshooting](docs/troubleshooting.md) | Full error category reference |
+| [Upgrading](docs/upgrading.md) | Breaking peer dependency changes and how to move between versions |
 | [Professional Services](docs/professional-services.md) | Get help with custom model training and integration |
 
 ## Contributing

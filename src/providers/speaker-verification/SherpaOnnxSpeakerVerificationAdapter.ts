@@ -127,14 +127,21 @@ export class SherpaOnnxSpeakerVerificationAdapter implements SpeakerVerification
     }
 
     const pcmBase64 = arrayBufferToBase64(audioBuffer);
-    // Extract query embedding from audio (used for native extraction pipeline)
-    await NativeVoiceActivator!.extractSpeakerEmbedding(pcmBase64, sampleRate);
 
-    // Average stored embeddings and pass as the reference embedding to the bridge (D-05)
-    const avgEmbedding = averageEmbeddings(stored);
+    // Native verifySpeaker(name, embedding, threshold) forwards to sherpa-onnx's
+    // SpeakerEmbeddingManager.verify(name, testEmbedding, threshold), so the
+    // embedding we send must be the one extracted from the caller's audio. The
+    // enrolled samples are already registered natively under `userId`; sending
+    // their average here would compare the enrollment against itself and return
+    // a match regardless of who is speaking.
+    const queryEmbedding = await NativeVoiceActivator!.extractSpeakerEmbedding(
+      pcmBase64,
+      sampleRate
+    );
+
     const result = await NativeVoiceActivator!.verifySpeaker(
       userId,
-      avgEmbedding,
+      queryEmbedding,
       threshold
     );
 

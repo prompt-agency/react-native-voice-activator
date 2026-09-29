@@ -4,11 +4,11 @@ Setup guide for `react-native-voice-activator` in a bare React Native project �
 
 ## Supported Versions
 
-Requires React Native `0.83+`, iOS `13+`, and Android API `26+`. The support boundary is tracked in `scripts/release-support-matrix.ts`.
+Requires React Native `0.86+`, iOS `13+`, and Android API `26+`. The support boundary is tracked in `scripts/release-support-matrix.ts`.
 
 | | Required |
 |---|---|
-| React Native | `0.83+` |
+| React Native | `0.86+` |
 | iOS | `13+` |
 | Android | API `26+` |
 
@@ -23,15 +23,7 @@ pnpm add react-native-voice-activator
 bun add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module interface uses [Nitro Modules](https://nitro.margelo.com). It is a hard requirement — the native bridge does not load without it.
-
-## Step 3 — iOS: Run CocoaPods
+## Step 2 — iOS: Run CocoaPods
 
 ```sh
 cd ios && pod install
@@ -39,7 +31,7 @@ cd ios && pod install
 
 This links the Sherpa-ONNX wake word engine and all required iOS native libraries. Re-run this command whenever you add or remove native peer dependencies.
 
-## Step 4 — iOS: Add Microphone Permission
+## Step 3 — iOS: Add Microphone Permission
 
 Add `NSMicrophoneUsageDescription` to `ios/<YourApp>/Info.plist`:
 
@@ -50,7 +42,7 @@ Add `NSMicrophoneUsageDescription` to `ios/<YourApp>/Info.plist`:
 
 Without this key, your app crashes on iOS 13+ when microphone access is requested.
 
-## Step 5 — iOS: Add Audio Background Mode (Recommended)
+## Step 4 — iOS: Add Audio Background Mode (Recommended)
 
 Required if you want wake word detection to continue after the app moves to the background:
 
@@ -63,7 +55,7 @@ Required if you want wake word detection to continue after the app moves to the 
 
 Without this, the runtime transitions to `unsupported` with a `platform` error when the app backgrounds. Detection resumes normally when the app returns to the foreground.
 
-## Step 6 — Android: Request Runtime Permission
+## Step 5 — Android: Request Runtime Permission
 
 Android requires `RECORD_AUDIO` to be requested at runtime before calling `startDetection()`. Add this to your app's startup flow:
 
@@ -123,14 +115,19 @@ Install only what your chosen adapters need. After adding any native peer, re-ru
 | Peer | Required for |
 |---|---|
 | `whisper.rn` | `WhisperRNSTTAdapter` |
-| `react-native-fs` | `WhisperRNSTTAdapter` model caching |
+| `@dr.pogodin/react-native-fs` | `WhisperRNSTTAdapter` model caching |
 | `react-native-audio-recorder-player` | `WhisperRNSTTAdapter` on iOS |
-| `@fugood/react-native-audio-pcm-stream` | `WhisperRNSTTAdapter` on Android |
+| `react-native-nitro-modules@0.31.10` | `react-native-audio-recorder-player` (it is a Nitro module) |
 | `onnxruntime-react-native` | `CustomTTSAdapter` |
+
+Pin `react-native-nitro-modules` to `0.31.10` specifically. It must satisfy this package's peer
+range `>=0.31.3 <0.32.0`, but the recorder's own peer range is `*`, so a plain install can resolve
+a newer Nitro (0.32+) whose API the recorder's v4.5.0 pre-generated bindings do not compile
+against (`Unresolved reference 'updateNative'`).
 
 See [docs/examples/](examples/) for per-adapter setup guides.
 
-**Android New Architecture note:** `@fugood/react-native-audio-pcm-stream` uses the Old Architecture bridge (`RCTEventEmitter`). If your app uses New Architecture, set `newArchEnabled=false` in `android/gradle.properties`, or enable legacy interop mode.
+Android recording uses the package's own native capture, so no additional audio module is required.
 
 ## Built-In Sherpa Asset Model
 
@@ -156,6 +153,18 @@ The app must declare `UIBackgroundModes: ["audio"]`. Add it to `Info.plist` and 
 
 You have two ONNX Runtime copies in your binary — typically this package's bundled Sherpa ORT plus `onnxruntime-react-native`. See the [iOS ONNX Conflict Resolution guide](ios-onnx-conflict-resolution.md).
 
+### iOS launch failure: "UIScene life cycle is required for apps built with this SDK"
+
+Symptom, on launch rather than at build time:
+
+```
+Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+```
+
+This is an Xcode 26+ / iOS SDK 26+ requirement and is not specific to this package. Any app built with that SDK must adopt the scene-based life cycle: add a `UIApplicationSceneManifest` to `Info.plist` naming a `UISceneDelegateClassName`, and move window creation and React Native startup out of `AppDelegate` and into that scene delegate. Follow Apple's "Transitioning to the UIKit scene-based life cycle" together with your React Native version's own scene guidance; the exact delegate class depends on your app template.
+
+For an Expo-managed app, see the equivalent entry in [Expo Setup](expo-setup.md#ios-launch-failure-uiscene-life-cycle-is-required-for-apps-built-with-this-sdk), which has the concrete `app.json` and config-plugin recipe.
+
 ### `engine` error at startup
 
 - Check `getStatus().lastError.code` and `lastError.message` for the specific failure.
@@ -170,7 +179,14 @@ Always call `initialize()` before `startDetection()`. Do not call `startDetectio
 
 - Confirm Android NDK is installed: Android Studio → SDK Manager → SDK Tools → NDK (Side by side).
 - Clean the build: `cd android && ./gradlew clean`.
-- If `@fugood/react-native-audio-pcm-stream` is not found, install it: `yarn add @fugood/react-native-audio-pcm-stream`.
+- **First Android build downloads a ~28 MB Sherpa-ONNX AAR.** It is fetched at
+  build time rather than shipped in the npm package, verified against a pinned
+  SHA-256, and cached in `node_modules/react-native-voice-activator/android/libs/`.
+  Subsequent builds reuse it. On a machine without network access, pass
+  `-PVoiceActivator_sherpaAarPath=/path/to/the.aar`.
+- **The ONNX models are downloaded at runtime, not at build time.** Call
+  `prepareModels()` once before `initialize()`; see
+  [Models Are Downloaded On Demand](../README.md#models-are-downloaded-on-demand).
 
 For a complete error category reference, see [docs/troubleshooting.md](troubleshooting.md).
 

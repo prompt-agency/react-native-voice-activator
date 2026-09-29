@@ -10,7 +10,7 @@
 
 On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo. Say a trigger phrase and the package drives the full loop: listen for speech, transcribe it, call your AI handler, speak the response, then listen again. No cloud required for wake word detection. Speech-to-text and text-to-speech are opt-in, provider-injected, and run on-device.
 
-**Supports:** React Native `0.83+` · Expo SDK `55+` · iOS 13+ · Android API 26+. Expo Go is NOT supported -- use `expo prebuild` or EAS Build.
+**Supports:** React Native `0.86+` · Expo SDK `57+` · iOS 13+ · Android API 26+. Expo Go is NOT supported -- use `expo prebuild` or EAS Build.
 
 ---
 
@@ -22,7 +22,7 @@ Orchestration       src/runtime/         Session loop manager (wake→STT→AI�
 Engines             src/engines/         Native-managed engine runtime (Sherpa-ONNX)
 Providers           src/providers/       Opt-in STT / TTS / VAD / verification adapters
 Internal            src/internal/        Native bridge, event emitters, runtime store
-Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
+Native Interface    NativeVoiceActivator.ts  TurboModule codegen spec (RN Codegen)
 ```
 
 **Key design facts:**
@@ -31,7 +31,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 - **Two event emitters.** `runtimeEvents` fires wake word lifecycle events (`wakeWordDetected`, `stateChanged`, `error`, `interruption`, `audioRouteChanged`). `sessionEvents` fires conversation turn events (`sessionStarted`, `sessionListening`, `sessionTranscribed`, `sessionSpeaking`, `sessionTurnComplete`, `sessionEnded`, `sessionError`). Subscribe with `addWakeWordListener` and `addSessionListener` respectively.
 - **Provider injection.** STT and TTS are passed to `initialize()` via `sttProvider` / `ttsProvider`. The package never owns transcription or synthesis -- it calls your provider at the right moment in the loop.
 - **Generation IDs.** A counter increments on each new session. Async provider callbacks capture the generation at call time and no-op if it no longer matches. This prevents a slow STT response from a stale session completing into a new one.
-- **Barge-in fast-path.** If a wake word fires while TTS is speaking, a dedicated path calls `ttsProvider.stop()` and re-enters the listen stage without waiting for the normal orchestration queue. Interruption latency is under 300ms.
+- **Barge-in fast-path.** If a wake word fires while TTS is speaking, a dedicated path calls `ttsProvider.stop()` and re-enters the listen stage without waiting for the normal orchestration queue. A wake word arriving during the `listening` or `transcribing` stage aborts the capture, discards the partial utterance, and restarts the listening turn. Interruption latency is not yet measured on physical devices.
 
 ---
 
@@ -45,7 +45,7 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 
 **Noise suppression.** The optional `SherpaOnnxNoiseSuppressionAdapter` preprocesses audio before transcription to improve STT accuracy in noisy environments.
 
-**Anti-spoofing.** The optional `SherpaOnnxAntiSpoofingAdapter` runs a liveness check to reject replay attacks before speaker verification.
+**Anti-spoofing.** The `antiSpoofingProvider` option gates detection on a liveness score: a score above `spoofingThreshold` fails the gate. No bundled implementation exists — the native `detectSpoofing` bridge is a stub returning a constant `0.0`, so `SherpaOnnxAntiSpoofingAdapter` throws on construction rather than passing every input. Supply your own provider to use this.
 
 **`reListenMode`.** Set to `'auto'` in `VoiceSessionConfig` and the loop re-enters the listen stage automatically after TTS finishes. Set to `'manual'` to wait for an explicit `session.listen()` call.
 
@@ -102,28 +102,59 @@ Native Interface    NativeVoiceActivator.ts  Nitro Modules codegen spec
 | `SileroVADEngine` | none (bundled) | VAD gate between wake word and STT. |
 | `SherpaOnnxSpeakerVerificationAdapter` | none (bundled) | Voiceprint-based speaker identity check. |
 | `SherpaOnnxNoiseSuppressionAdapter` | none (bundled) | Audio noise suppression preprocessing. |
-| `SherpaOnnxAntiSpoofingAdapter` | none (bundled) | Liveness check before speaker verification. |
+| `SherpaOnnxAntiSpoofingAdapter` | n/a | **Not implemented — throws on construction.** The native bridge is a stub. Supply your own `AntiSpoofingProvider` instead. |
 
 ### Key Types
 
 ```typescript
+// Models are downloaded on demand; call this once before initialize().
+prepareModels(options?: ModelPreparationOptions): Promise<ModelPreparationResult>
+getModelStatus(): Promise<ModelBundleStatus>
+
+ModelPreparationOptions {
+  baseUrl?: string            // defaults to this package's GitHub release
+  flatAssets?: boolean        // default true (flattened release asset names)
+  force?: boolean             // re-download even if already valid
+  onProgress?: (p: ModelPreparationProgress) => void
+}
+
+ModelBundleStatus {
+  ready: boolean
+  directory: string
+  bundleVersion: string
+  missing: string[]           // manifest-relative paths absent or unverified
+  bytesTotal: number
+}
+
 // initialize() options
 WakeWordInitializationOptions {
   engineConfig?: WakeWordEngineConfiguration
   sttProvider?: SpeechToTextProvider
   ttsProvider?: TextToSpeechProvider
+  wakePhrase?: string | string[]      // any English phrase; no training needed
+  autoSpeak?: boolean                 // default false; single-shot flow only
+  providerTimeoutMs?: number          // default 30000; 0 disables
   session?: VoiceSessionConfig
   speakerVerificationProvider?: SpeakerVerificationProvider
+  speakerModelPath?: string           // Android-only, required for the Sherpa adapter
   audioPreprocessingProvider?: AudioPreprocessingProvider
-  antiSpoofingProvider?: AntiSpoofingProvider
+  antiSpoofingProvider?: AntiSpoofingProvider   // no bundled impl; supply your own
+  spoofingThreshold?: number          // default 0.5
+  verificationThreshold?: number      // default 0.55
+  verificationFailureBehavior?: 'open' | 'closed' | 'emit'   // default 'closed'
+  vadGateEnabled?: boolean            // default false
+  vadGateThreshold?: number           // default 0.5
 }
 
 // session loop config
 VoiceSessionConfig {
   aiHandler: AIHandler              // (transcript: string) => Promise<string>
   reListenMode: 'auto' | 'manual'
-  silenceTimeoutMs?: number
+  silenceTimeoutMs?: number         // user never speaks; does NOT cover a hung provider
   maxTurns?: number
+  vad?: VADConfig
+  providerTimeoutMs?: number        // default 30000; bounds transcribe() and speak()
+  aiHandlerTimeoutMs?: number       // default 60000; bounds aiHandler()
 }
 
 // provider interfaces (implement these for custom providers)
@@ -361,10 +392,17 @@ async function deleteEnrollment(userId: string) {
 | `lifecycle` | API called in wrong state (e.g. `startDetection` before `initialize`) | Check `getStatus().state` before calling lifecycle functions |
 | `configuration` | Invalid or missing initialization options | Review `WakeWordInitializationOptions` -- both `sttProvider` and `ttsProvider` are required for sessions |
 | `engine` | Native engine failed to load or crashed | Check that model assets are bundled correctly; see [Getting Started](getting-started.md) |
-| `platform` | OS-level constraint (background mode, foreground service) | See [Background Behavior](background-behavior.md) |
+| `platform` | OS-level constraint (background mode, foreground service), or the native module is absent (`runtime_unavailable`, not recoverable) | See [Background Behavior](background-behavior.md) |
+| `configuration` / `models_not_prepared` | The on-demand model bundle is absent or unverified (not recoverable) | Call `prepareModels()`, or pass `engineConfig.assetKeys.modelAssetKey` |
+| `configuration` / `wake_phrase_invalid` | A `wakePhrase` failed validation (not recoverable) | Message lists every problem; see the phrase rules |
+| `configuration` / `wake_phrase_conflict` | Both `wakePhrase` and `keywordAssetKey` were supplied (not recoverable) | Pick one |
+| `configuration` / `wake_phrase_unsupported_root` | `wakePhrase` used with an app-bundled `modelAssetKey` (not recoverable) | Generate a keywords file offline, pass `keywordAssetKey` |
 | `internal` | Unexpected runtime error | File a bug; include `getStatus().lastError.message` |
 
-All errors have `recoverable: boolean`. Non-recoverable errors require `dispose()` + `initialize()` to reset.
+All errors carry `recoverable: boolean`, answering only: can the same call with the same options succeed?
+
+- `recoverable: true` — retry may work. Transient provider failures and timeouts (`stt_timeout`, `tts_timeout`, `ai_handler_timeout`), most `permission` and `lifecycle` errors.
+- `recoverable: false` — retry cannot work. Every `configuration` error (fix the options, then call `initialize()` again) and `runtime_unavailable` (the native module is missing from the build; rebuild with `pod install` / `expo prebuild` — re-initialising will not help).
 
 ---
 

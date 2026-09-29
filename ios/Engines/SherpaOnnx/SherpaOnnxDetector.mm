@@ -9,19 +9,9 @@
 
 #import "sherpa-onnx/c-api/c-api.h"
 
+#import "SherpaOnnxSensitivity.h"
+
 namespace {
-float SherpaThresholdFromSensitivity(double sensitivity)
-{
-  double normalized = sensitivity;
-  if (normalized < 0) {
-    normalized = 0;
-  } else if (normalized > 1) {
-    normalized = 1;
-  }
-
-  return (float)(0.55 - (normalized * 0.3));
-}
-
 NSError *SherpaError(NSString *message)
 {
   return [NSError errorWithDomain:@"VoiceActivator"
@@ -81,6 +71,14 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
   config.max_active_paths = 4;
   config.num_trailing_blanks = 1;
   config.keywords_file = assetPaths.keywordsPath.UTF8String;
+  // Setting these switches sherpa-onnx from expecting a pre-tokenized keywords
+  // file to tokenizing plain text itself, via the simple-sentencepiece
+  // implementation linked into the framework. That is what makes an arbitrary
+  // wakePhrase work with no training.
+  if (assetPaths.bpeVocabPath != nil) {
+    config.model_config.modeling_unit = "bpe";
+    config.model_config.bpe_vocab = assetPaths.bpeVocabPath.UTF8String;
+  }
   config.keywords_score = 1.0f;
   config.keywords_threshold = SherpaThresholdFromSensitivity(sensitivity);
 
@@ -213,10 +211,14 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
 
 - (void)processBuffer:(AVAudioPCMBuffer *)buffer
 {
-  if (_spotter == nullptr || _stream == nullptr) {
-    return;
-  }
-
+  // _spotter and _stream are deliberately NOT read here.
+  //
+  // This runs on the AVAudioEngine tap thread, while configureWithAssetPaths:
+  // reassigns both on the caller's thread. Reading them here was a data race on
+  // non-atomic pointers, and a reconfigure landing between the check and the
+  // dispatch_async below would hand freed pointers to the block. Every access is
+  // now confined to _processingQueue, which configureWithAssetPaths: drains via
+  // flushPendingWork before releasing anything.
   AVAudioFrameCount frameLength = buffer.frameLength;
   if (frameLength == 0) {
     return;
@@ -242,6 +244,13 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
 
   const int32_t sampleRate = (int32_t)buffer.format.sampleRate;
   dispatch_async(_processingQueue, ^{
+    // Checked on the queue that owns these pointers, so a reconfigure cannot
+    // land between the check and the use.
+    if (self->_spotter == nullptr || self->_stream == nullptr) {
+      free(mono);
+      return;
+    }
+
     SherpaOnnxOnlineStreamAcceptWaveform(self->_stream, sampleRate, mono, (int32_t)frameLength);
     free(mono);
 

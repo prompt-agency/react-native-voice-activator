@@ -4,12 +4,12 @@
 
 ## Prerequisites
 
-Install `react-native-fs` if you haven't already — it is an optional peer dependency and must be explicitly added:
+Install `@dr.pogodin/react-native-fs` if you haven't already: it is an optional peer dependency and must be explicitly added:
 
 ```sh
-yarn add react-native-fs
+yarn add @dr.pogodin/react-native-fs
 # or
-npm install react-native-fs
+npm install @dr.pogodin/react-native-fs
 ```
 
 ## Step 1 — Bundle Model Assets
@@ -33,17 +33,23 @@ curl -L https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-
 
 ### Option B: Setup script (monorepo / example app only)
 
-If you are working inside the `react-native-voice-activator` repository itself:
+If you are working inside the `react-native-voice-activator` repository itself, run:
 
 ```sh
-bash example/scripts/setup-sherpa-tts-android.sh
+bash example/scripts/setup-sherpa-tts.sh
 ```
 
-> **Warning:** This script resolves paths relative to itself and writes assets into `example/android/`. It is not suitable for consumer apps — use Option A instead.
+This downloads the assets into `example/assets/sherpa-tts/` (outside the generated `example/android/` and `example/ios/` projects, which are gitignored and regenerated on every `expo prebuild`). The local Expo config plugin `example/plugins/with-sherpa-tts-assets.js` copies them into both generated native projects on the next prebuild, so no manual asset placement or Xcode steps are needed. Run the app to trigger a prebuild, or run one explicitly:
+
+```sh
+cd example && npx expo prebuild --clean
+```
+
+> **Note:** This flow is for developing inside this repository's example app. It is not suitable for consumer apps, which do not have the config plugin wired up; use Option A instead.
 
 ### Verify asset layout
 
-After setup, confirm these three items exist:
+After setup (Option A immediately, Option B after the prebuild step above), confirm these three items exist:
 
 ```
 android/app/src/main/assets/
@@ -71,7 +77,7 @@ Add this utility to your app — it is Android-specific and must only be called 
 
 ```typescript
 import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
+import * as RNFS from '@dr.pogodin/react-native-fs';
 
 // The destination directory name is arbitrary — choose any value consistent
 // with the rest of your app.

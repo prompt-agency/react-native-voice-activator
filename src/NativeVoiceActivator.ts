@@ -48,6 +48,25 @@ export interface Spec extends TurboModule {
   // Phase 1 — Audio Denoising (BRIDGE-06)
   denoiseAudio(pcmBase64: string, sampleRate: number): Promise<string>;
 
+  /**
+   * Run the wake word detector over a WAV file and report every detection.
+   *
+   * Offline evaluation: builds its own detector so a live detection session is
+   * untouched, feeds the whole file, and returns detections with their offsets.
+   *
+   * This is what makes detection rate and false-accepts-per-hour measurable
+   * without an acoustic rig. It is not a substitute for playing audio at a
+   * device — it bypasses the microphone, the audio session and the hardware
+   * front-end — but it produces the same numbers against a fixed corpus,
+   * reproducibly, which acoustic runs cannot.
+   *
+   * options: { filePath, keywordsPath?, modelPath?, keywordsAreRawText?, sensitivity? }
+   * returns: { detections: [{ keyword, atMs }], durationMs, sampleRate }
+   */
+  evaluateWavFile(
+    options: CodegenTypes.UnsafeObject
+  ): Promise<CodegenTypes.UnsafeObject>;
+
   // Phase 1 — Anti-Spoofing (SPOOF-01)
   // Returns spoof probability 0-1 (stub: returns 0.0 until anti-spoofing model available)
   detectSpoofing(pcmBase64: string, sampleRate: number): Promise<number>;

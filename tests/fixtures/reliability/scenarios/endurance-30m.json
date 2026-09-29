@@ -4,8 +4,7 @@
   "scenario": "endurance-30m",
   "mode": "deterministic-fixture",
   "description": "Deterministic host-side endurance fixture that exercises the structured runtime/error contract for a 30-minute equivalent evaluation window.",
-  "durationMinutes": 30,
-  "metrics": {
+  "expectedMetrics": {
     "latencyMsP95": 231,
     "falseTriggerCount": 0,
     "interruptionCount": 1,
@@ -13,5 +12,7 @@
     "teardownIssueCount": 0,
     "unrecoverableFailureCount": 0
   },
-  "notes": "Host-side deterministic endurance fixture records the contract shape and expected result fields; it does not replace physical-device endurance proof."
+  "measured": false,
+  "notes": "Host-side deterministic endurance fixture records the contract shape and expected result fields; it does not replace physical-device endurance proof.",
+  "durationMinutes": 30
 }

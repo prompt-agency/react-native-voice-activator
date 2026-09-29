@@ -39,6 +39,88 @@ Reference-device classes currently in use:
 - `physical-device`: pending acoustic/device proof
 - `build-host`: compile-only native validation
 
+## Measuring Detection Rate and False Accepts
+
+Two numbers decide whether a wake phrase is usable:
+
+| Metric | What it means | Reference points |
+|---|---|---|
+| **Detection rate** (TPR) | Fraction of genuine utterances that fire | Google reports 94-97% at their operating points |
+| **False accepts per hour** (FA/hr) | Spurious firings per hour of non-target audio | Google 0.006-0.03; Apple targeted ~1/week for "Hey Siri"; Picovoice self-reports <1 per 10 hours; openWakeWord targets <0.5/hr |
+
+Anything above a few per hour is not shippable as an always-on trigger: at 5/hr a
+user is interrupted roughly every twelve minutes.
+
+**Sherpa-ONNX publishes neither figure for its open-vocabulary path**, and nor do
+we yet. Until they are measured, treat `sensitivity` as untuned.
+
+### Corpus-based measurement (reproducible)
+
+`evaluateWakeWordCorpus` runs the detector over WAV files and reports both
+numbers. It feeds audio straight to the spotter, so it does **not** exercise the
+microphone, the audio session, the hardware front-end or room acoustics — an
+acoustic run is still the ground truth. What it gives you is a number that is
+reproducible, comparable between phrases, and regressable in CI, which an
+acoustic rig cannot provide.
+
+```typescript
+import {
+  evaluateWakeWordCorpus,
+  sweepWakeWordSensitivity,
+  chooseOperatingPoint,
+  getModelStatus,
+} from 'react-native-voice-activator';
+
+const { directory } = await getModelStatus();
+
+const sweep = await sweepWakeWordSensitivity({
+  positives: positiveWavPaths,   // one utterance of the phrase per file
+  negatives: negativeWavPaths,   // must never fire
+  modelPath: directory,
+  keywordsPath: generatedKeywordsPath,
+  keywordsAreRawText: true,
+});
+
+// Highest detection rate that stays under 0.5 false accepts per hour.
+const operatingPoint = chooseOperatingPoint(sweep, 0.5);
+```
+
+`chooseOperatingPoint` returning `null` is a real answer: no sensitivity meets
+that budget, so the phrase needs changing rather than the threshold.
+
+### Corpus requirements
+
+| | Minimum | Why |
+|---|---|---|
+| Positives | 100+ utterances, 10+ speakers | Fewer and the detection rate has a confidence interval wider than the number |
+| Negatives | **2+ hours** | FA/hr is a rate. One false accept in 6 minutes extrapolates to 10/hr, which is noise, not a measurement |
+| Negative content | Conversational speech, TV and podcast audio, background noise, **and phrases that sound like the wake phrase** | Near-miss phrases are what actually cause false accepts; generic noise flatters the result |
+| Positive conditions | Quiet, ~65 dB background, and far-field at 3 m | A single quiet-room number is not what users experience |
+
+Report the corpus size alongside every figure. A FA/hr derived from ten minutes of
+audio should be labelled as such.
+
+### Acoustic validation (ground truth)
+
+The corpus run cannot tell you whether the microphone path works. For that:
+
+1. Fixed rig: device at a measured distance from a calibrated speaker, same room,
+   same volume, recorded and repeated per device.
+2. Play the positive corpus and count detections via `wakeWordDetected`.
+3. Play the negative corpus for its full duration with detection running.
+4. Measure barge-in latency separately — from playback of the wake word starting
+   to `ttsProvider.stop()` being called — since that is the figure the docs used
+   to assert without evidence.
+5. Record battery drain over a 30-minute continuous run, screen off.
+
+Fill the null fields in `tests/fixtures/reliability/latest-results.json` from the
+acoustic run, not the corpus run, and say which device and which conditions.
+
+**Fix the iOS audio session arbitration before measuring barge-in.** Until
+recently TTS playback set a category with no input, which silently broke the
+wake-word tap during playback — any barge-in figure taken before that was
+measuring a broken path. See `research/native-layer-followups.md`.
+
 ## Quiet / Noisy Validation
 
 Use the current built-in native-managed runtime through the public lifecycle API and the existing example app or equivalent host app path.

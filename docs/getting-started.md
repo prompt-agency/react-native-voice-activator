@@ -8,12 +8,12 @@ Confirm your environment before installing:
 
 | Requirement | How to check |
 |---|---|
-| React Native `0.83+` | `npx react-native --version` |
-| Node.js `18+` | `node --version` |
+| React Native `0.86+` | `npx react-native --version` |
+| Node.js `20.19.4+`, `22.13+`, `24.3+`, or `25+` (React Native 0.86's `engines` field; Node 21.x and 23.x are not supported) | `node --version` |
 | iOS: Xcode `15+` | Xcode → About Xcode |
 | iOS: CocoaPods installed | `pod --version` |
 | Android: Android Studio | NDK and SDK must be installed via SDK Manager |
-| Expo SDK `55+` | *(Expo users only)* `npx expo --version` |
+| Expo SDK `57+` | *(Expo users only)* `npx expo --version` |
 
 **Expo Go is not supported.** You must generate native projects with `expo prebuild` or EAS Build.
 
@@ -32,15 +32,7 @@ npm install react-native-voice-activator
 yarn add react-native-voice-activator
 ```
 
-## Step 2 — Install the Required Native Peer
-
-```sh
-npm install react-native-nitro-modules
-```
-
-This package's native module interface runs on [Nitro Modules](https://nitro.margelo.com). Without it, the native bridge does not load and `getStatus()` will return no valid runtime state.
-
-## Step 3 — Configure Native Projects
+## Step 2 — Configure Native Projects
 
 **Bare React Native — iOS:**
 
@@ -76,7 +68,7 @@ npx expo prebuild
 cd ios && pod install
 ```
 
-## Step 4 — iOS: Add Microphone Permission
+## Step 3 — iOS: Add Microphone Permission
 
 `NSMicrophoneUsageDescription` must be present in `Info.plist`. The Expo plugin adds this automatically from `microphonePermissionText`. Bare React Native users add it manually:
 
@@ -85,9 +77,46 @@ cd ios && pod install
 <string>This app uses the microphone to detect wake words.</string>
 ```
 
-Android microphone permission is requested at runtime in the Step 5 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
+Android microphone permission is requested at runtime in the Step 6 code. If it is denied, `getStatus().lastError.category` will be `'permission'`.
 
-## Step 5 — Your First Detection
+## Step 4 — Download the Models
+
+The ONNX models are not shipped in the npm package; they are downloaded once
+(~7.8 MB) into your app's own storage and verified against a pinned SHA-256
+manifest.
+
+```typescript
+import { prepareModels, getModelStatus } from 'react-native-voice-activator';
+
+if (!(await getModelStatus()).ready) {
+  await prepareModels({
+    onProgress: ({ percent }) => console.log(`Models ${percent}%`),
+  });
+}
+```
+
+`prepareModels()` is idempotent, so calling it on every launch is fine — once the
+bundle is complete it only re-verifies checksums.
+
+`initialize()` deliberately does **not** download for you. With the models absent
+it rejects with a non-recoverable `models_not_prepared` error, so a large network
+transfer is always something your app chose. To skip the download entirely, ship
+a model bundle in your app and pass
+`engineConfig.assetKeys.modelAssetKey` instead.
+
+## Step 5 — Pick a Wake Phrase
+
+Any English phrase, no training required:
+
+```typescript
+await initialize({ wakePhrase: 'hey acme' });
+```
+
+Two or more words, at least 6 letters, A-Z and spaces only. See
+[Wake Words](../README.md#wake-words) for the full rules and the pre-tokenized
+presets.
+
+## Step 6 — Your First Detection
 
 Copy this into your app and run it. Say **"Hello World"** — you should see the detection event in your console.
 
@@ -183,10 +212,6 @@ State changed to: idle
 - If you see "duplicate symbol" linker errors, you have two ONNX Runtime copies in your binary. See the [iOS ONNX Conflict Resolution guide](ios-onnx-conflict-resolution.md).
 - If pods fail to resolve, run `pod repo update` then `pod install` again.
 
-### `error: module 'react-native-nitro-modules' not found`
-
-Run `npm install react-native-nitro-modules` then `cd ios && pod install`.
-
 ### Android build failure
 
 - Confirm the Android NDK is installed: Android Studio → SDK Manager → SDK Tools → NDK (Side by side).
@@ -202,7 +227,21 @@ The package emits events you can observe with `addWakeWordListener`:
 - `audioRouteChanged` — fires when the audio route changes (headphones plugged in, etc.)
 - `interruption` — fires when the audio session is interrupted by a system event
 
-For diagnostics, `getStatus()` returns a current `getStatus()` snapshot of the runtime, including recent runtime events and normalized error categories. Error categories are `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal` — look for `permission`, `lifecycle`, etc. when debugging startup failures.
+For diagnostics, `getStatus()` returns a snapshot of the runtime: `state`, `isAvailable`, `isListening`, `canStart`, an optional `reason`, and `lastError`. Error categories are normalized error categories from the fixed set above. It does not carry an event history — subscribe to the events above if you need one (the example app's screens do exactly that). Error categories are `permission`, `lifecycle`, `configuration`, `engine`, `platform`, and `internal`.
+
+### What `recoverable` means
+
+`recoverable: true` means retrying the same call with the same options may succeed. `recoverable: false` means it will not, and the app has to change something first:
+
+| Error | `recoverable` | What to do |
+|---|---|---|
+| `runtime_unavailable` (`platform`) | `false` | The native module is missing from the build. Rebuild with `pod install` / `expo prebuild`; retrying at runtime cannot help. |
+| any `configuration` error | `false` | A model asset, keyword path or bundle is missing or unreadable. Fix the options and call `initialize()` again. |
+| `stt_timeout`, `tts_timeout` | `true` | The provider hung and was abandoned. The next wake word will try again. Raise `providerTimeoutMs` if the provider is merely slow. |
+| `ai_handler_timeout` (session) | `true` | Your `aiHandler` hung. Bounded by `aiHandlerTimeoutMs`. |
+| `stt_transcribe_failed`, `tts_speak_failed` | `true` | A transient provider failure. |
+
+A permission denial surfaces as `category: 'permission'` — request the permission, then retry.
 
 ## Built-In Engine Defaults
 
@@ -210,28 +249,42 @@ Real engine-backed local wake word detection runs through the built-in native-ma
 
 The supported public override points are `engineConfig.assetKeys.modelAssetKey` (the main acoustic model) and `engineConfig.assetKeys.keywordAssetKey` (the keyword detection file):
 
+`modelAssetKey` is used verbatim, and the bundled model lives at a different
+root on each platform, so the correct value is platform specific. Import it
+rather than writing it out:
+
 ```typescript
+import { initialize, BUNDLED_MODEL_ASSET_KEY } from 'react-native-voice-activator';
+
 await initialize({
   engineConfig: {
     assetKeys: {
-      modelAssetKey: 'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01',
+      modelAssetKey: BUNDLED_MODEL_ASSET_KEY,
       keywordAssetKey: 'keywords-hello-world.txt',
     },
   },
 });
 ```
 
+Each native loader falls back to its own default root only when the key is
+omitted entirely, never when it is present but wrong, so hardcoding a root that
+suits one platform fails on the other. Android reports `Missing bundled
+Sherpa-ONNX asset for encoder in model root`; iOS currently tolerates it,
+because the podspec also copies these files flat into the app bundle and the
+loader then finds them by filename. That asymmetry is why the constant is
+exported: the mistake passes an iOS device test and fails on Android.
+
 Bundled keyword files include `HELLO WORLD`, `MERRY CHRISTMAS`, and more — see [Built-In Wake Words](../README.md#built-in-wake-words).
 
 ## Wake-to-Transcribe-to-Speak Guide
 
-After detecting a wake word, your app can transcribe and speak — via application-owned STT handoff and TTS. TTS response step can run after detection or transcript handling. those speech flows remain outside the package runtime and use public APIs only.
-
-That wake -> transcribe -> optional speak flow is the supported extension model. Your app can own steps 2 and 3 through custom providers:
+You supply the STT and TTS providers; the package calls them. Pass an `sttProvider` to `initialize()` and the package drives the flow:
 
 1. `wakeWordDetected` fires
-2. Your STT provider transcribes audio (application-owned STT handoff)
-3. Your TTS provider speaks the response (TTS response step can run after detection or transcript handling)
+2. The package calls `sttProvider.transcribe()` and emits `transcriptionStarted`, then `transcriptionResult`
+3. If `autoSpeak: true`, the package calls `ttsProvider.speak()` and emits `speechStarted`, then `speechCompleted`
+
+Pass no `sttProvider` and the package stops after step 1, leaving everything after the event to your app. The provider *implementations* are yours; the orchestration between them is the package's.
 
 See [docs/examples/](examples/) for implementation patterns.
 

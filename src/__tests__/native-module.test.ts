@@ -21,6 +21,15 @@ describe('native module bridge selection', () => {
 
   it('fails explicitly instead of silently falling back when a native module is partially implemented', async () => {
     jest.doMock('react-native', () => ({
+      // Every real react-native exports Platform, and the package root reads
+      // Platform.OS to resolve BUNDLED_MODEL_ASSET_KEY. A double that omits it
+      // is not modelling react-native, it is modelling a module that cannot
+      // exist, and importing ../index against it fails for a reason no app
+      // would ever hit.
+      Platform: {
+        OS: 'ios',
+        select: (spec: Record<string, unknown>) => spec.ios,
+      },
       TurboModuleRegistry: {
         get: jest.fn(() => ({
           initialize: jest.fn(async () => undefined),
@@ -104,6 +113,15 @@ describe('native module bridge selection', () => {
     }));
 
     jest.doMock('react-native', () => ({
+      // Every real react-native exports Platform, and the package root reads
+      // Platform.OS to resolve BUNDLED_MODEL_ASSET_KEY. A double that omits it
+      // is not modelling react-native, it is modelling a module that cannot
+      // exist, and importing ../index against it fails for a reason no app
+      // would ever hit.
+      Platform: {
+        OS: 'ios',
+        select: (spec: Record<string, unknown>) => spec.ios,
+      },
       NativeEventEmitter: class {
         addListener(eventName: string, listener: (payload: unknown) => void) {
           if (eventName === 'VoiceActivatorOnWakeWordDetected') {
@@ -225,6 +243,15 @@ describe('native module bridge selection', () => {
     }));
 
     jest.doMock('react-native', () => ({
+      // Every real react-native exports Platform, and the package root reads
+      // Platform.OS to resolve BUNDLED_MODEL_ASSET_KEY. A double that omits it
+      // is not modelling react-native, it is modelling a module that cannot
+      // exist, and importing ../index against it fails for a reason no app
+      // would ever hit.
+      Platform: {
+        OS: 'ios',
+        select: (spec: Record<string, unknown>) => spec.ios,
+      },
       NativeEventEmitter: class {
         addListener(eventName: string, listener: (payload: unknown) => void) {
           if (eventName === 'VoiceActivatorOnRuntimeStateChanged') {
@@ -340,6 +367,15 @@ describe('native module bridge selection', () => {
     }));
 
     jest.doMock('react-native', () => ({
+      // Every real react-native exports Platform, and the package root reads
+      // Platform.OS to resolve BUNDLED_MODEL_ASSET_KEY. A double that omits it
+      // is not modelling react-native, it is modelling a module that cannot
+      // exist, and importing ../index against it fails for a reason no app
+      // would ever hit.
+      Platform: {
+        OS: 'ios',
+        select: (spec: Record<string, unknown>) => spec.ios,
+      },
       NativeEventEmitter: class {
         addListener(eventName: string, listener: (payload: unknown) => void) {
           if (eventName === 'VoiceActivatorOnRuntimeStateChanged') {
@@ -425,6 +461,15 @@ describe('native module bridge selection', () => {
     }));
 
     jest.doMock('react-native', () => ({
+      // Every real react-native exports Platform, and the package root reads
+      // Platform.OS to resolve BUNDLED_MODEL_ASSET_KEY. A double that omits it
+      // is not modelling react-native, it is modelling a module that cannot
+      // exist, and importing ../index against it fails for a reason no app
+      // would ever hit.
+      Platform: {
+        OS: 'ios',
+        select: (spec: Record<string, unknown>) => spec.ios,
+      },
       NativeEventEmitter: class {
         addListener(eventName: string, listener: (payload: unknown) => void) {
           if (eventName === 'VoiceActivatorOnAudioRouteChanged') {

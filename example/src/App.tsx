@@ -35,8 +35,12 @@ export default function App() {
               style={[s.tab, active && s.tabActive]}
               onPress={() => setActiveTab(tab.id)}
             >
-              <Text style={[s.tabNum, active && s.tabTextActive]}>{tab.num}</Text>
-              <Text style={[s.tabText, active && s.tabTextActive]}>{tab.label}</Text>
+              <Text style={[s.tabNum, active && s.tabTextActive]}>
+                {tab.num}
+              </Text>
+              <Text style={[s.tabText, active && s.tabTextActive]}>
+                {tab.label}
+              </Text>
             </Pressable>
           );
         })}

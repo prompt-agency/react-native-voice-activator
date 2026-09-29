@@ -1,6 +1,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Some required tokens below are multi-word prose lifted from JSX text nodes
+// (e.g. warning/help copy), which prettier is free to rewrap across lines.
+// Matching against whitespace-collapsed source keeps the check about content,
+// not formatting, so a reformat can't silently break a passing check. Applied
+// uniformly to every source-text check in this file (not just the prose
+// ones): normalizing short identifier/attribute tokens too is harmless and
+// keeps the script's matching behavior consistent and easy to reason about.
+function normalizeWhitespace(text) {
+  return text.replace(/\s+/g, ' ');
+}
+
 const root = process.cwd();
 const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const examplePackageJson = JSON.parse(
@@ -34,7 +45,7 @@ if (examplePackageJson.name !== 'react-native-voice-activator-example') {
 if (!existsSync(exampleAppPath)) {
   errors.push('Example app entrypoint does not exist at example/src/App.tsx.');
 } else {
-  const appSource = readFileSync(exampleAppPath, 'utf8');
+  const appSource = normalizeWhitespace(readFileSync(exampleAppPath, 'utf8'));
 
   // App.tsx must wire the three screens
   const requiredInApp = [
@@ -57,7 +68,7 @@ const wakeWordScreenPath = join(root, 'example/src/screens/WakeWordScreen.tsx');
 if (!existsSync(wakeWordScreenPath)) {
   errors.push('WakeWordScreen.tsx does not exist at example/src/screens/WakeWordScreen.tsx.');
 } else {
-  const src = readFileSync(wakeWordScreenPath, 'utf8');
+  const src = normalizeWhitespace(readFileSync(wakeWordScreenPath, 'utf8'));
 
   const required = [
     'addWakeWordListener',
@@ -69,9 +80,16 @@ if (!existsSync(wakeWordScreenPath)) {
     'wakeWordDetected',
     'interruption',
     'audioRouteChanged',
-    'WhisperRNSTTAdapter',
+    'ensureSttProvider',
+    'ensureModelsReady',
     'sttProvider',
     'autoSpeak: true',
+    // The differentiator has to be visible in the showcase app, not just the
+    // README: an arbitrary phrase with no training is the reason to pick this
+    // package over the alternatives.
+    'wakePhrase',
+    'validateWakePhrase',
+    'Any phrase you like',
     'engineConfig',
     'keywordAssetKey',
     'Bundled keyword presets',
@@ -98,17 +116,21 @@ const sessionScreenPath = join(root, 'example/src/screens/SessionScreen.tsx');
 if (!existsSync(sessionScreenPath)) {
   errors.push('SessionScreen.tsx does not exist at example/src/screens/SessionScreen.tsx.');
 } else {
-  const src = readFileSync(sessionScreenPath, 'utf8');
+  const src = normalizeWhitespace(readFileSync(sessionScreenPath, 'utf8'));
 
   const required = [
     'useVoiceSession',
     'aiHandler',
     'reListenMode',
-    'WhisperRNSTTAdapter',
+    'ensureSttProvider',
     'sttProvider',
     'initialize',
     'startDetection',
     'dispose',
+    // Uses only preset keywords, so it loads the model bundle shipped in the
+    // app (see BUNDLED_MODEL_ASSET_KEY in providers.ts) instead of going
+    // through ensureModelsReady()'s on-demand download path.
+    'modelAssetKey',
   ];
 
   for (const token of required) {
@@ -125,7 +147,7 @@ const manualScreenPath = join(root, 'example/src/screens/ManualScreen.tsx');
 if (!existsSync(manualScreenPath)) {
   errors.push('ManualScreen.tsx does not exist at example/src/screens/ManualScreen.tsx.');
 } else {
-  const src = readFileSync(manualScreenPath, 'utf8');
+  const src = normalizeWhitespace(readFileSync(manualScreenPath, 'utf8'));
 
   const required = [
     'WhisperRNSTTAdapter',
@@ -139,6 +161,36 @@ if (!existsSync(manualScreenPath)) {
   }
 }
 
+// ─── Shared provider helper ───────────────────────────────────────────────────
+// WakeWordScreen and SessionScreen obtain their STT provider from this module
+// rather than constructing it inline, so the adapter wiring is asserted here.
+
+const providersPath = join(root, 'example/src/providers.ts');
+
+if (!existsSync(providersPath)) {
+  errors.push('Example provider helper does not exist at example/src/providers.ts.');
+} else {
+  const src = normalizeWhitespace(readFileSync(providersPath, 'utf8'));
+
+  const required = [
+    'WhisperRNSTTAdapter',
+    'sttProvider',
+    'ensureSttProvider',
+    // The package does not ship the models, so initialize() rejects with
+    // models_not_prepared unless prepareModels() has run. The example broke this
+    // way once already; assert it so it cannot recur silently.
+    'ensureModelsReady',
+    'prepareModels',
+    'getModelStatus',
+  ];
+
+  for (const token of required) {
+    if (!src.includes(token)) {
+      errors.push(`providers.ts does not reference: ${token}`);
+    }
+  }
+}
+
 // ─── index.js ─────────────────────────────────────────────────────────────────
 
 if (!existsSync(exampleAppConfigPath)) {
@@ -148,7 +200,9 @@ if (!existsSync(exampleAppConfigPath)) {
 if (!existsSync(exampleIndexPath)) {
   errors.push('Example app index does not exist at example/index.js.');
 } else {
-  const exampleIndexSource = readFileSync(exampleIndexPath, 'utf8');
+  const exampleIndexSource = normalizeWhitespace(
+    readFileSync(exampleIndexPath, 'utf8')
+  );
 
   if (!exampleIndexSource.includes("registerRootComponent(App)")) {
     errors.push('Example app index does not register the Expo root component.');
@@ -166,7 +220,9 @@ if (!existsSync(exampleIndexPath)) {
 if (!existsSync(exampleBabelConfigPath)) {
   errors.push('Example Babel config does not exist at example/babel.config.js.');
 } else {
-  const exampleBabelConfigSource = readFileSync(exampleBabelConfigPath, 'utf8');
+  const exampleBabelConfigSource = normalizeWhitespace(
+    readFileSync(exampleBabelConfigPath, 'utf8')
+  );
 
   if (!exampleBabelConfigSource.includes("presets: ['babel-preset-expo']")) {
     errors.push('Example Babel config does not use babel-preset-expo.');
@@ -201,7 +257,9 @@ if (!usesLocalPluginPath) {
 if (!existsSync(exampleReadmePath)) {
   errors.push('Example README does not exist at example/README.md.');
 } else {
-  const exampleReadme = readFileSync(exampleReadmePath, 'utf8');
+  const exampleReadme = normalizeWhitespace(
+    readFileSync(exampleReadmePath, 'utf8')
+  );
   const requiredReadmeText = [
     '../docs/bare-react-native-setup.md',
     '../docs/expo-setup.md',
