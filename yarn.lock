@@ -11823,16 +11823,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-nitro-modules@npm:^0.31.3":
-  version: 0.31.10
-  resolution: "react-native-nitro-modules@npm:0.31.10"
-  peerDependencies:
-    react: "*"
-    react-native: "*"
-  checksum: 1c8d2f12ff29b6733c784c5fd0dedcbec4ceec9f82eb49f49e7734f31b9367346938010dcacf69bf695a352e36fec5aa23fd57b8091f6acd78c3d9a61e14ea7f
-  languageName: node
-  linkType: hard
-
 "react-native-safe-area-context@npm:^5.5.2":
   version: 5.7.0
   resolution: "react-native-safe-area-context@npm:5.7.0"
@@ -11870,7 +11860,6 @@ __metadata:
     react-native-builder-bob: ^0.40.18
     react-native-fs: ^2.20.0
     react-native-monorepo-config: ^0.1.9
-    react-native-nitro-modules: ^0.31.3
     react-native-safe-area-context: ^5.5.2
     react-native-voice-activator: "portal:.."
     whisper.rn: ^0.5.0
@@ -11882,26 +11871,20 @@ __metadata:
   resolution: "react-native-voice-activator@portal:..::locator=react-native-voice-activator-example%40workspace%3Aexample"
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
     react-native-fs: ">=2.0.0"
-    react-native-nitro-modules: ">=0.31.3"
     whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
     "@expo/config-plugins":
-      optional: true
-    "@fugood/react-native-audio-pcm-stream":
       optional: true
     onnxruntime-react-native:
       optional: true
     react-native-audio-recorder-player:
       optional: true
     react-native-fs:
-      optional: true
-    react-native-nitro-modules:
       optional: true
     whisper.rn:
       optional: true
@@ -11937,32 +11920,25 @@ __metadata:
     react-native-audio-recorder-player: ^3.6.0
     react-native-builder-bob: ^0.40.18
     react-native-fs: ^2.20.0
-    react-native-nitro-modules: ^0.31.3
     release-it: ^19.0.4
     turbo: ^2.5.6
     typescript: ^5.9.2
   peerDependencies:
     "@expo/config-plugins": ">=8.0.0"
-    "@fugood/react-native-audio-pcm-stream": ">=1.1.4"
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
     react-native-audio-recorder-player: ">=3.0.0"
     react-native-fs: ">=2.0.0"
-    react-native-nitro-modules: ">=0.31.3"
     whisper.rn: ">=0.5.0"
   peerDependenciesMeta:
     "@expo/config-plugins":
-      optional: true
-    "@fugood/react-native-audio-pcm-stream":
       optional: true
     onnxruntime-react-native:
       optional: true
     react-native-audio-recorder-player:
       optional: true
     react-native-fs:
-      optional: true
-    react-native-nitro-modules:
       optional: true
     whisper.rn:
       optional: true

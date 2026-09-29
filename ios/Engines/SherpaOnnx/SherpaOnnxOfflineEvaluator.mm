@@ -4,8 +4,7 @@
 
 #import <sherpa-onnx/c-api/c-api.h>
 
-/** Shared with SherpaOnnxDetector so evaluation and live detection agree. */
-extern float SherpaThresholdFromSensitivity(double sensitivity);
+#import "SherpaOnnxSensitivity.h"
 
 /** ~64 ms at 16 kHz. Detections are reported at the end of the chunk that
  *  produced them, so a smaller chunk means a tighter offset. */

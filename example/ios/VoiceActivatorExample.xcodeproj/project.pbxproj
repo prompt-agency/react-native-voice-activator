@@ -23,7 +23,7 @@
 		1FAE82323F6C6C54F6BE186F /* libPods-VoiceActivatorExample.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VoiceActivatorExample.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		288A9439F447F04946CD5673 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-VoiceActivatorExample/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		4275C0F5D6BA56B7076BCC5C /* Pods-VoiceActivatorExample.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VoiceActivatorExample.debug.xcconfig"; path = "Target Support Files/Pods-VoiceActivatorExample/Pods-VoiceActivatorExample.debug.xcconfig"; sourceTree = "<group>"; };
-		7C8902F55DB1769520613D4B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = VoiceActivatorExample/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7C8902F55DB1769520613D4B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = VoiceActivatorExample/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = VoiceActivatorExample/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		CB176A0FC46B4A573EA2AFEA /* Pods-VoiceActivatorExample.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VoiceActivatorExample.release.xcconfig"; path = "Target Support Files/Pods-VoiceActivatorExample/Pods-VoiceActivatorExample.release.xcconfig"; sourceTree = "<group>"; };
@@ -72,7 +72,6 @@
 				4275C0F5D6BA56B7076BCC5C /* Pods-VoiceActivatorExample.debug.xcconfig */,
 				CB176A0FC46B4A573EA2AFEA /* Pods-VoiceActivatorExample.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -414,6 +413,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VoiceActivatorExample/VoiceActivatorExample.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 33C5QGLZBB;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -450,6 +450,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VoiceActivatorExample/VoiceActivatorExample.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 33C5QGLZBB;
 				INFOPLIST_FILE = VoiceActivatorExample/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -13,8 +13,8 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@react-native/new-app-screen": "0.83.2",
     "@fugood/react-native-audio-pcm-stream": "^1.1.4",
+    "@react-native/new-app-screen": "0.83.2",
     "expo": "^55.0.0",
     "expo-dev-client": "~55.0.11",
     "expo-speech": "^55.0.8",

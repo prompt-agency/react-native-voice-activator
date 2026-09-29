@@ -9,19 +9,9 @@
 
 #import "sherpa-onnx/c-api/c-api.h"
 
+#import "SherpaOnnxSensitivity.h"
+
 namespace {
-float SherpaThresholdFromSensitivity(double sensitivity)
-{
-  double normalized = sensitivity;
-  if (normalized < 0) {
-    normalized = 0;
-  } else if (normalized > 1) {
-    normalized = 1;
-  }
-
-  return (float)(0.55 - (normalized * 0.3));
-}
-
 NSError *SherpaError(NSString *message)
 {
   return [NSError errorWithDomain:@"VoiceActivator"
