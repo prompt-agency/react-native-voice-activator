@@ -56,10 +56,17 @@ export class WhisperRNSTTCancelledError extends Error {
 export class WhisperRNSTTUnreadableAudioError extends Error {
   readonly code = 'stt_unreadable_audio';
 
-  constructor(cause?: unknown) {
+  /**
+   * `hint` carries the platform-specific suspicion. The base message stays
+   * neutral because this error is now raised from every path: the iOS
+   * recorder, the Android native capture, and a caller-supplied WAV file.
+   * Adding a parameter keeps one exported type rather than introducing a
+   * second one, which would be a public API addition.
+   */
+  constructor(cause?: unknown, hint?: string) {
     super(
-      'WhisperRNSTTAdapter: whisper could not read the recorded audio. ' +
-        'The iOS recording container may not be PCM WAV.'
+      'WhisperRNSTTAdapter: whisper could not read the audio it was given.' +
+        (hint ? ` ${hint}` : '')
     );
     this.name = 'WhisperRNSTTUnreadableAudioError';
     this.cause = cause;
@@ -207,16 +214,33 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     };
     this.activeTranscription = activeTranscription;
 
-    const bare = filePath.replace(/^file:\/\//, '');
-    const uri = Platform.OS === 'ios' ? `file://${bare}` : bare;
-
     try {
+      // Inside the try so that a bad argument clears activeTranscription via
+      // the finally rather than stranding it for the life of the adapter.
+      const bare = filePath.replace(/^file:\/\//, '');
+      const uri = Platform.OS === 'ios' ? `file://${bare}` : bare;
+
       const { stop, promise } = this.ctx.transcribe(uri, {
         language: WHISPER_RN_MODELS[this.config.modelId].language,
       });
       this.activeStop = stop;
 
-      const { result } = await promise;
+      let result: string;
+      try {
+        ({ result } = await promise);
+      } catch (e) {
+        // cancel() awaits activeStop(), which aborts the native transcription
+        // and can make the whisper promise reject. Checked first so a
+        // cancellation surfaces as WhisperRNSTTCancelledError rather than
+        // being misreported as unreadable audio.
+        if (activeTranscription.cancelled) {
+          throw new WhisperRNSTTCancelledError();
+        }
+        throw new WhisperRNSTTUnreadableAudioError(
+          e,
+          'The file may not be 16 kHz mono PCM WAV.'
+        );
+      }
 
       if (activeTranscription.cancelled) {
         throw new WhisperRNSTTCancelledError();
@@ -339,7 +363,10 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
         if (activeTranscription.cancelled) {
           throw new WhisperRNSTTCancelledError();
         }
-        throw new WhisperRNSTTUnreadableAudioError(e);
+        throw new WhisperRNSTTUnreadableAudioError(
+          e,
+          'The iOS recording container may not be PCM WAV.'
+        );
       }
 
       if (activeTranscription.cancelled) {
@@ -380,17 +407,34 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     // and the loser silently transcribes the winner's audio.
     const wavPath = `${tmpDir}/whisper-android-${nextRecordingId()}.wav`;
 
-    await rnfs.mkdir(tmpDir);
+    // Setup that runs before the main try/finally still has to clear
+    // activeTranscription on failure. mkdir() rejects on an unwritable or full
+    // cache directory and requireVADNativeModule() throws when the consumer has
+    // not linked the native module; either one would otherwise leave
+    // activeTranscription set with nothing to clear it, so every later
+    // transcribe() would throw "transcription already in progress" for the life
+    // of the adapter. Mirrors the startRecorder() guard on the iOS path.
+    let native: ReturnType<typeof requireVADNativeModule>;
+    try {
+      await rnfs.mkdir(tmpDir);
 
-    const native = requireVADNativeModule();
-    const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
-    subscription = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((
-      event: VADPCMFrameEvent
-    ) => {
-      if (!activeTranscription.cancelled) {
-        pcmChunks.push(event.pcm);
+      native = requireVADNativeModule();
+      const emitter = new NativeEventEmitter(NativeModules.VoiceActivator);
+      subscription = emitter.addListener(VAD_NATIVE_PCM_FRAME_EVENT, ((
+        event: VADPCMFrameEvent
+      ) => {
+        if (!activeTranscription.cancelled) {
+          pcmChunks.push(event.pcm);
+        }
+      }) as (...args: readonly object[]) => unknown);
+    } catch (e) {
+      this.activeTranscription = null;
+      if (subscription) {
+        subscription.remove();
+        subscription = null;
       }
-    }) as (...args: readonly object[]) => unknown);
+      throw e;
+    }
 
     // Acquisition happens inside the try so the finally always releases it.
     // Throwing between acquire and try would leak the capture refcount, and a
@@ -442,7 +486,22 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       });
       this.activeStop = stop;
 
-      const { result } = await promise;
+      let result: string;
+      try {
+        ({ result } = await promise);
+      } catch (e) {
+        // cancel() awaits activeStop(), which aborts the native transcription
+        // and can make the whisper promise reject. Checked first so a
+        // cancellation surfaces as WhisperRNSTTCancelledError rather than
+        // being misreported as unreadable audio.
+        if (activeTranscription.cancelled) {
+          throw new WhisperRNSTTCancelledError();
+        }
+        throw new WhisperRNSTTUnreadableAudioError(
+          e,
+          'The WAV assembled from the native capture frames may be malformed.'
+        );
+      }
 
       if (activeTranscription.cancelled) {
         throw new WhisperRNSTTCancelledError();
