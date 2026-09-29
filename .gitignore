@@ -54,6 +54,11 @@ example/ios/Pods
 example/ios/
 example/android/
 
+# Downloaded sherpa-onnx Piper TTS assets for the example app (~65 MB).
+# Produced by example/scripts/setup-sherpa-tts.sh and wired into the generated
+# native projects by example/plugins/with-sherpa-tts-assets.js.
+example/assets/sherpa-tts/
+
 # Ruby
 example/vendor/
 

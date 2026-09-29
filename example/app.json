@@ -9,7 +9,8 @@
           "microphonePermissionText": "This app uses the microphone to detect wake words."
         }
       ],
-      "./plugins/with-ui-scene-lifecycle.js"
+      "./plugins/with-ui-scene-lifecycle.js",
+      "./plugins/with-sherpa-tts-assets.js"
     ],
     "android": {
       "package": "com.anonymous.voiceactivatorexample"
