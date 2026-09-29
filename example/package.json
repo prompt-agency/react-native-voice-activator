@@ -34,13 +34,13 @@
     "@react-native-community/cli": "20.2.0",
     "@react-native-community/cli-platform-android": "20.2.0",
     "@react-native-community/cli-platform-ios": "20.2.0",
-    "@react-native/babel-preset": "0.86.3",
-    "@react-native/metro-config": "0.86.3",
-    "@react-native/typescript-config": "0.86.3",
+    "@react-native/babel-preset": "0.87.1",
+    "@react-native/metro-config": "0.87.1",
+    "@react-native/typescript-config": "0.87.1",
     "@types/react": "^19.2.0",
     "patch-package": "^8.0.1",
-    "react-native-builder-bob": "^0.40.18",
-    "react-native-monorepo-config": "^0.1.9"
+    "react-native-builder-bob": "^0.43.1",
+    "react-native-monorepo-config": "^0.4.0"
   },
   "engines": {
     "node": "^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0"
