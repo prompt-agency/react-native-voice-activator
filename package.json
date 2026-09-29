@@ -61,7 +61,8 @@
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "build:plugin": "tsc -p tsconfig.plugin.json",
     "prepare": "node scripts/fetch-silero-vad-model.mjs && node scripts/generate-model-manifest.mjs && bob build && yarn build:plugin",
-    "release": "release-it --only-version"
+    "release": "release-it --only-version",
+    "verify:release-assets": "node scripts/verify-published-release-assets.mjs"
   },
   "keywords": [
     "react-native",
@@ -197,6 +198,7 @@
         "node scripts/package-models.mjs"
       ],
       "after:release": [
+        "node scripts/verify-published-release-assets.mjs",
         "rm -rf sherpa-onnx.xcframework.zip sherpa-onnxruntime.xcframework.zip dist-models"
       ]
     },

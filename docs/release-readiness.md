@@ -2,6 +2,11 @@
 
 This checklist separates automated release gates from the remaining manual proof required before a production publish.
 
+Gates run at two different moments. Everything under **Automated Gates** runs
+*before* publishing. `yarn verify:release-assets` runs *after* the GitHub
+release exists, because it is the only check that can prove the published assets
+resolve; see [iOS Vendored Frameworks](#ios-vendored-frameworks).
+
 ## Automated Gates
 
 The repository is considered release-candidate ready only after these commands are green:
@@ -59,7 +64,20 @@ asset alongside the iOS zips.
 **A published npm version whose GitHub release assets are missing or do not
 match the manifests is unusable**: `pod install` fails closed on iOS and the
 Gradle build fails closed on Android, rather than linking an unverified binary.
-Verify the release assets resolve before announcing a version.
+
+`yarn verify:release-assets` is the gate for this. It downloads every asset the
+podspec, the Gradle task and `prepareModels()` resolve from
+`releases/download/v<version>/`, and checks each one against the manifest that
+pins it. `release-it` runs it automatically in `after:release`, before the
+local artifacts are cleaned up. Run it again by hand if a release is ever
+re-uploaded, and do not announce a version until it passes.
+
+Note what the earlier checks do *not* cover:
+`verify-vendor-checksums.mjs --require-assets` proves only that the **local**
+build artifacts match their manifest. It never touches the network, and the
+local files are deleted immediately after the release. Without
+`verify:release-assets`, a failed or partial asset upload produces a green
+release and a package that is broken for every consumer.
 
 ### Model assets
 
