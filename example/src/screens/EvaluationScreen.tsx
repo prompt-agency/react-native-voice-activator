@@ -8,8 +8,14 @@
  *
  * Put a corpus on the device first; see docs/reliability-validation.md.
  *
- *   <Documents>/wake-word-corpus/positives/*.wav   one utterance of the phrase each
- *   <Documents>/wake-word-corpus/negatives/*.wav   speech and noise that must never fire
+ *   <corpus root>/positives/*.wav   one utterance of the phrase each
+ *   <corpus root>/negatives/*.wav   speech and noise that must never fire
+ *
+ * The corpus root differs by platform, and on Android it matters: adb cannot
+ * write to DocumentDirectoryPath. /data/user/0/<pkg>/files is Permission denied
+ * without root, so the corpus has to live in app-specific external storage,
+ * /sdcard/Android/data/<pkg>/files, which adb push can reach. Both are searched
+ * and the screen prints the paths it looked in.
  *
  * False accepts per hour is a rate, so it needs hours of negative material to
  * mean anything. Minutes produce a number that looks like a measurement and is
@@ -37,7 +43,20 @@ import {
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard, StatusPill } from '../shared';
 
-const CORPUS_ROOT = `${RNFS.DocumentDirectoryPath}/wake-word-corpus`;
+/**
+ * Every place a corpus might legitimately be, most reachable first.
+ *
+ * ExternalDirectoryPath leads on Android because it is the only one of the two
+ * that `adb push` can write to. On iOS it is irrelevant, so the filter drops it
+ * and DocumentDirectoryPath, which Finder file sharing exposes, is the only
+ * candidate.
+ */
+const CORPUS_ROOTS: string[] = [
+  Platform.OS === 'android' ? RNFS.ExternalDirectoryPath : '',
+  RNFS.DocumentDirectoryPath,
+]
+  .filter((root): root is string => typeof root === 'string' && root.length > 0)
+  .map((root) => `${root}/wake-word-corpus`);
 const SENSITIVITIES = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] as const;
 
 type Corpus = { positives: string[]; negatives: string[] };
@@ -89,14 +108,24 @@ export function EvaluationScreen() {
 
   const handleScan = useCallback(async () => {
     setError('');
-    const [positives, negatives] = await Promise.all([
-      listWavs(`${CORPUS_ROOT}/positives`),
-      listWavs(`${CORPUS_ROOT}/negatives`),
-    ]);
-    setCorpus({ positives, negatives });
-    if (positives.length === 0 && negatives.length === 0) {
+    const found: Corpus = { positives: [], negatives: [] };
+    for (const root of CORPUS_ROOTS) {
+      const [positives, negatives] = await Promise.all([
+        listWavs(`${root}/positives`),
+        listWavs(`${root}/negatives`),
+      ]);
+      found.positives.push(...positives);
+      found.negatives.push(...negatives);
+    }
+    setCorpus(found);
+    if (found.positives.length === 0 && found.negatives.length === 0) {
       setError(
-        `No .wav files under ${CORPUS_ROOT}. See docs/reliability-validation.md.`
+        'No .wav files found. Searched:\n' +
+          CORPUS_ROOTS.map((root) => `  ${root}`).join('\n') +
+          (Platform.OS === 'android'
+            ? `\n\nadb push <file> ${CORPUS_ROOTS[0]}/negatives/`
+            : '') +
+          '\n\nSee docs/reliability-validation.md.'
       );
     }
   }, []);
@@ -201,8 +230,15 @@ export function EvaluationScreen() {
     <ScrollView contentContainerStyle={s.content}>
       <SectionCard title="Corpus">
         <Text style={s.helper}>
-          Place WAV files under {CORPUS_ROOT}/positives and /negatives. False
-          accepts per hour needs hours of negative audio to mean anything.
+          Place WAV files under positives/ and negatives/ in one of these:
+        </Text>
+        {CORPUS_ROOTS.map((root) => (
+          <Text key={root} style={s.path} selectable>
+            {root}
+          </Text>
+        ))}
+        <Text style={s.helper}>
+          False accepts per hour needs hours of negative audio to mean anything.
         </Text>
         <Btn label="Scan corpus" onPress={handleScan} disabled={busy} />
         {corpus && (
@@ -300,6 +336,11 @@ const s = StyleSheet.create({
   helper: { fontSize: 13, color: C.helper, lineHeight: 18 },
   label: { fontSize: 13, fontWeight: '600', color: C.label },
   error: { fontSize: 13, color: C.dangerText },
+  path: {
+    fontSize: 11,
+    color: C.meta,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
   input: {
     borderWidth: 1,
     borderColor: C.cardBorder,

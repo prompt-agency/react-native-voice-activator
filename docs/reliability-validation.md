@@ -127,11 +127,29 @@ The example app ships the harness so a measurement run is setup plus one button,
 not a scripting exercise. It runs on device because `evaluateWavFile` is a native
 call and because the answer only means anything on real hardware.
 
-**1. Build the corpus.** Two directories in the app's Documents folder:
+**1. Build the corpus.** Two directories, `positives/` and `negatives/`, under a
+`wake-word-corpus` folder. Where that folder lives differs by platform, and on
+Android the difference matters:
 
-```
-<Documents>/wake-word-corpus/positives/*.wav   one utterance of the phrase per file
-<Documents>/wake-word-corpus/negatives/*.wav   audio that must never fire
+| Platform | Corpus root | How to get files there |
+|---|---|---|
+| iOS | `<app Documents>/wake-word-corpus` | Finder, with the device connected, Files sharing |
+| Android | `/sdcard/Android/data/<pkg>/files/wake-word-corpus` | `adb push` |
+
+**Android does not use the app's Documents directory.** That maps to
+`/data/user/0/<pkg>/files`, which `adb` cannot write to without root
+("Permission denied"), so a corpus can never be placed there by the usual route.
+The harness therefore looks in app-specific external storage first, and searches
+both. The Accuracy tab prints the exact paths it checked, so scan once and copy
+the one it names.
+
+```bash
+# Android, with the example app installed:
+PKG=com.anonymous.voiceactivatorexample
+ROOT=/sdcard/Android/data/$PKG/files/wake-word-corpus
+adb shell mkdir -p "$ROOT/positives" "$ROOT/negatives"
+adb push ./my-positives/. "$ROOT/positives/"
+adb push ./my-negatives/. "$ROOT/negatives/"
 ```
 
 What to put in each:
@@ -145,9 +163,6 @@ corpus must contain *phrases that sound like the wake phrase*. For "hey acme"
 that means "hey", "okay", "hey and then", "acne", "hey akmi". Near-miss speech is
 what produces real false accepts. A negative corpus of podcasts and silence
 yields a flattering number that collapses in the field.
-
-Get files onto the device with Finder (iOS, Files sharing) or `adb push`
-(Android).
 
 **2. Run it.** Open the example app, **Accuracy** tab. Set the device label (it
 prefills, but write the actual model, it ends up in the record), the wake phrase,
