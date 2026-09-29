@@ -43,6 +43,14 @@ the current Expo integration path:
 - CI executes Expo prebuild generation against a temporary copy of this example app
 - Expo Go is explicitly unsupported
 
+## Wake Word Model Sourcing
+
+Preset wake words (the bundled keyword presets in the Wake Word and Session
+screens) pass `modelAssetKey` and run entirely from the model bundle shipped
+inside the app, so they work offline. Custom `wakePhrase` flows require an
+absolute `modelAssetKey` instead, so they stay on the on-demand download path
+and need a reachable model host to fetch the bundle first.
+
 ## What This Example Proves
 
 - the package public API can be consumed without Expo-specific runtime methods

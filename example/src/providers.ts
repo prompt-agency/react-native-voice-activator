@@ -27,6 +27,18 @@ export const speakerVerificationProvider =
 
 const DEFAULT_KEYWORD_ASSET = 'keywords.txt';
 
+/**
+ * The acoustic model bundle that ships inside the app (ios/Assets and
+ * android/src/main/assets), matching `model-manifest.json`'s directory name.
+ * Preset-keyword flows pass this so they load the model that is already on
+ * disk instead of falling through to the on-demand download path. wakePhrase
+ * flows must NOT use this: `initialize()` requires an absolute path for
+ * `modelAssetKey` when `wakePhrase` is set, because it writes the generated
+ * keywords file next to the model bundle.
+ */
+export const BUNDLED_MODEL_ASSET_KEY =
+  'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
+
 // ─── Speaker model download ───────────────────────────────────────────────────
 
 /**
@@ -185,22 +197,20 @@ export async function ensureSpeakerRuntime(
 ): Promise<void> {
   if (speakerRuntimeReady) return;
 
-  // The Enrollment tab is the first screen, so on a cold launch this may be the
-  // very first initialize() in the app — the wake word models have to be present
-  // or it rejects with models_not_prepared.
-  await ensureModelsReady((u) =>
-    onProgress?.({
-      percent: u.progress ?? null,
-      receivedBytes: 0,
-      totalBytes: 0,
-    })
-  );
+  // Uses the preset keyword bundled in the app (DEFAULT_KEYWORD_ASSET), so the
+  // acoustic model it needs is the bundled one too (BUNDLED_MODEL_ASSET_KEY)
+  // rather than the on-demand download path; no ensureModelsReady() call.
 
   // Must complete before initialize(): the model is loaded lazily on the first
   // embedding extraction, and a missing file is unrecoverable at that point.
   const modelPath = await ensureSpeakerModel(onProgress);
   await initialize({
-    engineConfig: { assetKeys: { keywordAssetKey: DEFAULT_KEYWORD_ASSET } },
+    engineConfig: {
+      assetKeys: {
+        keywordAssetKey: DEFAULT_KEYWORD_ASSET,
+        modelAssetKey: BUNDLED_MODEL_ASSET_KEY,
+      },
+    },
     speakerVerificationProvider,
     speakerModelPath: modelPath,
     verificationFailureBehavior: 'open',

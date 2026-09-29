@@ -468,7 +468,10 @@ describe('documentation and example contract', () => {
     expect(allSource).toContain('HELLO WORLD');
     expect(allSource).toContain('Bundled keyword presets');
     expect(allSource).toContain('Keyword detection status');
-    expect(allSource).toContain(
+    // Whitespace-normalized: this is JSX prose, and prettier is free to
+    // rewrap it across lines. The guarantee is that the message appears in
+    // the screen, not that the source keeps a particular line break.
+    expect(normalizedAllSource).toContain(
       'Keyword selection changed. Run Initialize again before Start detection'
     );
     expect(allSource).toContain('Recent runtime events');
