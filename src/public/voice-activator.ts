@@ -301,8 +301,10 @@ function queueProviderOrchestration(payload: WakeWordDetectedEvent) {
 
   // Fast path: barge-in an actively-running session immediately, outside the queue.
   // In auto mode, orchestrator.start() holds the queue indefinitely (recursive _runTurn
-  // loop that only exits on close/error), so barge-in MUST be handled here to fire
-  // within the 300ms TTS-stop window and not be serialised behind the running session.
+  // loop that only exits on close/error), so barge-in MUST be handled here rather
+  // than be serialised behind the running session. The design target for the
+  // TTS-stop window is 300ms; that is a target, not a measured figure, and the
+  // latency has never been measured on a physical device.
   // Only non-idle, non-closed states are interrupted — idle falls through to the queue
   // so a wake word after a manual-mode turn naturally starts a fresh session.
   if (
