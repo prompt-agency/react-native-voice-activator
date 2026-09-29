@@ -13,7 +13,7 @@
 
 const mockWritten = new Map<string, string>();
 
-jest.mock('react-native-fs', () => ({
+jest.mock('@dr.pogodin/react-native-fs', () => ({
   LibraryDirectoryPath: '/Library',
   DocumentDirectoryPath: '/Documents',
   mkdir: jest.fn(async () => undefined),
@@ -154,7 +154,7 @@ describe('initialize({ wakePhrase })', () => {
 
   it('reuses the file across initialize() calls with the same phrase', async () => {
     const { initialize, dispose } = await import('../public/voice-activator');
-    const rnfs = jest.requireMock('react-native-fs') as {
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
       writeFile: jest.Mock;
     };
 

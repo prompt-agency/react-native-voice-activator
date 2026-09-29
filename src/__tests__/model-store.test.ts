@@ -21,7 +21,7 @@ let mockDownloadBehaviour: (
 ) => Promise<void> | void = () => undefined;
 let mockDownloadCalls: string[] = [];
 
-jest.mock('react-native-fs', () => ({
+jest.mock('@dr.pogodin/react-native-fs', () => ({
   LibraryDirectoryPath: '/Library',
   DocumentDirectoryPath: '/Documents',
   CachesDirectoryPath: '/Caches',

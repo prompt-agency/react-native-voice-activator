@@ -224,17 +224,17 @@ export function wakePhraseFileName(phrases: readonly string[]): string {
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-type RNFS = typeof import('react-native-fs');
+type RNFS = typeof import('@dr.pogodin/react-native-fs');
 
 let cachedRnfs: RNFS | null = null;
 
 async function loadRnfs(): Promise<RNFS> {
   if (cachedRnfs) return cachedRnfs;
   try {
-    cachedRnfs = (await import('react-native-fs')) as RNFS;
+    cachedRnfs = (await import('@dr.pogodin/react-native-fs')) as RNFS;
   } catch (cause) {
     throw new WakePhraseError(
-      'react-native-fs is required to use wakePhrase, because the generated ' +
+      '@dr.pogodin/react-native-fs is required to use wakePhrase, because the generated ' +
         'keywords file is written to app storage. Install it, or generate the ' +
         'keywords file yourself and pass engineConfig.assetKeys.keywordAssetKey.',
       [{ phrase: '(all)', reason: String(cause) }]

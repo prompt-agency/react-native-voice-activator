@@ -111,17 +111,17 @@ export class ModelPreparationError extends Error {
   }
 }
 
-type RNFS = typeof import('react-native-fs');
+type RNFS = typeof import('@dr.pogodin/react-native-fs');
 
 let cachedRnfs: RNFS | null = null;
 
 async function loadRnfs(): Promise<RNFS> {
   if (cachedRnfs) return cachedRnfs;
   try {
-    cachedRnfs = (await import('react-native-fs')) as RNFS;
+    cachedRnfs = (await import('@dr.pogodin/react-native-fs')) as RNFS;
   } catch (cause) {
     throw new ModelPreparationError(
-      'react-native-fs is required to download models on demand. Install it, or ' +
+      '@dr.pogodin/react-native-fs is required to download models on demand. Install it, or ' +
         'bundle the models into your app and pass engineConfig.assetKeys instead.',
       undefined,
       cause
