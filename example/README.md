@@ -12,8 +12,15 @@ open Xcode or Android Studio, and before running `pod install` by hand:
 yarn example prebuild
 ```
 
-`yarn example ios` and `yarn example android` run prebuild for you, so use those
-unless you specifically need the native project on its own.
+`yarn example ios`, `yarn example ios:real` and `yarn example android` run
+prebuild for you, so use those unless you specifically need the native project
+on its own.
+
+Note that `expo run:ios` and `expo run:android` prebuild **only when the native
+directory is missing**. If `ios/` already exists they build it as-is, however
+stale it is. That is why the scripts above call `expo prebuild` explicitly
+first: without it, a config change in `app.json` or a config plugin never
+reaches the project you actually build.
 
 They are not tracked because a committed snapshot goes stale as soon as a
 dependency moves. A project generated for an older Expo SDK fails `pod install`

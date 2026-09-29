@@ -45,17 +45,37 @@ if (!exampleDependencies['expo-dev-client']) {
   errors.push('example/package.json missing expo-dev-client dependency.');
 }
 
-const requiredExampleScripts = {
+const requiredExactExampleScripts = {
   start: 'expo start',
   prebuild: 'CI=1 expo prebuild --clean',
+};
+
+for (const [scriptName, expectedValue] of Object.entries(
+  requiredExactExampleScripts
+)) {
+  if (exampleScripts[scriptName] !== expectedValue) {
+    errors.push(
+      `example/package.json missing Expo development-build script ${scriptName}: ${expectedValue}`
+    );
+  }
+}
+
+// The run scripts must invoke an Expo development build rather than Expo Go,
+// but they are allowed to prefix it. They currently run `expo prebuild` first,
+// because `expo run:<platform>` only prebuilds when the native directory is
+// absent: with a stale ios/ or android/ present it builds that as-is, so a
+// change in app.json or a config plugin never reaches the built app.
+const requiredExampleRunCommands = {
   android: 'expo run:android',
   ios: 'expo run:ios',
 };
 
-for (const [scriptName, expectedValue] of Object.entries(requiredExampleScripts)) {
-  if (exampleScripts[scriptName] !== expectedValue) {
+for (const [scriptName, requiredCommand] of Object.entries(
+  requiredExampleRunCommands
+)) {
+  if (!(exampleScripts[scriptName] ?? '').includes(requiredCommand)) {
     errors.push(
-      `example/package.json missing Expo development-build script ${scriptName}: ${expectedValue}`
+      `example/package.json script ${scriptName} must invoke ${requiredCommand}`
     );
   }
 }

@@ -202,8 +202,12 @@ describe('documentation and example contract', () => {
     expect(examplePackage).toContain(
       '"prebuild": "CI=1 expo prebuild --clean"'
     );
-    expect(examplePackage).toContain('"ios": "expo run:ios"');
-    expect(examplePackage).toContain('"android": "expo run:android"');
+    // The run scripts must invoke a development build rather than Expo Go.
+    // They are allowed to prefix it: they run `expo prebuild` first, because
+    // `expo run:<platform>` only prebuilds when the native directory is
+    // absent, so a stale ios/ or android/ would otherwise be built as-is.
+    expect(examplePackage).toContain('expo run:ios');
+    expect(examplePackage).toContain('expo run:android');
   });
 
   it('documents dedicated bare React Native and Expo setup guides with aligned support boundaries', () => {
