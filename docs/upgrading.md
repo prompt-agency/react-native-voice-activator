@@ -7,8 +7,15 @@ changes), see [Migration](./migration.md) instead.
 ## To React Native 0.86 / Expo SDK 57
 
 This release moves the tested baseline to React Native `0.86+` and Expo SDK
-`57+`. The `react-native` peer range is still `*`; older versions are untested
-rather than actively blocked.
+`57+`, and the `react-native` peer range now enforces it (`>=0.86.0`, with
+`react` at `>=19.0.0`).
+
+It was previously `*`. That was misleading rather than permissive: the build
+path is New-Architecture-only, since the podspec sets `-DRCT_NEW_ARCH_ENABLED=1`
+unconditionally and `android/build.gradle` has no old-architecture branch. An
+unbounded range let the package install cleanly into a project it could only
+fail in later, during the native build, with an error that does not name the
+cause.
 
 Two optional peers changed in ways that require action.
 
