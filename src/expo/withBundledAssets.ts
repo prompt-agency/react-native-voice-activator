@@ -20,7 +20,7 @@ const ANDROID_ASSET_ROOT = path.join(
   'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01'
 );
 const SUPPORTING_ASSET_FILES = ['tokens.txt', 'keywords.txt'] as const;
-const MODEL_PREFIXES = ['encoder', 'decoder', 'joiner'] as const;
+type ModelPrefix = 'encoder' | 'decoder' | 'joiner';
 const MANIFEST_FILE_NAME = 'voice-activator-sherpa-assets.json';
 const PACKAGE_ROOT_OVERRIDE_ENV = 'RNVA_PACKAGE_ROOT_OVERRIDE';
 
@@ -32,7 +32,7 @@ type SherpaAssetManifest = {
   platform: 'ios' | 'android';
   packageRootRelativeToApp: string;
   assetRootRelativeToApp: string;
-  modelFilesRelativeToApp: Record<(typeof MODEL_PREFIXES)[number], string>;
+  modelFilesRelativeToApp: Record<ModelPrefix, string>;
   supportingFilesRelativeToApp: {
     tokens: string;
     keywords: string;
@@ -78,7 +78,7 @@ function isWithinDirectory(parentDir: string, candidatePath: string): boolean {
   );
 }
 
-function getModelCandidates(prefix: (typeof MODEL_PREFIXES)[number]) {
+function getModelCandidates(prefix: ModelPrefix) {
   return [
     `${prefix}.onnx`,
     `${prefix}-epoch-12-avg-2-chunk-16-left-64.int8.onnx`,
@@ -88,7 +88,7 @@ function getModelCandidates(prefix: (typeof MODEL_PREFIXES)[number]) {
 
 function resolveModelFile(
   assetRoot: string,
-  prefix: (typeof MODEL_PREFIXES)[number],
+  prefix: ModelPrefix,
   platformLabel: PlatformLabel
 ): string {
   const existingCandidate = getModelCandidates(prefix).find((candidate) =>

@@ -495,7 +495,7 @@ describe('useWakeWord hook contract', () => {
     }));
 
     const { useWakeWord } = await import('../public/useWakeWord');
-    const hook = useWakeWord();
+    useWakeWord();
 
     listeners.get('transcriptionError')?.({
       provider: 'test-stt',
@@ -505,14 +505,18 @@ describe('useWakeWord hook contract', () => {
       recoverable: true,
     });
 
-    expect((latestSnapshot as typeof hook).latestRuntimeError).toEqual({
+    expect(
+      (latestSnapshot as ReturnType<typeof useWakeWord>).latestRuntimeError
+    ).toEqual({
       provider: 'test-stt',
       category: 'engine',
       code: 'stt_failed',
       message: 'STT failed',
       recoverable: true,
     });
-    expect((latestSnapshot as typeof hook).transcription.error).toEqual({
+    expect(
+      (latestSnapshot as ReturnType<typeof useWakeWord>).transcription.error
+    ).toEqual({
       provider: 'test-stt',
       category: 'engine',
       code: 'stt_failed',
