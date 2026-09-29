@@ -213,7 +213,6 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       AudioSourceAndroidType,
       OutputFormatAndroidType,
       AudioEncoderAndroidType,
-      AVEncodingOption,
       AVEncoderAudioQualityIOSType,
       AVLinearPCMBitDepthKeyIOSType,
     } = this.audioRecorderModule;
@@ -222,10 +221,14 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       AudioSourceAndroid: AudioSourceAndroidType.VOICE_RECOGNITION,
       OutputFormatAndroid: OutputFormatAndroidType.MPEG_4,
       AudioEncoderAndroid: AudioEncoderAndroidType.AAC,
-      AudioSamplingRateAndroid: 16_000,
-      AudioChannelsAndroid: 1,
-      AudioEncodingBitRateAndroid: 64_000,
-      AVFormatIDKeyIOS: AVEncodingOption.wav, // WAV container (PCM)
+      AudioSamplingRate: 16_000,
+      AudioChannels: 1,
+      AudioEncodingBitRate: 64_000,
+      // PROVISIONAL (Task 5). v4 dropped AVEncodingOption.wav from its union;
+      // 'lpcm' is the nearest raw-PCM equivalent but writes a different
+      // container. Task 4 measures what this actually produces on a device
+      // and finalises the value. Do not treat this as verified.
+      AVFormatIDKeyIOS: 'lpcm',
       AVSampleRateKeyIOS: 16_000, // 16 kHz — required by whisper.cpp
       AVNumberOfChannelsKeyIOS: 1, // mono
       AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
@@ -287,7 +290,10 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
   }
 
   private async _transcribeIOS(): Promise<TranscriptionResult> {
-    const recorder = new this.AudioRecorderPlayer!();
+    // v4's default export is a process-wide singleton instance, not a
+    // constructor. Its record-back listener is therefore global: every path out
+    // of this method must remove it, or the next transcription inherits it.
+    const recorder = this.AudioRecorderPlayer!;
     const maxRecordingMs = this.config.maxRecordingMs ?? 10_000;
     let resolveWait = () => undefined as void;
     // Hoisted so finally can clean up whichever path was actually recorded

@@ -37,15 +37,12 @@ const mockRecorderInstance = {
   removeRecordBackListener: jest.fn(),
 };
 
-const mockAudioRecorderPlayer = jest.fn(() => mockRecorderInstance);
-
 jest.mock('react-native-audio-recorder-player', () => ({
   __esModule: true,
-  default: mockAudioRecorderPlayer,
+  default: mockRecorderInstance,
   AudioSourceAndroidType: { VOICE_RECOGNITION: 6 },
   OutputFormatAndroidType: { MPEG_4: 2 },
   AudioEncoderAndroidType: { AAC: 3 },
-  AVEncodingOption: { wav: 'wav' },
   AVEncoderAudioQualityIOSType: { high: 96 },
   AVLinearPCMBitDepthKeyIOSType: { bit16: 16 },
 }));
@@ -305,6 +302,80 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     expect(mockWhisperContext.release).toHaveBeenCalledTimes(1);
     expect(mockWhisperContext.transcribe).not.toHaveBeenCalled();
   });
+
+  it('leaves no record-back listener behind for the next transcription', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const first = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await first;
+
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await second;
+
+    // One add and one remove per transcription, balanced, on the shared instance.
+    expect(mockRecorderInstance.addRecordBackListener).toHaveBeenCalledTimes(2);
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      2
+    );
+  });
+
+  it('a cancelled transcription does not deafen the next one', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const first = adapter.transcribe();
+    await adapter.cancel();
+    await expect(first).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    mockRecorderInstance.addRecordBackListener.mockClear();
+    mockRecorderInstance.startRecorder.mockClear();
+
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+
+    expect(mockRecorderInstance.startRecorder).toHaveBeenCalledTimes(1);
+    expect(mockRecorderInstance.addRecordBackListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose during an active transcription leaves the recorder reusable', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    const pending = adapter.transcribe();
+    await adapter.dispose();
+    await expect(pending).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    // The singleton is shared process-wide; dispose() must not leave it
+    // mid-recording for whoever constructs the next adapter.
+    expect(mockRecorderInstance.stopRecorder).toHaveBeenCalled();
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalled();
+
+    const next = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await next.initialize();
+    const after = next.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(after).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
 });
 
 describe('WhisperRNSTTAdapter — Android path', () => {
@@ -335,7 +406,7 @@ describe('WhisperRNSTTAdapter — Android path', () => {
       audioSource: 6, // AudioSource.VOICE_RECOGNITION
       bufferSize: 4096,
     });
-    expect(mockAudioRecorderPlayer).not.toHaveBeenCalled();
+    expect(mockRecorderInstance.startRecorder).not.toHaveBeenCalled();
   });
 
   it('transcribeFromWavPath passes bare path to ctx.transcribe on Android', async () => {

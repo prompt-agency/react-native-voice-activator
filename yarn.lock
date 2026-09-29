@@ -8211,15 +8211,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hyochan-welcome@npm:^1.0.0":
-  version: 1.0.1
-  resolution: "hyochan-welcome@npm:1.0.1"
-  bin:
-    hyochan-welcome: bin/hello.js
-  checksum: 2ea7093b54eefcde4c65e4a8ffd3f3926a55ff0bce20a3f5142fe1108e76c0dfcb98517b47714c536f9de8302b92ae02bf240891d3114d527ccd497e2ea9478e
-  languageName: node
-  linkType: hard
-
 "iconv-lite@npm:^0.7.0, iconv-lite@npm:^0.7.2":
   version: 0.7.2
   resolution: "iconv-lite@npm:0.7.2"
@@ -11923,15 +11914,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-audio-recorder-player@npm:^3.6.0":
-  version: 3.6.14
-  resolution: "react-native-audio-recorder-player@npm:3.6.14"
-  dependencies:
-    hyochan-welcome: ^1.0.0
+"react-native-audio-recorder-player@npm:4.5.0":
+  version: 4.5.0
+  resolution: "react-native-audio-recorder-player@npm:4.5.0"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: ceec3b452270f57517fe5bada53ed225e19998ac9ff28d587c17163386e144a8a44ba79be3613a05f2bb81d841a7945637cc662834a5b8650ce99f86a3de68e3
+    react-native-nitro-modules: "*"
+  checksum: 071f4f7ed8c09c91f022506c1bba95c8ddf031bf74160bddc9cb4f2b444fe35cdd9d5ef00fbb11fb0c57f2c6346cc653a7e896b6d74f7e7dfbe9de8611eaaddd
   languageName: node
   linkType: hard
 
@@ -12046,7 +12036,7 @@ __metadata:
     patch-package: ^8.0.1
     react: 19.2.3
     react-native: 0.86.3
-    react-native-audio-recorder-player: ^3.6.0
+    react-native-audio-recorder-player: 4.5.0
     react-native-builder-bob: ^0.40.18
     react-native-fs: ^2.20.0
     react-native-monorepo-config: ^0.1.9
@@ -12066,7 +12056,7 @@ __metadata:
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
-    react-native-audio-recorder-player: ">=3.0.0"
+    react-native-audio-recorder-player: ">=4.0.0"
     react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
     whisper.rn: ">=0.5.0"
@@ -12115,7 +12105,7 @@ __metadata:
     prettier: ^3.6.2
     react: 19.2.3
     react-native: 0.86.3
-    react-native-audio-recorder-player: ^3.6.0
+    react-native-audio-recorder-player: 4.5.0
     react-native-builder-bob: ^0.40.18
     react-native-fs: ^2.20.0
     react-native-nitro-modules: 0.31.10
@@ -12128,7 +12118,7 @@ __metadata:
     onnxruntime-react-native: ">=1.20.0"
     react: "*"
     react-native: "*"
-    react-native-audio-recorder-player: ">=3.0.0"
+    react-native-audio-recorder-player: ">=4.0.0"
     react-native-fs: ">=2.0.0"
     react-native-nitro-modules: ">=0.31.3"
     whisper.rn: ">=0.5.0"
