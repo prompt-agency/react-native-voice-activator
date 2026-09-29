@@ -5,6 +5,8 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
 
 @implementation VADCapture {
   AVAudioEngine *_audioEngine;
+  AVAudioConverter *_converter;
+  AVAudioFormat *_targetFormat;
   BOOL _running;
 }
 
@@ -30,12 +32,33 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   }
 
   AVAudioInputNode *inputNode = _audioEngine.inputNode;
-  AVAudioFormat *captureFormat =
+
+  // Tap at the hardware format and convert downstream. Installing a tap with a
+  // format the bus does not provide is not a documented guarantee: on hardware
+  // running at 48 kHz a 16 kHz request is refused outright. SherpaOnnxDetector
+  // already taps at the hardware format and resamples after the fact, and this
+  // does the same so both capture paths behave identically.
+  AVAudioFormat *inputFormat = [inputNode inputFormatForBus:0];
+  if (!inputFormat || inputFormat.sampleRate <= 0) {
+    if (error) {
+      *error = [NSError
+          errorWithDomain:@"VADCapture"
+                     code:-1
+                 userInfo:@{
+                   NSLocalizedDescriptionKey : @"The audio input reported no usable hardware format"
+                 }];
+    }
+    return NO;
+  }
+
+  // The VAD consumer requires exactly this format, so the converter output is
+  // what it receives, never the raw tap buffer.
+  AVAudioFormat *targetFormat =
       [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                        sampleRate:sampleRate
                                          channels:1
                                       interleaved:NO];
-  if (!captureFormat) {
+  if (!targetFormat) {
     if (error) {
       *error = [NSError
           errorWithDomain:@"VADCapture"
@@ -47,23 +70,40 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
     return NO;
   }
 
-  // Installing a tap with a format that differs from the hardware format relies
-  // on AVAudioEngine resampling into it. That works on the iOS versions this has
-  // been run on, but it is not a documented guarantee, and a rejected format
-  // raises NSInternalInconsistencyException — an Objective-C exception, which
-  // bypasses the NSError path entirely and terminates the app.
-  //
-  // SherpaOnnxDetector uses [inputNode inputFormatForBus:0] and resamples
-  // downstream, which is the documented approach; doing the same here means
-  // adding an AVAudioConverter, and the VAD consumer needs exactly 16 kHz so the
-  // conversion has to be correct. Until that can be verified on a device, the
-  // exception is converted into the error path the caller already handles rather
-  // than being left to crash.
+  AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:inputFormat
+                                                                toFormat:targetFormat];
+  if (!converter) {
+    if (error) {
+      *error = [NSError
+          errorWithDomain:@"VADCapture"
+                     code:-1
+                 userInfo:@{
+                   NSLocalizedDescriptionKey : [NSString
+                       stringWithFormat:@"Cannot convert the %.0f Hz hardware input to %.0f Hz "
+                                        @"mono float32 for VAD capture",
+                       inputFormat.sampleRate, sampleRate]
+                 }];
+    }
+    return NO;
+  }
+  _converter = converter;
+  _targetFormat = targetFormat;
+
+  // Ask for enough hardware frames that each callback yields roughly one VAD
+  // frame after downsampling. AVAudioEngine treats this as a hint, so the
+  // conversion below never assumes an exact count.
+  AVAudioFrameCount tapBufferSize =
+      (AVAudioFrameCount)ceil((double)kVADFrameSize * inputFormat.sampleRate / sampleRate);
+
+  // The tap format now matches the bus, so a rejection is no longer expected.
+  // The guard stays because installTapOnBus reports a bad format by raising an
+  // Objective-C exception, which would bypass the NSError path and terminate
+  // the app rather than surfacing to the caller.
   __weak __typeof(self) weakSelf = self;
   @try {
   [inputNode installTapOnBus:0
-                  bufferSize:(AVAudioFrameCount)kVADFrameSize
-                      format:captureFormat
+                  bufferSize:tapBufferSize
+                      format:inputFormat
                        block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
                          __strong __typeof(weakSelf) strongSelf = weakSelf;
                          if (!strongSelf || !strongSelf->_running) {
@@ -72,34 +112,75 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
                          if (!strongSelf.pcmFrameHandler) {
                            return;
                          }
-                         AVAudioFrameCount frameCount = buffer.frameLength;
-                         if (frameCount == 0) {
+                         if (buffer.frameLength == 0) {
                            return;
                          }
-                         // Null when the buffer is not float32 — possible if the
-                         // engine negotiated a different format than requested.
-                         if (buffer.floatChannelData == NULL) {
+                         AVAudioConverter *activeConverter = strongSelf->_converter;
+                         AVAudioFormat *outputFormat = strongSelf->_targetFormat;
+                         if (!activeConverter || !outputFormat) {
                            return;
                          }
-                         float *samples = buffer.floatChannelData[0];
-                         NSData *pcmData = [NSData dataWithBytes:samples
-                                                          length:frameCount * sizeof(float)];
+
+                         // Rate conversion buffers internally, so the output
+                         // frame count varies. Size generously and trust
+                         // frameLength afterwards.
+                         double ratio = outputFormat.sampleRate / buffer.format.sampleRate;
+                         AVAudioFrameCount capacity =
+                             (AVAudioFrameCount)ceil((double)buffer.frameLength * ratio) + 32;
+                         AVAudioPCMBuffer *converted =
+                             [[AVAudioPCMBuffer alloc] initWithPCMFormat:outputFormat
+                                                           frameCapacity:capacity];
+                         if (!converted) {
+                           return;
+                         }
+
+                         // The converter pulls until satisfied; hand it this
+                         // buffer once, then report no more data so it emits
+                         // what it has instead of blocking for a refill.
+                         __block BOOL consumed = NO;
+                         NSError *conversionError = nil;
+                         AVAudioConverterOutputStatus status = [activeConverter
+                             convertToBuffer:converted
+                                       error:&conversionError
+                          withInputFromBlock:^AVAudioBuffer *_Nullable(
+                              AVAudioPacketCount inNumberOfPackets,
+                              AVAudioConverterInputStatus *_Nonnull outStatus) {
+                            if (consumed) {
+                              *outStatus = AVAudioConverterInputStatus_NoDataNow;
+                              return nil;
+                            }
+                            consumed = YES;
+                            *outStatus = AVAudioConverterInputStatus_HaveData;
+                            return buffer;
+                          }];
+
+                         if (status == AVAudioConverterOutputStatus_Error) {
+                           return;
+                         }
+                         if (converted.frameLength == 0 ||
+                             converted.floatChannelData == NULL) {
+                           return;
+                         }
+
+                         float *samples = converted.floatChannelData[0];
+                         NSData *pcmData =
+                             [NSData dataWithBytes:samples
+                                            length:converted.frameLength * sizeof(float)];
                          NSString *base64 =
                              [pcmData base64EncodedStringWithOptions:0];
                          strongSelf.pcmFrameHandler(base64);
                        }];
   } @catch (NSException *exception) {
+    _converter = nil;
+    _targetFormat = nil;
     if (error) {
       *error = [NSError
           errorWithDomain:@"VADCapture"
                      code:-2
                  userInfo:@{
                    NSLocalizedDescriptionKey : [NSString
-                       stringWithFormat:@"The audio input rejected a %.0f Hz "
-                                        @"mono float32 tap (hardware format is "
-                                        @"%.0f Hz): %@",
-                       sampleRate,
-                       [inputNode inputFormatForBus:0].sampleRate,
+                       stringWithFormat:@"The audio input rejected a %.0f Hz tap: %@",
+                       inputFormat.sampleRate,
                        exception.reason ?: exception.name]
                  }];
     }
@@ -110,6 +191,8 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   [_audioEngine prepare];
   if (![_audioEngine startAndReturnError:&startError]) {
     [inputNode removeTapOnBus:0];
+    _converter = nil;
+    _targetFormat = nil;
     if (error) {
       *error = startError;
     }
@@ -128,6 +211,11 @@ static const NSUInteger kVADFrameSize = 512; // samples per frame (32 ms at 16 k
   _running = NO;
   [_audioEngine.inputNode removeTapOnBus:0];
   [_audioEngine stop];
+  // The converter carries resampler state across calls, so a restart at a
+  // different hardware rate must not inherit it.
+  [_converter reset];
+  _converter = nil;
+  _targetFormat = nil;
 }
 
 - (void)dealloc

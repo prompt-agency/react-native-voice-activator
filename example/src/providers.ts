@@ -259,7 +259,11 @@ export function ensureSttProvider(
  * path and fails with "File doesn't exist". Extract it once to disk and hand
  * the absolute path to VADConfig.modelPath.
  *
- * iOS needs none of this — ORT resolves the bare filename from the bundle.
+ * iOS hits the same wall for the same reason. ORT used to resolve a bare
+ * filename against NSBundle.mainBundle, so passing "silero_vad.onnx" was
+ * enough. Newer ORT treats it as a plain filesystem path and fails with the
+ * same "File doesn't exist". The model is already inside the app bundle, so
+ * no extraction is needed there, only an absolute path.
  */
 const VAD_MODEL_ASSET = 'silero_vad.onnx';
 const VAD_MODEL_PATH = `${RNFS.DocumentDirectoryPath}/${VAD_MODEL_ASSET}`;
@@ -275,6 +279,14 @@ export function ensureVadModelPath(): Promise<string | undefined> {
 }
 
 async function extractVadModel(): Promise<string | undefined> {
+  if (Platform.OS === 'ios') {
+    // Bundled as a pod resource, so it sits at the app bundle root. Returning
+    // undefined here would fall back to the bare filename, which newer ORT
+    // cannot resolve.
+    return RNFS.MainBundlePath
+      ? `${RNFS.MainBundlePath}/${VAD_MODEL_ASSET}`
+      : undefined;
+  }
   if (Platform.OS !== 'android') return undefined;
   const stat = await RNFS.exists(VAD_MODEL_PATH)
     .then((exists) => (exists ? RNFS.stat(VAD_MODEL_PATH) : null))
