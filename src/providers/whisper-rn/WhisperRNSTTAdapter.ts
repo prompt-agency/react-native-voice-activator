@@ -167,10 +167,13 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       AudioSamplingRate: 16_000,
       AudioChannels: 1,
       AudioEncodingBitRate: 64_000,
-      // PROVISIONAL. v4 dropped AVEncodingOption.wav from its union; 'lpcm' is
-      // the nearest raw-PCM equivalent but writes a different container. An
-      // on-device measurement of what this actually produces is still
-      // pending and will finalise the value. Do not treat this as verified.
+      // v4 dropped AVEncodingOption.wav from its union; 'lpcm' maps to
+      // kAudioFormatLinearPCM, and AVAudioRecorder takes the CONTAINER from the
+      // URL's extension, not from this key. Measured with these exact settings:
+      // a .wav path produces `RIFF....WAVE`, Int16 mono 16 kHz, which is what
+      // whisper.cpp wants. The same settings on v4's default .m4a filename
+      // produce an MPEG-4 container holding the same LPCM data, which whisper
+      // cannot read as a wav; that is why the .wav URI below is explicit.
       AVFormatIDKeyIOS: 'lpcm',
       AVSampleRateKeyIOS: 16_000, // 16 kHz — required by whisper.cpp
       AVNumberOfChannelsKeyIOS: 1, // mono
@@ -178,7 +181,10 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       // v4's iOS recorder (AudioRecorderPlayer.swift) only reads
       // AVSampleRateKeyIOS, AVNumberOfChannelsKeyIOS, AVEncoderAudioQualityKeyIOS
       // and AVFormatIDKeyIOS off this object; the three keys below are set here
-      // for a future version that may honor them, but v4 ignores them.
+      // for a future version that may honor them, but v4 ignores them. The
+      // measurement above confirms the defaults already match what they ask
+      // for (16-bit, little-endian, signed integer), so their being ignored
+      // costs nothing today.
       AVLinearPCMBitDepthKeyIOS: AVLinearPCMBitDepthKeyIOSType.bit16,
       AVLinearPCMIsBigEndianKeyIOS: false,
       AVLinearPCMIsFloatKeyIOS: false,
