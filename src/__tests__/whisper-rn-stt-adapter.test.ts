@@ -23,7 +23,7 @@ const mockRNFS = {
   writeFile: jest.fn().mockResolvedValue(undefined),
 };
 
-// The fork uses named exports (no default) — spread the mock object directly
+// The fork uses named exports (no default), so spread the mock object directly
 jest.mock('@dr.pogodin/react-native-fs', () => ({
   __esModule: true,
   ...mockRNFS,
