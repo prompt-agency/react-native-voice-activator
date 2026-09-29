@@ -6,16 +6,18 @@ import { WakeWordScreen } from './screens/WakeWordScreen';
 import { SessionScreen } from './screens/SessionScreen';
 import { ManualScreen } from './screens/ManualScreen';
 import { EnrollmentScreen } from './screens/EnrollmentScreen';
+import { EvaluationScreen } from './screens/EvaluationScreen';
 
 // ─── Tab definition ───────────────────────────────────────────────────────────
 
-type TabId = 'enroll' | 'wake-word' | 'session' | 'manual';
+type TabId = 'enroll' | 'wake-word' | 'session' | 'manual' | 'evaluate';
 
 const TABS: { id: TabId; num: string; label: string }[] = [
   { id: 'enroll', num: '①', label: 'Speaker ID' },
   { id: 'wake-word', num: '②', label: 'Wake Word' },
   { id: 'session', num: '③', label: 'Conversation' },
   { id: 'manual', num: '④', label: 'Speech Engines' },
+  { id: 'evaluate', num: '⑤', label: 'Accuracy' },
 ];
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -35,8 +37,12 @@ export default function App() {
               style={[s.tab, active && s.tabActive]}
               onPress={() => setActiveTab(tab.id)}
             >
-              <Text style={[s.tabNum, active && s.tabTextActive]}>{tab.num}</Text>
-              <Text style={[s.tabText, active && s.tabTextActive]}>{tab.label}</Text>
+              <Text style={[s.tabNum, active && s.tabTextActive]}>
+                {tab.num}
+              </Text>
+              <Text style={[s.tabText, active && s.tabTextActive]}>
+                {tab.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -48,6 +54,7 @@ export default function App() {
         {activeTab === 'session' && <SessionScreen />}
         {activeTab === 'manual' && <ManualScreen />}
         {activeTab === 'enroll' && <EnrollmentScreen />}
+        {activeTab === 'evaluate' && <EvaluationScreen />}
       </View>
     </SafeAreaView>
   );
