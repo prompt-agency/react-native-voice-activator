@@ -3,6 +3,23 @@
 This example remains the primary runtime validation surface for the React Native
 library path.
 
+## Native projects are generated, not committed
+
+`example/ios/` and `example/android/` are gitignored. Generate them before you
+open Xcode or Android Studio, and before running `pod install` by hand:
+
+```sh
+yarn example prebuild
+```
+
+`yarn example ios` and `yarn example android` run prebuild for you, so use those
+unless you specifically need the native project on its own.
+
+They are not tracked because a committed snapshot goes stale as soon as a
+dependency moves. A project generated for an older Expo SDK fails `pod install`
+with a deployment-target mismatch, which reads as a dependency problem rather
+than a stale-file problem.
+
 It also carries the Expo config and prebuild compatibility contract used by
 the current Expo integration path:
 

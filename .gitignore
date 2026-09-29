@@ -45,6 +45,15 @@ android.iml
 #
 example/ios/Pods
 
+# Generated native projects for the example app.
+# These are produced by `expo prebuild` and must not be committed: a tracked
+# snapshot goes stale the moment a dependency moves, and then `pod install`
+# fails against a project generated for an older Expo SDK. Run
+# `yarn example prebuild` (or `yarn example ios` / `yarn example android`,
+# which prebuild for you) before opening Xcode or Android Studio.
+example/ios/
+example/android/
+
 # Ruby
 example/vendor/
 
