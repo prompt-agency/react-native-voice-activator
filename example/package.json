@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@dr.pogodin/react-native-fs": "2.40.3",
-    "@fugood/react-native-audio-pcm-stream": "^1.1.4",
     "@react-native/new-app-screen": "0.86.3",
     "expo": "^57.0.0",
     "expo-dev-client": "~57.0.19",

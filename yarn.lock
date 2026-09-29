@@ -2621,13 +2621,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fugood/react-native-audio-pcm-stream@npm:^1.1.4":
-  version: 1.1.4
-  resolution: "@fugood/react-native-audio-pcm-stream@npm:1.1.4"
-  checksum: 36c69bb32855ad3c61c94c00614f670e29888af84746b71b5da2d233f91c999db3120d80d2c83a803d34287b5b474119f6fe29373848b012ae8a04aa431a97fb
-  languageName: node
-  linkType: hard
-
 "@gar/promise-retry@npm:^1.0.0":
   version: 1.0.2
   resolution: "@gar/promise-retry@npm:1.0.2"
@@ -11979,7 +11972,6 @@ __metadata:
     "@babel/preset-env": ^7.25.3
     "@babel/runtime": ^7.25.0
     "@dr.pogodin/react-native-fs": 2.40.3
-    "@fugood/react-native-audio-pcm-stream": ^1.1.4
     "@react-native-community/cli": 20.2.0
     "@react-native-community/cli-platform-android": 20.2.0
     "@react-native-community/cli-platform-ios": 20.2.0

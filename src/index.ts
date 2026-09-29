@@ -17,6 +17,19 @@ export {
 } from './public/voice-activator';
 export { addSessionListener } from './internal/session-events';
 /**
+ * Raw microphone access, sharing the package's own capture rather than opening a
+ * second stream. Frames are base64 little-endian float32 at 16 kHz, which is the
+ * format `enrollSpeaker()` expects.
+ */
+export {
+  startAudioCapture,
+  AUDIO_CAPTURE_SAMPLE_RATE,
+} from './public/audio-capture';
+export type {
+  AudioCaptureFrame,
+  AudioCaptureSubscription,
+} from './public/audio-capture';
+/**
  * Asset root of the model bundle the Expo config plugin ships into your app,
  * for apps that bundle the models instead of downloading them. Platform
  * specific: `modelAssetKey` is used verbatim and the two native loaders use

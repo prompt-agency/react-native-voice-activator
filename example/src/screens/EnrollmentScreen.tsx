@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import LiveAudioStream from '@fugood/react-native-audio-pcm-stream';
+import {
+  PermissionsAndroid,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { ensureSpeakerRuntime } from '../providers';
 import {
   addWakeWordListener,
   getStatus,
+  startAudioCapture,
   voiceActivator,
+  type AudioCaptureSubscription,
   type EnrollmentData,
 } from 'react-native-voice-activator';
 import { Btn, C, SectionCard } from '../shared';
@@ -15,34 +24,23 @@ import { Btn, C, SectionCard } from '../shared';
 const BAR_MULTIPLIERS = [0.5, 0.9, 0.7, 1.0, 0.8, 1.0, 0.6, 0.85];
 
 /**
- * enrollSpeaker() hands the buffer straight to the Sherpa native bridge as raw
- * PCM (the adapter names it `pcmBase64`) and voice-activator.ts hardcodes a
- * 16 kHz sample rate, so the capture side must produce exactly that.
- * AudioRecorderPlayer cannot: MediaRecorder only emits encoded containers
- * (MPEG_4/AAC), whose compressed bytes are not valid PCM samples.
+ * enrollSpeaker() hands the buffer straight to the Sherpa native bridge, which
+ * decodes it as LITTLE-ENDIAN FLOAT32 at 16 kHz. Both native implementations do
+ * this: SherpaOnnxSpeakerEmbedding.mm reads `pcmData.length / sizeof(float)`,
+ * and the Kotlin reads `bytes.size / 4` with `getFloat()`.
  *
- * Note: this is a contract fix, not a crash fix. The SIGABRT seen during
- * enrollment came from the missing speaker model asset, not from the audio
- * format. This path is still unverified end to end for that reason.
+ * So capture must produce float32, not 16-bit integer PCM. The package's own
+ * microphone capture already emits exactly that, and going through it rather
+ * than opening a second stream matters: two independent microphone streams on
+ * one device do not reliably coexist, and `startAudioCapture()` shares the
+ * reference-counted stream the wake-word gate uses, so recording a sample here
+ * does not stop detection.
+ *
+ * This screen previously captured 16-bit PCM from a third-party module and
+ * passed the bytes through unconverted, so the native side reinterpreted int16
+ * byte pairs as floats. That produced garbage embeddings rather than an error.
  */
-const SAMPLE_RATE = 16_000;
 const RECORD_MS = 2000;
-
-/**
- * Must run before every start(), not just once: stop() releases the underlying
- * native recorder, and a subsequent start() without re-initializing produces a
- * stream that emits no data at all (the second enrollment sample came back
- * with zero bytes).
- */
-function initPcmStream(): void {
-  LiveAudioStream.init({
-    sampleRate: SAMPLE_RATE,
-    channels: 1,
-    bitsPerSample: 16,
-    audioSource: 6, // VOICE_RECOGNITION — matches WhisperRNSTTAdapter
-    bufferSize: 4096,
-  });
-}
 
 function base64ToBytes(base64: string): Uint8Array {
   const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
@@ -54,79 +52,86 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-/** Peak amplitude of a 16-bit LE PCM chunk, as dBFS, for the level meter. */
+/** Peak amplitude of a float32 chunk, as dBFS, for the level meter. */
 function chunkPeakDb(bytes: Uint8Array): number {
-  const samples = new Int16Array(
-    bytes.buffer,
-    bytes.byteOffset,
-    Math.floor(bytes.byteLength / 2)
-  );
+  // A frame is whole float32s, but a copy keeps this correct even if a chunk
+  // ever arrives unaligned: Float32Array over a misaligned offset throws.
+  const aligned = new Uint8Array(bytes.byteLength - (bytes.byteLength % 4));
+  aligned.set(bytes.subarray(0, aligned.byteLength));
+  const samples = new Float32Array(aligned.buffer);
+
   let peak = 0;
   for (let i = 0; i < samples.length; i++) {
     const v = Math.abs(samples[i]!);
     if (v > peak) peak = v;
   }
   if (peak === 0) return -60;
-  return Math.max(-60, 20 * Math.log10(peak / 32768));
+  return Math.max(-60, 20 * Math.log10(Math.min(peak, 1)));
 }
 
-/** Capture raw 16 kHz mono 16-bit PCM for `ms`, reporting level as it goes. */
+/**
+ * Capture float32 mono PCM at the package's fixed 16 kHz capture rate for `ms`,
+ * reporting level as it goes.
+ */
 function recordPcm(
   ms: number,
   onLevel: (db: number) => void,
   registerStop?: (stop: () => void) => void
 ): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
-    let subscription: { remove(): void } | null = null;
+    let capture: AudioCaptureSubscription | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const chunks: Uint8Array[] = [];
     let settled = false;
 
-    const cleanup = () => {
-      if (timer) clearTimeout(timer);
-      try {
-        LiveAudioStream.stop();
-      } catch {
-        // stop() on an already-stopped stream is not fatal
-      }
-      subscription?.remove();
-    };
-
-    try {
-      initPcmStream();
-      subscription = LiveAudioStream.on('data', (b64) => {
-        const bytes = base64ToBytes(b64);
-        chunks.push(bytes);
-        onLevel(chunkPeakDb(bytes));
-      });
-      LiveAudioStream.start();
-    } catch (err) {
-      cleanup();
-      reject(err);
-      return;
-    }
-
-    const finish = () => {
+    const finish = (failure?: unknown) => {
       if (settled) return;
       settled = true;
-      cleanup();
+      if (timer) clearTimeout(timer);
 
-      const total = chunks.reduce((n, c) => n + c.length, 0);
-      if (total === 0) {
-        reject(new Error('No audio captured — is the microphone in use?'));
-        return;
-      }
-      const out = new Uint8Array(total);
-      let offset = 0;
-      for (const c of chunks) {
-        out.set(c, offset);
-        offset += c.length;
-      }
-      resolve(out.buffer);
+      // Release before settling, so the microphone is free whether this run
+      // succeeded or failed.
+      const released = capture ? capture.remove() : Promise.resolve();
+      released
+        .catch(() => undefined)
+        .then(() => {
+          if (failure !== undefined) {
+            reject(failure);
+            return;
+          }
+
+          const total = chunks.reduce((n, c) => n + c.length, 0);
+          if (total === 0) {
+            reject(new Error('No audio captured — is the microphone in use?'));
+            return;
+          }
+          const out = new Uint8Array(total);
+          let offset = 0;
+          for (const c of chunks) {
+            out.set(c, offset);
+            offset += c.length;
+          }
+          resolve(out.buffer);
+        });
     };
 
-    registerStop?.(finish);
-    timer = setTimeout(finish, ms);
+    startAudioCapture(({ pcmBase64 }) => {
+      const bytes = base64ToBytes(pcmBase64);
+      chunks.push(bytes);
+      onLevel(chunkPeakDb(bytes));
+    })
+      .then((subscription) => {
+        capture = subscription;
+        // A stop that arrived before the capture resolved would otherwise leave
+        // the microphone open for the life of the app.
+        if (settled) {
+          subscription.remove().catch(() => undefined);
+          return;
+        }
+        registerStop?.(() => finish());
+        timer = setTimeout(() => finish(), ms);
+      })
+      .catch((err) => finish(err));
   });
 }
 
@@ -163,12 +168,11 @@ export function EnrollmentScreen() {
       isMounted.current = false;
       // Leaving mid-recording must release the mic, or the next capture
       // silently returns zero bytes.
+      // Leaving mid-recording must release the mic. recordPcm's own stop
+      // handler does the release, so invoke it rather than reaching for the
+      // stream directly.
+      stopRecordingRef.current?.();
       stopRecordingRef.current = null;
-      try {
-        LiveAudioStream.stop();
-      } catch {
-        // not recording — nothing to release
-      }
     };
   }, []);
 
@@ -250,7 +254,9 @@ export function EnrollmentScreen() {
       const data: EnrollmentData = await voiceActivator.exportEnrollment();
       const json = JSON.stringify(data, null, 2);
       setExportedData(json);
-      const speakerCount = Array.isArray((data as Record<string, unknown>).speakers)
+      const speakerCount = Array.isArray(
+        (data as Record<string, unknown>).speakers
+      )
         ? ((data as Record<string, unknown>).speakers as unknown[]).length
         : 1;
       setStatus(`Exported ${speakerCount} speaker(s)`);
@@ -290,7 +296,6 @@ export function EnrollmentScreen() {
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
-
       {/* Hero */}
       <View style={s.hero}>
         <Text style={s.heroLabel}>① SPEAKER ID</Text>
@@ -302,7 +307,9 @@ export function EnrollmentScreen() {
           control, multi-user devices.
         </Text>
         <View style={s.startHint}>
-          <Text style={s.startHintText}>✦ New here? This is the recommended first tab.</Text>
+          <Text style={s.startHintText}>
+            ✦ New here? This is the recommended first tab.
+          </Text>
         </View>
       </View>
 
@@ -310,7 +317,8 @@ export function EnrollmentScreen() {
       {!isReady && (
         <View style={s.warning}>
           <Text style={s.warningText}>
-            Runtime not initialized. Go to the Wake Word tab, press Initialize, then return here.
+            Runtime not initialized. Go to the Wake Word tab, press Initialize,
+            then return here.
           </Text>
         </View>
       )}
@@ -332,7 +340,9 @@ export function EnrollmentScreen() {
         <View style={s.dotsRow}>
           {[1, 2, 3].map((n) => (
             <View key={n} style={[s.dot, sampleCount >= n && s.dotFilled]}>
-              <Text style={[s.dotNum, sampleCount >= n && s.dotNumFilled]}>{n}</Text>
+              <Text style={[s.dotNum, sampleCount >= n && s.dotNumFilled]}>
+                {n}
+              </Text>
             </View>
           ))}
           <Text style={s.hint}>{sampleCount} of 3 samples recorded</Text>
@@ -347,10 +357,18 @@ export function EnrollmentScreen() {
           </View>
         ) : null}
         <Btn
-          label={isRecording ? 'Recording…' : sampleCount < 3 ? `Record Sample ${sampleCount + 1}` : 'All Samples Recorded'}
+          label={
+            isRecording
+              ? 'Recording…'
+              : sampleCount < 3
+                ? `Record Sample ${sampleCount + 1}`
+                : 'All Samples Recorded'
+          }
           onPress={handleRecordSample}
           tone="primary"
-          disabled={!isReady || isRecording || sampleCount >= 3 || userId.trim() === ''}
+          disabled={
+            !isReady || isRecording || sampleCount >= 3 || userId.trim() === ''
+          }
         />
         {isRecording ? (
           <Btn
@@ -382,11 +400,7 @@ export function EnrollmentScreen() {
           tone="quiet"
           disabled={exportedData === null}
         />
-        <Btn
-          label="Clear All"
-          onPress={handleClearAll}
-          tone="danger"
-        />
+        <Btn label="Clear All" onPress={handleClearAll} tone="danger" />
       </SectionCard>
 
       {/* Section 3 — Status */}
@@ -403,7 +417,6 @@ export function EnrollmentScreen() {
           </View>
         ) : null}
       </SectionCard>
-
     </ScrollView>
   );
 }
