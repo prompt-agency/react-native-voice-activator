@@ -160,17 +160,21 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       AudioSamplingRate: 16_000,
       AudioChannels: 1,
       AudioEncodingBitRate: 64_000,
-      // PROVISIONAL (Task 5). v4 dropped AVEncodingOption.wav from its union;
-      // 'lpcm' is the nearest raw-PCM equivalent but writes a different
-      // container. Task 4 measures what this actually produces on a device
-      // and finalises the value. Do not treat this as verified.
+      // PROVISIONAL. v4 dropped AVEncodingOption.wav from its union; 'lpcm' is
+      // the nearest raw-PCM equivalent but writes a different container. An
+      // on-device measurement of what this actually produces is still
+      // pending and will finalise the value. Do not treat this as verified.
       AVFormatIDKeyIOS: 'lpcm',
       AVSampleRateKeyIOS: 16_000, // 16 kHz — required by whisper.cpp
       AVNumberOfChannelsKeyIOS: 1, // mono
       AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
-      AVLinearPCMBitDepthKeyIOS: AVLinearPCMBitDepthKeyIOSType.bit16, // force 16-bit; iOS defaults to 24-bit which dr_wav handles but is unnecessary overhead
-      AVLinearPCMIsBigEndianKeyIOS: false, // little-endian (WAV standard)
-      AVLinearPCMIsFloatKeyIOS: false, // integer PCM, not float32
+      // v4's iOS recorder (AudioRecorderPlayer.swift) only reads
+      // AVSampleRateKeyIOS, AVNumberOfChannelsKeyIOS, AVEncoderAudioQualityKeyIOS
+      // and AVFormatIDKeyIOS off this object; the three keys below are set here
+      // for a future version that may honor them, but v4 ignores them.
+      AVLinearPCMBitDepthKeyIOS: AVLinearPCMBitDepthKeyIOSType.bit16,
+      AVLinearPCMIsBigEndianKeyIOS: false,
+      AVLinearPCMIsFloatKeyIOS: false,
     };
   }
 
@@ -230,6 +234,7 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     // constructor. Its record-back listener is therefore global: every path out
     // of this method must remove it, or the next transcription inherits it.
     const recorder = this.AudioRecorderPlayer!;
+    const rnfs = this.rnfs!;
     const maxRecordingMs = this.config.maxRecordingMs ?? 10_000;
     let resolveWait = () => undefined as void;
     // Hoisted so finally can clean up whichever path was actually recorded
@@ -242,7 +247,24 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     };
     this.activeTranscription = activeTranscription;
 
-    await recorder.startRecorder(undefined, this.getAudioSet(), false);
+    // v4's default recording filename is `sound_<timestamp>.m4a`. Passing
+    // `undefined` here would leave 'lpcm' data written to an .m4a-extensioned
+    // path, so an explicit .wav URI is required. Uses the same cache
+    // directory as the Android path's temp files.
+    const tmpDir = `${rnfs.CachesDirectoryPath}/voice-activator`;
+    const recordingUri = `${tmpDir}/whisper-ios-${nextRecordingId()}.wav`;
+
+    try {
+      await rnfs.mkdir(tmpDir);
+      await recorder.startRecorder(recordingUri, this.getAudioSet(), false);
+    } catch (e) {
+      // startRecorder() can reject (denied mic permission, unwritable
+      // directory). If activeTranscription were left set, every later
+      // transcribe() would throw "transcription already in progress"
+      // forever, since nothing else would ever clear it.
+      this.activeTranscription = null;
+      throw e;
+    }
     recorder.addRecordBackListener(() => {});
 
     if (activeTranscription.cancelled) {
@@ -310,7 +332,13 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
       try {
         ({ result } = await promise);
       } catch (e) {
-        if (e instanceof WhisperRNSTTCancelledError) throw e;
+        // cancel() awaits activeStop(), which aborts the native
+        // transcription and can make the whisper promise reject. Checked
+        // first so a cancellation surfaces as WhisperRNSTTCancelledError
+        // rather than being misreported as unreadable audio.
+        if (activeTranscription.cancelled) {
+          throw new WhisperRNSTTCancelledError();
+        }
         throw new WhisperRNSTTUnreadableAudioError(e);
       }
 

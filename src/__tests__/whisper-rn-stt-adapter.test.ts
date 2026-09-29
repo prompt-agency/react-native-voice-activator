@@ -30,9 +30,9 @@ jest.mock('@dr.pogodin/react-native-fs', () => ({
 }));
 
 // Legacy package mock, kept only to prove our code never resolves it.
-// { virtual: true } is required: the real package is removed from node_modules
-// in Task 6 step 6, so without it Jest would fail to resolve the specifier
-// even with a factory supplied.
+// { virtual: true } is required: the real package is not in node_modules
+// (it was replaced by @dr.pogodin/react-native-fs), so without it Jest would
+// fail to resolve the specifier even with a factory supplied.
 const mockLegacyRNFS = {
   DocumentDirectoryPath: '/legacy/documents',
   CachesDirectoryPath: '/legacy/caches',
@@ -499,6 +499,67 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
 
     // A stranded activeTranscription would make this throw "already in
     // progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('a cancellation that arrives while the whisper promise is in flight throws WhisperRNSTTCancelledError, not WhisperRNSTTUnreadableAudioError', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    let rejectWhisperPromise: (e: unknown) => void = () => undefined;
+    const whisperPromise = new Promise<{ result: string }>((_, reject) => {
+      rejectWhisperPromise = reject;
+    });
+    // cancel() calls this stop() (activeStop). In production this aborts the
+    // native transcription, which can make the in-flight whisper promise
+    // reject: modeled here by having stop() reject that promise itself.
+    const stop = jest.fn().mockImplementation(async () => {
+      rejectWhisperPromise(new Error('native transcription aborted'));
+    });
+    mockWhisperContext.transcribe.mockReturnValueOnce({
+      stop,
+      promise: whisperPromise,
+    });
+
+    const transcriptionPromise = adapter.transcribe();
+    transcriptionPromise.catch(() => undefined);
+
+    // Let recording finish so ctx.transcribe() is called and activeStop is set.
+    await jest.advanceTimersByTimeAsync(5000);
+
+    await adapter.cancel();
+
+    await expect(transcriptionPromise).rejects.toBeInstanceOf(
+      WhisperRNSTTCancelledError
+    );
+  });
+
+  it('startRecorder() failure does not wedge the adapter for future transcriptions', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    mockRecorderInstance.startRecorder.mockRejectedValueOnce(
+      new Error(
+        'Recording permission denied. Please enable microphone access in Settings.'
+      )
+    );
+
+    await expect(adapter.transcribe()).rejects.toThrow(
+      'Recording permission denied'
+    );
+
+    // A stranded activeTranscription would make this throw "transcription
+    // already in progress" instead of completing.
     const second = adapter.transcribe();
     await jest.advanceTimersByTimeAsync(5000);
     await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
