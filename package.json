@@ -122,7 +122,7 @@
     "react-native": "*",
     "react-native-audio-recorder-player": ">=4.0.0",
     "react-native-fs": ">=2.0.0",
-    "react-native-nitro-modules": ">=0.31.3",
+    "react-native-nitro-modules": ">=0.31.3 <0.32.0",
     "whisper.rn": ">=0.5.0"
   },
   "peerDependenciesMeta": {

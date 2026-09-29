@@ -338,6 +338,10 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     await adapter.cancel();
     await expect(first).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
 
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
+
     mockRecorderInstance.addRecordBackListener.mockClear();
     mockRecorderInstance.startRecorder.mockClear();
 
@@ -375,6 +379,37 @@ describe('WhisperRNSTTAdapter — iOS path', () => {
     const after = next.transcribe();
     await jest.advanceTimersByTimeAsync(5000);
     await expect(after).resolves.toMatchObject({ provider: 'whisper-rn' });
+  });
+
+  it('an early-cancel whose stopRecorder() rejects still frees the listener and does not wedge the next transcription', async () => {
+    const adapter = new WhisperRNSTTAdapter({
+      modelId: 'whisper-tiny-en',
+      maxRecordingMs: 5000,
+    });
+
+    await adapter.initialize();
+
+    // Simulate the native race the early-cancel branch exists to handle:
+    // stopRecorder() rejects because the recorder is not in a recording state.
+    mockRecorderInstance.stopRecorder.mockRejectedValueOnce(
+      new Error('not recording')
+    );
+
+    const first = adapter.transcribe();
+    await adapter.cancel();
+    await expect(first).rejects.toBeInstanceOf(WhisperRNSTTCancelledError);
+
+    // The listener must be freed even though stopRecorder() rejected, or it
+    // bleeds into the next transcription on the shared singleton.
+    expect(mockRecorderInstance.removeRecordBackListener).toHaveBeenCalledTimes(
+      1
+    );
+
+    // A stranded activeTranscription would make this throw "already in
+    // progress" instead of completing.
+    const second = adapter.transcribe();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(second).resolves.toMatchObject({ provider: 'whisper-rn' });
   });
 });
 

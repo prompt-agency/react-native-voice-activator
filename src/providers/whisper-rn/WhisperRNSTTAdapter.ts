@@ -310,9 +310,21 @@ export class WhisperRNSTTAdapter implements SpeechToTextProvider {
     recorder.addRecordBackListener(() => {});
 
     if (activeTranscription.cancelled) {
-      recordedPath = await recorder.stopRecorder();
+      // Free the listener and clear active-transcription state before the
+      // stopRecorder() await below, not after: stopRecorder() can reject
+      // (the native side throws when the recorder isn't in a recording
+      // state, exactly the race this branch exists to handle). If either
+      // cleanup ran after that await, a rejection would skip it, leaking
+      // the listener on the shared singleton and wedging every future
+      // transcribe() behind "already in progress" for the life of the
+      // adapter. Removal is unconditionally safe regardless of ordering.
       recorder.removeRecordBackListener();
       this.activeTranscription = null;
+      try {
+        recordedPath = await recorder.stopRecorder();
+      } catch {
+        // Already cancelling; a failed stop here doesn't change the outcome.
+      }
       try {
         const bare = stripFileScheme(recordedPath);
         if (bare) await this.rnfs!.unlink(bare);
