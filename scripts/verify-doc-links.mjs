@@ -16,6 +16,7 @@ const requiredDocs = [
   'docs/reliability-validation.md',
   'docs/troubleshooting.md',
   'docs/migration.md',
+  'docs/upgrading.md',
   'docs/android-battery-optimization.md',
   'docs/android-tts-setup.md',
   'docs/app-store-submission.md',
@@ -34,6 +35,20 @@ const supportMatrixSource = existsSync(supportMatrixPath)
 const reactNativeSupport =
   supportMatrixSource.match(/reactNative:\s*'([^']+)'/)?.[1] ?? null;
 const expoSupport = supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1] ?? null;
+
+// A failed match must not fall back to a hardcoded baseline: that would make
+// the gate silently assert the OLD baseline instead of failing when
+// release-support-matrix.ts's shape changes.
+if (!reactNativeSupport) {
+  throw new Error(
+    'verify-doc-links: could not extract reactNative version from scripts/release-support-matrix.ts'
+  );
+}
+if (!expoSupport) {
+  throw new Error(
+    'verify-doc-links: could not extract expo version from scripts/release-support-matrix.ts'
+  );
+}
 
 if (!existsSync(readmePath)) {
   errors.push('README.md');
@@ -134,7 +149,7 @@ if (existsSync(backgroundBehaviorPath)) {
 if (existsSync(bareSetupPath)) {
   const bareSetup = readFileSync(bareSetupPath, 'utf8');
   const requiredBareSetupText = [
-    `React Native \`${reactNativeSupport ?? '0.83+'}\``,
+    `React Native \`${reactNativeSupport}\``,
     'microphone permission',
     'UIBackgroundModes',
     'foreground_service_visible_context_required',
@@ -165,7 +180,7 @@ if (existsSync(expoSetupPath)) {
     'Expo Go is NOT supported.',
     'The support matrix source in this repo is',
     'config-plugin and prebuild',
-    `Expo SDK \`${(expoSupport ?? 'SDK 55+').replace('SDK ', '')}\``,
+    `Expo SDK \`${expoSupport.replace('SDK ', '')}\``,
     'Built-In Sherpa Asset Model',
     'engineConfig.assetKeys.modelAssetKey',
     'engineConfig.assetKeys.keywordAssetKey',

@@ -7,10 +7,26 @@ describe('documentation and example contract', () => {
     join(root, 'scripts/release-support-matrix.ts'),
     'utf8'
   );
-  const reactNativeSupport =
-    supportMatrixSource.match(/reactNative:\s*'([^']+)'/)?.[1] ?? '0.83+';
-  const expoSupport =
-    supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1] ?? 'SDK 55+';
+  const reactNativeSupportMatch = supportMatrixSource.match(
+    /reactNative:\s*'([^']+)'/
+  )?.[1];
+  const expoSupportMatch = supportMatrixSource.match(/expo:\s*'([^']+)'/)?.[1];
+
+  // A failed match must not fall back to a hardcoded baseline: that would
+  // make this contract silently assert the OLD baseline instead of failing
+  // when release-support-matrix.ts's shape changes.
+  if (!reactNativeSupportMatch) {
+    throw new Error(
+      'documentation-contract: could not extract reactNative version from scripts/release-support-matrix.ts'
+    );
+  }
+  if (!expoSupportMatch) {
+    throw new Error(
+      'documentation-contract: could not extract expo version from scripts/release-support-matrix.ts'
+    );
+  }
+  const reactNativeSupport = reactNativeSupportMatch;
+  const expoSupport = expoSupportMatch;
 
   it('keeps the README quickstart aligned with the current public API and limitation note', () => {
     const readme = readFileSync(join(root, 'README.md'), 'utf8');
