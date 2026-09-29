@@ -13,8 +13,19 @@ Pod::Spec.new do |s|
   s.platforms    = { :ios => min_ios_version_supported }
   s.source       = { :git => "https://github.com/prompt-agency/react-native-voice-activator.git", :tag => "#{s.version}" }
 
-  s.source_files = "ios/**/*.{h,m,mm,cpp}"
-  s.private_header_files = "ios/**/*.h"
+  # Enumerate our own source dirs rather than globbing ios/**. The vendored
+  # xcframeworks under ios/Vendor ship their own ORT headers; an ios/**/*.h
+  # glob sweeps those in as our private headers, and CocoaPods then copies
+  # ORT 1.17 headers into Pods/Headers/Private/VoiceActivator where they
+  # shadow the real onnxruntime-c (1.30) pod headers for every other target.
+  # Do not "fix" this with s.exclude_files = "ios/Vendor/**/*": that also
+  # un-links the xcframeworks and breaks with undefined SherpaOnnx* symbols.
+  s.source_files = "ios/*.{h,m,mm,cpp}",
+                   "ios/Runtime/**/*.{h,m,mm,cpp}",
+                   "ios/Engines/**/*.{h,m,mm,cpp}"
+  s.private_header_files = "ios/*.h",
+                           "ios/Runtime/**/*.h",
+                           "ios/Engines/**/*.h"
   s.resources = "ios/Assets/**/*"
 
   # The xcframeworks are far too large for the npm tarball, so they are fetched

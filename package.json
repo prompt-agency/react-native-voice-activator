@@ -47,7 +47,7 @@
     "evaluate:reliability": "node scripts/run-reliability-evaluation.mjs",
     "package:ios-vendor": "node scripts/package-ios-vendor-frameworks.mjs",
     "verify:ios-vendor-checksums": "node scripts/verify-ios-vendor-checksums.mjs",
-    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs && yarn verify:ios-vendor-checksums",
+    "verify:contracts": "yarn build:plugin && node scripts/verify-example-setup.mjs && node scripts/verify-doc-links.mjs && node scripts/verify-expo-runtime-compatibility.mjs && yarn verify:expo-config-resolution && yarn verify:expo-prebuild && node scripts/verify-reliability-evidence.mjs && node scripts/verify-podspec-source-globs.mjs && yarn verify:ios-vendor-checksums",
     "verify:release-readiness": "yarn lint && yarn typecheck && yarn test --runInBand --watchman=false && yarn prepare && yarn typecheck && npm_config_cache=.npm-cache npm pack --dry-run",
     "test": "jest",
     "typecheck": "tsc",
