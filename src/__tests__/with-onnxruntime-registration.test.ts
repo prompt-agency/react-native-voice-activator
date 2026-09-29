@@ -21,9 +21,9 @@
 jest.mock('@expo/config-plugins', () => ({
   withMainApplication: (
     config: { modResults: { contents: string; language: string } },
-    cb: (c: {
+    cb: (c: { modResults: { contents: string; language: string } }) => {
       modResults: { contents: string; language: string };
-    }) => { modResults: { contents: string; language: string } }
+    }
   ) => cb(config),
 }));
 
@@ -74,7 +74,9 @@ function run(contents: string, language: 'kt' | 'java'): string {
   const config = { modResults: { contents, language } };
   // The plugin's ConfigPlugin signature is wider than this stub needs.
   const result = (
-    withOnnxruntimeRegistration as unknown as (c: typeof config) => typeof config
+    withOnnxruntimeRegistration as unknown as (
+      c: typeof config
+    ) => typeof config
   )(config);
   return result.modResults.contents;
 }
@@ -84,7 +86,9 @@ describe('withOnnxruntimeRegistration', () => {
     it('adds the import and registers the package inside the apply block', () => {
       const out = run(KOTLIN_TEMPLATE, 'kt');
 
-      expect(out).toContain('import ai.onnxruntime.reactnative.OnnxruntimePackage');
+      expect(out).toContain(
+        'import ai.onnxruntime.reactnative.OnnxruntimePackage'
+      );
       expect(out).toContain('add(OnnxruntimePackage())');
 
       // Must land inside the packages.apply { ... } block, not after it.
@@ -129,8 +133,12 @@ class MainApplication {
 }
 `;
       const out = run(bare, 'kt');
-      expect(out).toContain('import ai.onnxruntime.reactnative.OnnxruntimePackage');
-      expect(out).toContain('PackageList(this).packages.apply { add(OnnxruntimePackage()) }');
+      expect(out).toContain(
+        'import ai.onnxruntime.reactnative.OnnxruntimePackage'
+      );
+      expect(out).toContain(
+        'PackageList(this).packages.apply { add(OnnxruntimePackage()) }'
+      );
     });
   });
 
@@ -138,7 +146,9 @@ class MainApplication {
     it('adds the import and registers before the return', () => {
       const out = run(JAVA_TEMPLATE, 'java');
 
-      expect(out).toContain('import ai.onnxruntime.reactnative.OnnxruntimePackage;');
+      expect(out).toContain(
+        'import ai.onnxruntime.reactnative.OnnxruntimePackage;'
+      );
       expect(out).toContain('packages.add(new OnnxruntimePackage());');
 
       const addIndex = out.indexOf('packages.add(new OnnxruntimePackage());');
