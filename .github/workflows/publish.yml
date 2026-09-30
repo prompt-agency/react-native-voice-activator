@@ -68,5 +68,11 @@ jobs:
 
       # No NODE_AUTH_TOKEN and no --provenance: OIDC supplies a short-lived
       # credential, and npm attaches provenance by itself for a public repo.
+      #
+      # Verbose because a failure here is otherwise undiagnosable: npm reports an
+      # unauthorised publish as a bare 404 that reads like a missing package.
+      # At this level npm logs whether it attempted the OIDC token exchange at
+      # all, which separates "npm never tried" from "the registry rejected the
+      # identity". npm redacts credentials in its own output.
       - name: Publish
-        run: npm publish
+        run: npm publish --loglevel verbose
