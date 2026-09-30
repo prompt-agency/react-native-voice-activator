@@ -11993,7 +11993,7 @@ __metadata:
     react-native-nitro-modules: 0.31.10
     react-native-safe-area-context: ~5.7.0
     react-native-voice-activator: "portal:.."
-    whisper.rn: ^0.5.0
+    whisper.rn: ^0.7.4
   languageName: unknown
   linkType: soft
 
@@ -13994,15 +13994,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"whisper.rn@npm:^0.5.0":
-  version: 0.5.5
-  resolution: "whisper.rn@npm:0.5.5"
+"whisper.rn@npm:^0.7.4":
+  version: 0.7.4
+  resolution: "whisper.rn@npm:0.7.4"
   dependencies:
     safe-buffer: ^5.2.1
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 044f1fe0892632ee9ea9604adfc9839e8466769788e25b2c75e753dc1651629606de9fdb92a1319c8fc4f98f84f9d32ac3009b62e8daae3a95eacea828a5a5c6
+  checksum: ddd325b2ea55449ed054278977ecea4caa134f66dd835557c2f1e87fc0b8baa9678e6940302ff5753b21e523bd66ac573a1d90e501f7273c3f02334f9d4991af
   languageName: node
   linkType: hard
 
