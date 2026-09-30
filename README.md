@@ -5,6 +5,7 @@
 # react-native-voice-activator
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/react-native-voice-activator"><img alt="npm version" src="https://img.shields.io/npm/v/react-native-voice-activator" /></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
   <a href="https://github.com/prompt-agency/react-native-voice-activator/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/prompt-agency/react-native-voice-activator/ci.yml?branch=main&label=CI" /></a>
   <img alt="React Native 0.86+" src="https://img.shields.io/badge/React%20Native-0.86%2B-61dafb?logo=react&logoColor=white" />
