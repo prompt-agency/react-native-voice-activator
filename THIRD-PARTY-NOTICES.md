@@ -37,10 +37,22 @@ Two things a redistributor should know, because neither is settled upstream:
   since 2026-07-24 with no maintainer response. The parallel question on the
   GigaSpeech dataset card (discussion #13) is likewise unanswered.
 
-We reproduce the license the model publishes. We do not have, and do not claim
-to have, an independent determination that it is correct. If this matters to
-your deployment, follow the two threads above, or supply your own model through
-`keywordAssetKey`.
+**Where this sits.** A redistributor can reproduce the license an upstream
+artifact publishes, and can say where that artifact came from. It cannot decide,
+on the publisher's behalf, what license the weights carry: only k2-fsa and
+SpeechColab can state that, and as of this writing neither has.
+
+So, precisely:
+
+- We ship the model under the license it publishes, unmodified.
+- We record its training-data provenance and the open upstream questions above,
+  so anyone evaluating this package can see the same facts we can.
+- We do not offer a legal opinion, and nothing here is one.
+- `engineConfig.assetKeys.keywordAssetKey` takes your own model, if you would
+  rather not rely on this one at all.
+
+If the answer matters to your deployment, the threads above are where it will
+appear, and your own counsel is who should read it.
 
 ## Downloaded at `pod install` time (iOS)
 
