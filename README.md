@@ -36,6 +36,12 @@ downloaded once (~7.8 MB) on first setup, after which nothing leaves the device.
 
 **As a mic gate.** `addWakeWordListener` fires, you start your own session with
 whatever voice stack you already use. The package's job ends at the handoff.
+Worked examples: [ElevenLabs
+Agents](docs/examples/elevenlabs-agent-handoff.md) and [LiveKit
+Agents](docs/examples/livekit-agent-handoff.md). Both hinge on one rule, which
+is the part that is easy to get wrong: the microphone has a single owner, so
+stop detection before the vendor claims the audio session and start it again on
+every exit path, failures included.
 
 **As a managed session.** Supply speech-to-text and text-to-speech providers and
 the package drives the whole listen → transcribe → your AI → speak loop, with

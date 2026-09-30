@@ -1,6 +1,24 @@
-# Provider Adapter Examples
+# Examples
 
-These examples demonstrate how to keep STT and TTS integrations outside the
+Two different shapes, for the two ways this package is used.
+
+## Voice agent handoffs (mic gate)
+
+The package listens on-device, and hands a live microphone to a voice agent that
+does everything else server-side. No `sttProvider`, no `ttsProvider`: those
+vendors already do both halves, so the managed session would be redundant.
+
+- [`elevenlabs-agent-handoff.md`](./elevenlabs-agent-handoff.md) — ElevenLabs Agents
+- [`livekit-agent-handoff.md`](./livekit-agent-handoff.md) — LiveKit Agents
+
+Both turn on the same rule: **the microphone has one owner at a time**. Stop
+detection before the vendor claims the audio session, and start it again on
+every exit path, including the failures. An agent session that never connects
+otherwise leaves the app deaf with no visible symptom.
+
+## Provider adapters (managed session)
+
+These demonstrate how to keep STT and TTS integrations outside the
 package core while still using the public provider interfaces:
 
 - `SpeechToTextProvider`
