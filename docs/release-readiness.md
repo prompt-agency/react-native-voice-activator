@@ -36,6 +36,48 @@ Local prerequisite for the iOS gate:
 - package build output generation
 - `npm pack --dry-run` publish-surface verification
 
+## How a version gets published
+
+npm publishing happens in CI, not from a laptop, via **npm trusted publishing**.
+GitHub Actions presents an OIDC identity that npm trusts for this package, so
+there is no `NPM_TOKEN` to leak and no one-time password to type. npm also
+attaches a provenance attestation automatically, which is only possible from a
+public repository.
+
+The order matters and the workflow enforces it. A published version whose
+release assets are missing is unusable, so the GitHub release, carrying the
+XCFrameworks, the AAR and the model bundle, must exist **before** the npm
+version that points at it.
+
+1. Stage the artifacts and commit the manifests, as described below.
+2. `yarn release` — `release-it` bumps the version, tags, and creates the GitHub
+   release with its assets. It does **not** publish to npm
+   (`release-it.npm.publish` is `false`).
+3. Publishing the release fires `.github/workflows/publish.yml`, which
+   re-verifies that every asset resolves and then runs `npm publish`.
+
+### One-time setup on npmjs.com
+
+Required before the workflow can publish. Package settings → Publishing access
+→ add a trusted publisher:
+
+| Field | Value |
+| --- | --- |
+| Publisher | GitHub Actions |
+| Repository | `prompt-agency/react-native-voice-activator` |
+| Workflow filename | `publish.yml` |
+
+Until that exists, the workflow's publish step fails with an authentication
+error. That is the intended failure: npm will not accept an OIDC identity it has
+not been told to trust.
+
+### Why the publish job does not use `./.github/actions/setup`
+
+That action pins Node from `.nvmrc` (20.19.0). Trusted publishing needs Node
+`>=22.14.0` and npm `>=11.5.1`. Only the publish job uses the newer toolchain;
+everything else stays on the pinned version the package is actually tested
+against.
+
 ## iOS Vendored Frameworks
 
 The sherpa xcframeworks are too large for the npm tarball and are downloaded by
