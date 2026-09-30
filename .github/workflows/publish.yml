@@ -31,27 +31,32 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       # Deliberately NOT ./.github/actions/setup: that pins Node from .nvmrc
-      # (20.19.0), and trusted publishing requires Node >= 22.14.0 with npm
-      # >= 11.5.1. The rest of CI stays on the .nvmrc pin; only the publish
-      # step needs the newer toolchain.
+      # (20.19.0), and trusted publishing needs Node >= 22.14.0 with npm
+      # >= 11.5.1. Node 24 is what npm's own documented example uses, and it
+      # ships npm 11 already, so no global npm install is needed. The rest of CI
+      # stays on the .nvmrc pin; only this job takes the newer toolchain.
       - name: Setup Node for publishing
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4.4.0
         with:
-          node-version: '22.14.0'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           # npm's own guidance: never cache the package manager in a release
           # build.
           package-manager-cache: false
 
-      # Node 22.14 ships npm 10.9, below the 11.5.1 that trusted publishing
-      # needs. Pinned to the 11.x line rather than @latest: npm 12 requires Node
-      # ^22.22.2 || ^24.15.0 || >=26, which this job's Node does not satisfy, so
-      # @latest fails EBADENGINE. The install is itself the version check, since
-      # a range that cannot resolve fails the step.
-      - name: Ensure npm supports trusted publishing
+      # OIDC is only possible when the runner granted an id-token. If these are
+      # empty the publish will fail as an anonymous request, and npm reports
+      # that as a 404 rather than an auth error, which is easy to misread as a
+      # missing package. Fail loudly and early instead.
+      - name: Check the OIDC token is available
         run: |
-          npm install -g 'npm@^11.5.1'
+          node --version
           npm --version
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::No OIDC token. id-token: write is not in effect, so npm cannot use trusted publishing."
+            exit 1
+          fi
+          echo "OIDC request URL is present."
 
       - name: Install dependencies
         run: |
