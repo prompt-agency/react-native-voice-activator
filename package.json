@@ -1,6 +1,6 @@
 {
   "name": "react-native-voice-activator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "On-device wake word and mic gate for React Native voice agents. Any phrase, no training, no API key.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -92,7 +92,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/prompt-agency/react-native-voice-activator.git"
+    "url": "git+https://github.com/prompt-agency/react-native-voice-activator.git"
   },
   "bugs": {
     "url": "https://github.com/prompt-agency/react-native-voice-activator/issues"
