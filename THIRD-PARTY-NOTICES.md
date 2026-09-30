@@ -47,6 +47,8 @@ So, precisely:
 - We ship the model under the license it publishes, unmodified.
 - We record its training-data provenance and the open upstream questions above,
   so anyone evaluating this package can see the same facts we can.
+- We did not open the upstream questions above; other users did. We track and
+  link them rather than restate them.
 - We do not offer a legal opinion, and nothing here is one.
 - `engineConfig.assetKeys.keywordAssetKey` takes your own model, if you would
   rather not rely on this one at all.
