@@ -106,10 +106,30 @@ flowchart LR
 ### Step 1 — Install the package
 
 ```sh
-npm install react-native-voice-activator
+npm install react-native-voice-activator @dr.pogodin/react-native-fs
 # or
-yarn add react-native-voice-activator
+yarn add react-native-voice-activator @dr.pogodin/react-native-fs
 ```
+
+`@dr.pogodin/react-native-fs` is not optional in practice. `prepareModels()`
+uses it to download the model bundle, and that is the default path, so without
+it the quickstart below fails on its first call. It is declared as an optional
+peer because you can skip it by bundling the models yourself and passing
+`engineConfig.assetKeys`, but that is the advanced route.
+
+Everything else is genuinely optional, and only for the managed session. Install
+these if you want the package to drive transcription and speech for you:
+
+| Package | Needed for |
+| --- | --- |
+| `onnxruntime-react-native` | the built-in VAD and the on-device TTS engine |
+| `whisper.rn` | `WhisperRNSTTAdapter`, on-device speech-to-text |
+| `react-native-audio-recorder-player` | recording for `WhisperRNSTTAdapter` on iOS |
+| `react-native-nitro-modules` | required by the recorder above; pin to `0.31.10` |
+
+Using it purely as a mic gate, handing off to a voice agent, needs none of them.
+See [ElevenLabs](docs/examples/elevenlabs-agent-handoff.md) and
+[LiveKit](docs/examples/livekit-agent-handoff.md).
 
 ### Step 2 — Platform setup
 
