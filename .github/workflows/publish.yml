@@ -43,9 +43,14 @@ jobs:
           # build.
           package-manager-cache: false
 
+      # Node 22.14 ships npm 10.9, below the 11.5.1 that trusted publishing
+      # needs. Pinned to the 11.x line rather than @latest: npm 12 requires Node
+      # ^22.22.2 || ^24.15.0 || >=26, which this job's Node does not satisfy, so
+      # @latest fails EBADENGINE. The install is itself the version check, since
+      # a range that cannot resolve fails the step.
       - name: Ensure npm supports trusted publishing
         run: |
-          npm install -g npm@latest
+          npm install -g 'npm@^11.5.1'
           npm --version
 
       - name: Install dependencies
