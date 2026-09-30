@@ -2805,13 +2805,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@commitlint/config-conventional@npm:^19.8.1":
-  version: 19.8.1
-  resolution: "@commitlint/config-conventional@npm:19.8.1"
+"@commitlint/config-conventional@npm:^21.2.3":
+  version: 21.2.3
+  resolution: "@commitlint/config-conventional@npm:21.2.3"
   dependencies:
-    "@commitlint/types": ^19.8.1
-    conventional-changelog-conventionalcommits: ^7.0.2
-  checksum: f17e855b7293391655b7d05cf2e0ed43f5d03e48ad050a19c2a21ef1fc6516e8b9f2a386ed53ce93a2d2edc4464fc5081319710bd9134ec6feb6ccfcb2e7616c
+    "@commitlint/types": ^21.2.3
+    conventional-changelog-conventionalcommits: ^10.0.0
+  checksum: a70e283bd8aef945c9e3dcfc7f16e5aab0fc2b423f923cc0c39fb608cf48828b3a5bbee9d59219ec22b68ebd2ba9f328d48a7d6c3df28da4171cfcdf1dfe32a0
   languageName: node
   linkType: hard
 
@@ -2979,6 +2979,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@commitlint/types@npm:^21.2.3":
+  version: 21.2.3
+  resolution: "@commitlint/types@npm:21.2.3"
+  dependencies:
+    conventional-commits-parser: ^7.0.0
+    picocolors: ^1.1.1
+  checksum: 0485e8e3d3507f2feb5376d0c9e965c035d5a5da6c6701de41ddddb80c88c3a0b17b40e77b91927d5e09b368dd4b403f8b98311c09f36ff1ab86c7a61b17c2f0
+  languageName: node
+  linkType: hard
+
 "@conventional-changelog/git-client@npm:^2.5.1, @conventional-changelog/git-client@npm:^2.6.0":
   version: 2.6.0
   resolution: "@conventional-changelog/git-client@npm:2.6.0"
@@ -2995,6 +3005,13 @@ __metadata:
     conventional-commits-parser:
       optional: true
   checksum: bd23be40603ad58633a50479bdbc941c2c3e5b5ad5d644e8abf4f3169eb015b3935949dfe1b224809a1b9d476bcd5ce5e3b66182557e751bd658b06b7e3a3c0c
+  languageName: node
+  linkType: hard
+
+"@conventional-changelog/template@npm:^1.4.0":
+  version: 1.4.0
+  resolution: "@conventional-changelog/template@npm:1.4.0"
+  checksum: dac527b0eb01ff4b2457b560f3fb61e24c8797cd5e7cafe4d4561454352714d8aec4d39092a15da068fc082878b1713a589cfd8471267f340f9a78c28057d74b
   languageName: node
   linkType: hard
 
@@ -5037,6 +5054,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@simple-libs/stream-utils@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@simple-libs/stream-utils@npm:2.0.0"
+  checksum: 012fddda038a0657e62ae2cbb4f89c9ac56d0d2c611b695695ddaabf70cfc9c5207e6b88a9cb3497b9ff05fc74fbe75296cb70f1d1cf9c015efff197b06ee481
+  languageName: node
+  linkType: hard
+
 "@sinclair/typebox@npm:^0.27.8":
   version: 0.27.10
   resolution: "@sinclair/typebox@npm:0.27.10"
@@ -5658,6 +5682,13 @@ __metadata:
   version: 2.0.1
   resolution: "argparse@npm:2.0.1"
   checksum: 83644b56493e89a254bae05702abf3a1101b4fa4d0ca31df1c9985275a5a5bd47b3c27b7fa0b71098d41114d8ca000e6ed90cad764b306f8a503665e4d517ced
+  languageName: node
+  linkType: hard
+
+"argue-cli@npm:^3.1.0":
+  version: 3.2.0
+  resolution: "argue-cli@npm:3.2.0"
+  checksum: a652d5387098ca79a9e02c7997ec6eb62be6e7ab50740b9062a00ea1185cdaf1d1e59ca0989b87c40050a7d6e2d198fc96c40d0c941bb11b2a8def8748430a3d
   languageName: node
   linkType: hard
 
@@ -6833,12 +6864,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"conventional-changelog-conventionalcommits@npm:^7.0.2":
-  version: 7.0.2
-  resolution: "conventional-changelog-conventionalcommits@npm:7.0.2"
+"conventional-changelog-conventionalcommits@npm:^10.0.0":
+  version: 10.4.0
+  resolution: "conventional-changelog-conventionalcommits@npm:10.4.0"
   dependencies:
-    compare-func: ^2.0.0
-  checksum: e17ac5970ae09d6e9b0c3a7edaed075b836c0c09c34c514589cbe06554f46ed525067fa8150a8467cc03b1cf9af2073e7ecf48790d4f5ea399921b1cbe313711
+    "@conventional-changelog/template": ^1.4.0
+  checksum: bc95ccb4f20cc47c93e1ebcd53d33da051cce9d173f3aa931aaa50cf3ded4882d281252d5e1956b03833d803f8b46f26da0667e07b65167630007c6f5360ceea
   languageName: node
   linkType: hard
 
@@ -6922,6 +6953,18 @@ __metadata:
   bin:
     conventional-commits-parser: dist/cli/index.js
   checksum: 73286cc74d0445f6fc8e3a6d63bf513bacc826b0fe6dfb8c30fee920ef5d66d3ff3d4f1909b690e229e0e94844a8fc24e97cf3d0755462cd99891f31b3838ebb
+  languageName: node
+  linkType: hard
+
+"conventional-commits-parser@npm:^7.0.0":
+  version: 7.1.2
+  resolution: "conventional-commits-parser@npm:7.1.2"
+  dependencies:
+    "@simple-libs/stream-utils": ^2.0.0
+    argue-cli: ^3.1.0
+  bin:
+    conventional-commits-parser: ./dist/cli/index.js
+  checksum: e3f7eca06d16f43a3b2f5cad65d6f835733d205cda09b7f3097c40c1a5be6a4c7aa12e526dadf864dc27ff435ce983107c0c7e6bb4d0fcf53933cc01d7e1799b
   languageName: node
   linkType: hard
 
@@ -13103,7 +13146,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "react-native-voice-activator@workspace:."
   dependencies:
-    "@commitlint/config-conventional": ^19.8.1
+    "@commitlint/config-conventional": ^21.2.3
     "@dr.pogodin/react-native-fs": 2.40.3
     "@eslint/compat": ^1.3.2
     "@eslint/eslintrc": ^3.3.1
