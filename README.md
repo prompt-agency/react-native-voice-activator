@@ -4,6 +4,14 @@
 
 # react-native-voice-activator
 
+<p align="center">
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green" /></a>
+  <a href="https://github.com/prompt-agency/react-native-voice-activator/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/prompt-agency/react-native-voice-activator/ci.yml?branch=main&label=CI" /></a>
+  <img alt="React Native 0.86+" src="https://img.shields.io/badge/React%20Native-0.86%2B-61dafb?logo=react&logoColor=white" />
+  <img alt="Platforms: iOS and Android" src="https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey" />
+  <a href="https://buymeacoffee.com/ilirhushi"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black" /></a>
+</p>
+
 **The on-device wake word and mic gate for React Native voice agents.** Your app
 listens for a phrase you choose, entirely on the device, and opens the mic the
 moment it fires. Hand that hot mic to ElevenLabs, LiveKit or OpenAI Realtime, or
@@ -645,6 +653,19 @@ Expo config and prebuild compatibility are validated through docs, contract chec
 - [Development workflow](CONTRIBUTING.md#development-workflow)
 - [Sending a pull request](CONTRIBUTING.md#sending-a-pull-request)
 - [Code of conduct](CODE_OF_CONDUCT.md)
+
+## Support the project
+
+This package is free, MIT, and has no paid tier, no licence key and no gated
+features. If it saved you time, a coffee is a good way to say so.
+
+<a href="https://www.buymeacoffee.com/ilirhushi" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217" /></a>
+
+Need more than the library gives you? Custom wake-phrase tuning, acoustic
+validation on your device matrix, or help wiring this into an existing voice
+stack is available through [professional
+services](./docs/professional-services.md). That is a separate engagement, not a
+condition of using any of this.
 
 ## License
 

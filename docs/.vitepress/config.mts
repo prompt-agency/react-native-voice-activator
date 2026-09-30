@@ -5,7 +5,7 @@ const REPO_URL = 'https://github.com/prompt-agency/react-native-voice-activator'
 export default withMermaid({
   title: 'react-native-voice-activator',
   description:
-    'On-device wake word detection and managed multi-turn voice conversation sessions for React Native and Expo.',
+    'The on-device wake word and mic gate for React Native voice agents. Any phrase, no training, no API key.',
   base: '/react-native-voice-activator/',
   srcExclude: ['CLAUDE.md', 'superpowers/**'],
   cleanUrls: true,
@@ -14,7 +14,29 @@ export default withMermaid({
   // cannot be resolved as site pages. Anything else stays a hard failure.
   ignoreDeadLinks: [/\.\.\/README/, /\.\.\/example/, /\/discussions$/, /_bmad-output/],
 
-  head: [['link', { rel: 'icon', href: '/react-native-voice-activator/assets/logo.svg', type: 'image/svg+xml' }]],
+  head: [
+    ['link', { rel: 'icon', href: '/react-native-voice-activator/assets/logo.svg', type: 'image/svg+xml' }],
+    // Buy Me a Coffee floating button. Docs-site only: GitHub strips <script>
+    // from rendered Markdown, so the README carries a plain badge link instead.
+    // This is a third-party script on the docs site; it does not ship in the
+    // package and never runs inside a consuming app.
+    [
+      'script',
+      {
+        type: 'text/javascript',
+        src: 'https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js',
+        'data-name': 'bmc-button',
+        'data-slug': 'ilirhushi',
+        'data-color': '#FFDD00',
+        'data-emoji': '☕',
+        'data-font': 'Cookie',
+        'data-text': 'Buy me a coffee',
+        'data-outline-color': '#000000',
+        'data-font-color': '#000000',
+        'data-coffee-color': '#ffffff',
+      },
+    ],
+  ],
 
   themeConfig: {
     logo: '/assets/logo.svg',
