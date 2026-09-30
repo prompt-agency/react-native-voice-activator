@@ -33,9 +33,22 @@ updates:
       # See the pin rationale in CLAUDE.md.
       - dependency-name: react-native-nitro-modules
 
-      # React Native and React majors move the whole native build with them and
-      # are upgrade projects, not PRs.
+      # React Native and React move the whole native build with them and are
+      # upgrade projects, not PRs. Minors count: 0.86 to 0.87 is a toolchain
+      # migration in React Native's numbering, not a routine bump.
       - dependency-name: react-native
-        update-types: ['version-update:semver-major']
+        update-types:
+          - 'version-update:semver-major'
+          - 'version-update:semver-minor'
       - dependency-name: react
-        update-types: ['version-update:semver-major']
+        update-types:
+          - 'version-update:semver-major'
+          - 'version-update:semver-minor'
+
+      # The @react-native/* packages are published in lockstep with react-native
+      # and are only coherent at the matching version. Left to itself Dependabot
+      # reads 0.86.3 to 0.87.1 as a minor and folds babel-preset, metro-config
+      # and typescript-config into the dev-dependencies group, which produces a
+      # React Native upgrade disguised as a routine group PR. They move when
+      # react-native moves.
+      - dependency-name: '@react-native/*'
