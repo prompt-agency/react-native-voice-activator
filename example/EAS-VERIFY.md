@@ -18,30 +18,18 @@ There is a third network dependency people forget: `lib/` is gitignored, so EAS
 builds the library from source during install, and the `prepare` script
 downloads the Silero VAD model from `raw.githubusercontent.com`.
 
-## The chicken-and-egg, and the way out
+## The prerequisite that is now satisfied
 
-The podspec and the Gradle task both resolve
-`releases/download/v<version>/...`. At version `0.1.0` that release **does not
-exist**, so a build today fails at the download step for a reason that has
-nothing to do with EAS. You cannot verify the install path until a release
-exists, and cutting a release is the thing you are trying to de-risk.
+Both platforms resolve `releases/download/v<version>/...`, so this could not be
+run until a release existed. **v0.1.0 is cut**, with all 19 assets uploaded and
+their digests verified, so the profile points at it.
 
-Break it with a prerelease tag:
+One thing still gates it: **the repository must be public.** Release assets on a
+private repo return 404 to anonymous requests, which is what an EAS builder
+makes. Verify before spending build minutes:
 
 ```bash
-# 1. Stage the artifacts and cut a prerelease with them attached.
-yarn package:ios-vendor
-yarn package:models
-#    Create the v0.1.0-rc.1 GitHub release and upload:
-#      sherpa-onnx.xcframework.zip
-#      sherpa-onnxruntime.xcframework.zip
-#      android/libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar
-#      dist-models/*
-
-# 2. Prove the assets resolve before spending build minutes on them.
-yarn verify:release-assets --version=0.1.0-rc.1
-
-# 3. Build.
+yarn verify:release-assets        # must pass unauthenticated
 cd example
 npx eas-cli build --profile verify --platform all
 ```
@@ -60,7 +48,7 @@ still govern, and both paths still fail closed.
 ## What a pass and a failure each mean
 
 - **Both platforms build.** The install path works on hosted CI. This blocker is
-  closed and `v0.1.0` can be cut against the same artifacts.
+  closed, and npm publish is the next step.
 - **iOS fails during `pod install` fetching the XCFrameworks.** That is the
   documented EAS egress problem, not our bug. The fix is to stop depending on
   build-time egress to github.com: publish the frameworks as a CocoaPods pod, or

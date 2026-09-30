@@ -9,9 +9,8 @@
       "distribution": "internal",
       "channel": "verify",
       "env": {
-        "RELEASE_TAG": "v0.1.0-rc.1",
-        "VOICEACTIVATOR_SHERPA_BASE_URL": "https://github.com/prompt-agency/react-native-voice-activator/releases/download/v0.1.0-rc.1",
-        "ORG_GRADLE_PROJECT_VoiceActivator_packageVersion": "0.1.0-rc.1"
+        "VOICEACTIVATOR_SHERPA_BASE_URL": "https://github.com/prompt-agency/react-native-voice-activator/releases/download/v0.1.0",
+        "ORG_GRADLE_PROJECT_VoiceActivator_packageVersion": "0.1.0"
       },
       "android": {
         "buildType": "apk",
