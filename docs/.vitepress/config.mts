@@ -6,7 +6,8 @@ export default withMermaid({
   title: 'react-native-voice-activator',
   description:
     'The on-device wake word and mic gate for React Native voice agents. Any phrase, no training, no API key.',
-  base: '/react-native-voice-activator/',
+  base: '/',
+  sitemap: { hostname: 'https://voice-activator.prompt-digital.agency/' },
   srcExclude: ['CLAUDE.md', 'superpowers/**'],
   cleanUrls: true,
   // These are legitimate references to files outside the docs/ site root
@@ -15,7 +16,7 @@ export default withMermaid({
   ignoreDeadLinks: [/\.\.\/README/, /\.\.\/example/, /\/discussions$/, /_bmad-output/],
 
   head: [
-    ['link', { rel: 'icon', href: '/react-native-voice-activator/assets/logo.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: '/assets/logo.svg', type: 'image/svg+xml' }],
     // Buy Me a Coffee floating button. Docs-site only: GitHub strips <script>
     // from rendered Markdown, so the README carries a plain badge link instead.
     // This is a third-party script on the docs site; it does not ship in the
