@@ -53,7 +53,7 @@ identity of the package.
 > **Supports:** React Native `0.86+` · Expo SDK `57+` · iOS · Android
 > **Expo Go is NOT supported.** Use `expo prebuild` or EAS Build.
 
-📖 **[Full documentation site](https://prompt-agency.github.io/react-native-voice-activator/)**
+📖 **[Full documentation site](https://voice-activator.prompt-digital.agency/)**
 
 ## Table of Contents
 

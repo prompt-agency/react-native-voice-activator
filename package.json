@@ -85,7 +85,7 @@
     "new-architecture"
   ],
   "author": "Prompt Agency",
-  "homepage": "https://github.com/prompt-agency/react-native-voice-activator",
+  "homepage": "https://voice-activator.prompt-digital.agency/",
   "license": "MIT",
   "engines": {
     "node": ">=20.19"
