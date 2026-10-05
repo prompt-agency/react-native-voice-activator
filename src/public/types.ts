@@ -147,9 +147,9 @@ export interface WakeWordInitializationOptions {
    * A wake phrase in plain English, e.g. `'hey acme'`. Pass an array for several.
    *
    * No training, no console, no per-keyword model: the bundled keyword spotter is
-   * open-vocabulary, and the native library tokenizes the phrase itself using the
-   * `bpe.model` already in the model bundle. The generated keywords file is
-   * written to app storage and reused across launches.
+   * open-vocabulary. This package tokenizes the phrase against the model's own
+   * vocabulary, writes the resulting keywords file beside the model bundle, and
+   * reuses it across launches.
    *
    * Phrases must be A-Z, apostrophes and spaces, at least 6 letters. Two or more
    * distinct words work far better than one short word — a short trigger
