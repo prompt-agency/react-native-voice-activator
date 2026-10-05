@@ -95,12 +95,12 @@ describe('the generated keywords file', () => {
     // file as space-separated vocabulary pieces and calls exit(-1) on a token
     // it cannot find, so plain text here terminates the host app.
     expect(buildKeywordsFileContents(['HEY ACME', 'OK ACME'])).toBe(
-      '▁HE Y ▁A C ME\n▁O K ▁A C ME\n'
+      '\u2581HE Y \u2581A C ME\n\u2581O K \u2581A C ME\n'
     );
   });
 
   it('is pre-tokenized, like the bundled presets', () => {
-    expect(buildKeywordsFileContents(['HEY ACME'])).toContain('▁');
+    expect(buildKeywordsFileContents(['HEY ACME'])).toContain('\u2581');
   });
 
   it('rejects a phrase it cannot tokenize rather than writing a blank line', () => {
@@ -215,7 +215,7 @@ describe('upgrading from a version that wrote plain text', () => {
     const result = await writeWakePhraseKeywords('hey acme', base);
 
     expect(result.path).toBe(stalePath);
-    expect(stored.get(stalePath)).toBe('▁HE Y ▁A C ME\n');
+    expect(stored.get(stalePath)).toBe('\u2581HE Y \u2581A C ME\n');
     expect(stored.get(stalePath)).not.toBe('HEY ACME\n');
   });
 
