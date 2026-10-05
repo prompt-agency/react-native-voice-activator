@@ -24,6 +24,24 @@ export interface WakePhraseValidationIssue {
   reason: string;
 }
 
+/**
+ * The model bundle on disk does not share the vocabulary this package tokenizes
+ * against, so at least one generated token is absent from its `tokens.txt`.
+ *
+ * Distinct from WakePhraseError because the phrase is fine and the caller's only
+ * remedies are different: use the on-demand bundle, or supply a keywords file
+ * generated for their own model.
+ */
+export class WakePhraseModelMismatchError extends Error {
+  constructor(
+    message: string,
+    readonly missingTokens: string[]
+  ) {
+    super(message);
+    this.name = 'WakePhraseModelMismatchError';
+  }
+}
+
 export class WakePhraseError extends Error {
   constructor(
     message: string,
@@ -190,8 +208,21 @@ export function validateWakePhrase(phrase: string): WakePhraseValidation {
  * @throws KeywordTokenizerError if a phrase cannot be tokenized. Callers pass
  *   normalized phrases, for which this is unreachable, so an exception here is
  *   a programming error rather than bad user input.
+ * @throws WakePhraseError if the phrase list is empty, for the same reason: the
+ *   only alternative output would be a file holding one blank line.
  */
 export function buildKeywordsFileContents(phrases: readonly string[]): string {
+  // Guarded explicitly, symmetrically with encodeKeywordPhrase's empty-phrase
+  // guard: joining no lines would produce "\n", a keywords file whose only line
+  // is blank, and a blank line is exactly what sherpa-onnx answers by calling
+  // exit(-1). normalizeWakePhrases makes this unreachable today, but a future
+  // caller reaching it must not get a process-killing file.
+  if (phrases.length === 0) {
+    throw new WakePhraseError(
+      'Cannot build a keywords file from an empty phrase list.'
+    );
+  }
+
   const lines = phrases.map((phrase) => encodeKeywordPhrase(phrase).join(' '));
   return `${lines.join('\n')}\n`;
 }
@@ -260,6 +291,74 @@ export interface WakePhraseKeywordsFile {
 }
 
 /**
+ * Verify the tokens we are about to write against the vocabulary the native
+ * detector will actually consult.
+ *
+ * The tokenizer segments against a table baked from the on-demand bundle's
+ * `bpe.model`, but the detector points `tokens` at `<baseDirectory>/tokens.txt`,
+ * and an app may pass its own absolute `modelAssetKey`: a fine-tuned or
+ * replacement Sherpa-ONNX keyword-spotter bundle has a different vocabulary.
+ * Without this check such a mismatch reaches sherpa-onnx's EncodeBase, which
+ * calls exit(-1) and kills the host app with no signal, no crash report and
+ * nothing on the JS error path. That is issue #31 reproduced:
+ * https://github.com/prompt-agency/react-native-voice-activator/issues/31.
+ *
+ * So the real file is read rather than a proxy for it, which costs one read of a
+ * roughly 5 KB file per initialize() that uses wakePhrase.
+ */
+async function assertTokensAreInModelVocabulary(
+  rnfs: RNFS,
+  baseDirectory: string,
+  phrases: readonly string[],
+  contents: string
+): Promise<void> {
+  const tokensPath = `${baseDirectory}/tokens.txt`;
+
+  let raw: string;
+  try {
+    raw = await rnfs.readFile(tokensPath, 'utf8');
+  } catch {
+    // Deliberately skipped, not failed. The on-demand bundle is hash-verified,
+    // so its tokens.txt is always present, and the native asset loader already
+    // fails with a clean, catchable error when a model file is missing. Blocking
+    // on a read error would turn a filesystem hiccup into a hard failure on the
+    // known-good path.
+    return;
+  }
+
+  // One entry per line, "<piece> <id>": the token is everything before the last
+  // space, matching how scripts/verify-keyword-vocab.mjs parses the same file.
+  const vocabulary = new Set<string>();
+  for (const line of raw.split('\n')) {
+    if (line.length === 0) continue;
+    vocabulary.add(line.slice(0, line.lastIndexOf(' ')));
+  }
+
+  const missing: string[] = [];
+  for (const token of contents.split(/\s+/)) {
+    if (token.length === 0) continue;
+    if (!vocabulary.has(token) && !missing.includes(token)) {
+      missing.push(token);
+    }
+  }
+
+  if (missing.length === 0) return;
+
+  const sample = missing.slice(0, 5).join(', ');
+  throw new WakePhraseModelMismatchError(
+    `The model bundle at ${baseDirectory} has a different vocabulary than the one ` +
+      `this package tokenizes wakePhrase against: ${missing.length} token` +
+      `${missing.length > 1 ? 's' : ''} of ${phrases.map((phrase) => `"${phrase}"`).join(', ')} ` +
+      `${missing.length > 1 ? 'are' : 'is'} missing from its tokens.txt (${sample}). ` +
+      'Writing them would make sherpa-onnx terminate the app. Either use the ' +
+      'on-demand model bundle, or generate a pre-tokenized keywords file for your ' +
+      'own model and pass it as engineConfig.assetKeys.keywordAssetKey instead of ' +
+      'wakePhrase.',
+    missing
+  );
+}
+
+/**
  * Write (or reuse) the keywords file for a set of phrases.
  *
  * Content-addressed, so re-initialising with the same phrase is a no-op beyond a
@@ -276,6 +375,13 @@ export async function writeWakePhraseKeywords(
   const directory = `${baseDirectory}/generated-keywords`;
   const path = `${directory}/${wakePhraseFileName(phrases)}`;
   const contents = buildKeywordsFileContents(phrases);
+
+  await assertTokensAreInModelVocabulary(
+    rnfs,
+    baseDirectory,
+    phrases,
+    contents
+  );
 
   // Reuse only when the contents match: a file whose name collided, or that was
   // truncated, must be rewritten rather than trusted.

@@ -220,6 +220,40 @@ describe('initialize({ wakePhrase })', () => {
     expect(getStatus().lastError?.code).toBe('wake_phrase_conflict');
   });
 
+  it('rejects a model bundle whose vocabulary cannot represent the phrase', async () => {
+    const bridge = setupMocks();
+    const { initialize, getStatus } = await import('../public/voice-activator');
+    const vocabulary = require('../internal/keyword-vocab.generated.json') as {
+      pieces: Array<[string, number]>;
+    };
+
+    // A tokens.txt built from the real vocabulary minus one piece "HEY ACME"
+    // needs: what a fine-tuned or replacement keyword-spotter bundle looks like
+    // from here. Writing the generated tokens anyway would reach sherpa-onnx's
+    // EncodeBase, which calls exit(-1) and kills the app. That is issue #31.
+    mockWritten.set(
+      `${MODEL_ASSET_ROOT}/tokens.txt`,
+      vocabulary.pieces
+        .map(([piece], index) =>
+          piece === '\u2581HE' ? null : `${piece} ${index}`
+        )
+        .filter((line): line is string => line !== null)
+        .join('\n')
+    );
+
+    await expect(initialize({ wakePhrase: 'hey acme' })).rejects.toThrow(
+      /different vocabulary/
+    );
+
+    const lastError = getStatus().lastError;
+    expect(lastError?.code).toBe('wake_phrase_model_incompatible');
+    expect(lastError?.category).toBe('configuration');
+    expect(lastError?.recoverable).toBe(false);
+    expect(bridge.initialize).not.toHaveBeenCalled();
+    // Only the fixture, so no keywords file was written.
+    expect([...mockWritten.keys()]).toEqual([`${MODEL_ASSET_ROOT}/tokens.txt`]);
+  });
+
   it('rejects wakePhrase with an app-bundled model root', async () => {
     const { initialize, getStatus } = await import('../public/voice-activator');
 
