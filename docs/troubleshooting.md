@@ -87,6 +87,23 @@ Common causes:
   `engineConfig.assetKeys.modelAssetKey` (use the exported
   `BUNDLED_MODEL_ASSET_KEY` for the bundle the Expo plugin ships)
 
+## The app disappears during `initialize({ wakePhrase })`
+
+Fixed in 0.1.3. On 0.1.1 and 0.1.2 the process exits mid-initialize with no
+crash report, no signal and no JS error, so nothing reaches `onError`. Under
+`simctl launch --console-pty` the app's stderr shows:
+
+```
+sherpa-onnx/csrc/utils.cc:EncodeBase:68 Cannot find ID for token HEY at line: HEY ACME.
+sherpa-onnx/csrc/keyword-spotter-transducer-impl.h:InitKeywords:286 Encode keywords failed.
+```
+
+Those versions wrote a plain-text keywords file, and sherpa-onnx answers a token
+it cannot find in `tokens.txt` by calling `exit(-1)` rather than returning an
+error. Upgrade to 0.1.3, which tokenizes the phrase before writing the file. If a
+plain-text file is still on the device from the older version it is rewritten on
+the next `initialize()`.
+
 ## A custom `wakePhrase` never fires
 
 Nothing errors — the keyword simply never matches. Work through these:
@@ -98,11 +115,13 @@ Nothing errors — the keyword simply never matches. Work through these:
 - **Raise `engineConfig.sensitivity`.** The default is `0.5`. Higher detects more
   and false-fires more; find the operating point in your own acoustic conditions.
 - **Check the generated file.** `getModelStatus().directory` plus
-  `generated-keywords/` is where it lives. It should be plain uppercase text, one
-  phrase per line, with no `▁` characters. A `▁` means a pre-tokenized file is
-  being used with the raw-text path, which cannot match.
-- **Confirm the models are the on-demand bundle.** `wakePhrase` needs `bpe.model`,
-  which the bundle carries. It is rejected outright with an app-bundled model root.
+  `generated-keywords/` is where it lives. It holds tokenized output, one phrase
+  per line, so it should look like `▁HE Y ▁A C ME` and not like `HEY ACME`. Plain
+  uppercase text means a file left behind by 0.1.1 or 0.1.2; delete it, or clear
+  app storage, and initialize again.
+- **Confirm the models are the on-demand bundle.** The generated keywords file is
+  written next to it, so `wakePhrase` is rejected outright with an app-bundled
+  model root.
 
 Detection rates for arbitrary phrases are not yet measured on physical devices —
 see [Reliability Validation](/reliability-validation). Measure before shipping.
