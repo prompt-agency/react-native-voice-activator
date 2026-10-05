@@ -60,7 +60,7 @@ export interface Spec extends TurboModule {
    * front-end — but it produces the same numbers against a fixed corpus,
    * reproducibly, which acoustic runs cannot.
    *
-   * options: { filePath, keywordsPath?, modelPath?, keywordsAreRawText?, sensitivity? }
+   * options: { filePath, keywordsPath?, modelPath?, sensitivity? }
    * returns: { detections: [{ keyword, atMs }], durationMs, sampleRate }
    */
   evaluateWavFile(

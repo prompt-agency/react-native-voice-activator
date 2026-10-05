@@ -1001,8 +1001,8 @@ export const voiceActivator: VoiceActivatorApi = {
         return rejectConfiguration(
           'wake_phrase_conflict',
           'Pass either wakePhrase or engineConfig.assetKeys.keywordAssetKey, not ' +
-            'both. wakePhrase generates a plain-text keywords file that the native ' +
-            'side tokenizes; keywordAssetKey selects a pre-tokenized file.'
+            'both. wakePhrase generates a tokenized keywords file; ' +
+            'keywordAssetKey selects one you supply.'
         );
       }
 
@@ -1036,7 +1036,6 @@ export const voiceActivator: VoiceActivatorApi = {
 
       resolvedEngineConfig = {
         ...resolvedEngineConfig,
-        keywordsAreRawText: true,
         assetKeys: {
           ...resolvedEngineConfig?.assetKeys,
           keywordAssetKey: generated.path,

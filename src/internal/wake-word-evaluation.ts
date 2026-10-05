@@ -41,8 +41,6 @@ export interface WakeWordEvaluationCorpus {
   modelPath?: string;
   /** Keywords file. Required unless the model root carries a default. */
   keywordsPath?: string;
-  /** True when `keywordsPath` holds plain text rather than BPE tokens. */
-  keywordsAreRawText?: boolean;
 }
 
 export interface WakeWordFileResult {
@@ -91,7 +89,6 @@ async function evaluateFile(
     sensitivity,
     ...(corpus.modelPath ? { modelPath: corpus.modelPath } : {}),
     ...(corpus.keywordsPath ? { keywordsPath: corpus.keywordsPath } : {}),
-    ...(corpus.keywordsAreRawText ? { keywordsAreRawText: true } : {}),
   })) as NativeEvaluation;
 
   return {

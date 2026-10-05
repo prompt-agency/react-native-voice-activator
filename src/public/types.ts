@@ -43,13 +43,6 @@ export interface WakeWordEngineAssetKeys {
 export interface WakeWordEngineConfiguration {
   assetKeys?: WakeWordEngineAssetKeys;
   sensitivity?: number;
-  /**
-   * @internal Set by the runtime when `wakePhrase` generated the keywords file.
-   *
-   * Tells the native side the keywords file holds plain text, so it must
-   * tokenize it via `bpe.model` instead of expecting pre-tokenized BPE output.
-   */
-  keywordsAreRawText?: boolean;
 }
 
 export interface WakeWordEngineCapabilities {

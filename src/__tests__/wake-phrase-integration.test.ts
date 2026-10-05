@@ -1,14 +1,15 @@
 /**
  * wake-phrase-integration.test.ts
  *
- * End to end for `initialize({ wakePhrase })`: the phrase becomes a plain-text
- * keywords file next to the model bundle, and the native payload carries both
- * its absolute path and the flag that tells sherpa-onnx to tokenize the text via
- * bpe.model rather than expecting pre-tokenized BPE output.
+ * End to end for `initialize({ wakePhrase })`: the phrase becomes a
+ * pre-tokenized keywords file next to the model bundle, and the native payload
+ * carries its absolute path.
  *
- * Getting that flag wrong is silent: a pre-tokenized file run through the
- * tokenizer, or plain text passed without it, produces a keyword that simply
- * never matches. So the flag is asserted explicitly, both ways round.
+ * Nothing tells the native side to tokenize anything any more. It used to, via
+ * `keywordsAreRawText`, and that path called exit(-1) inside sherpa-onnx: the
+ * app vanished with no crash report and nothing on the JS error path. The
+ * absence of the flag is asserted rather than assumed, because reintroducing it
+ * would fail silently in tests and fatally on a device.
  */
 
 const mockWritten = new Map<string, string>();
@@ -103,7 +104,7 @@ describe('initialize({ wakePhrase })', () => {
     setupMocks();
   });
 
-  it('writes a plain-text keywords file and points the engine at it', async () => {
+  it('writes a pre-tokenized keywords file and points the engine at it', async () => {
     const bridge = setupMocks();
     const { initialize } = await import('../public/voice-activator');
 
@@ -113,21 +114,21 @@ describe('initialize({ wakePhrase })', () => {
     expect(written).toBeDefined();
     const [path, contents] = written!;
 
-    // Plain text, uppercased, one phrase per line — not pre-tokenized.
-    expect(contents).toBe('HEY ACME\n');
-    expect(contents).not.toContain('▁');
-    // Beside the model files, so clearing app storage clears both. This
-    // follows modelAssetKey rather than the bundle root: the keywords file is
-    // documented as living next to the model root, and there is only one
-    // notion of that root.
+    // Pre-tokenized vocabulary pieces, like the bundled presets.
+    expect(contents).toBe('\u2581HE Y \u2581A C ME\n');
+    expect(contents).toContain('\u2581');
     expect(path.startsWith(`${MODEL_ASSET_ROOT}/generated-keywords/`)).toBe(
       true
     );
 
+    const payload = bridge.initialize.mock.calls[0]![0] as {
+      engineConfig?: Record<string, unknown>;
+    };
+    expect(payload.engineConfig).not.toHaveProperty('keywordsAreRawText');
+
     expect(bridge.initialize).toHaveBeenCalledWith(
       expect.objectContaining({
         engineConfig: expect.objectContaining({
-          keywordsAreRawText: true,
           assetKeys: expect.objectContaining({
             modelAssetKey: MODEL_ASSET_ROOT,
             keywordAssetKey: path,
@@ -137,23 +138,24 @@ describe('initialize({ wakePhrase })', () => {
     );
   });
 
-  it('does not set the raw-text flag for a bundled preset', async () => {
+  it('never sends a raw-text flag, for a preset or a generated phrase', async () => {
     const bridge = setupMocks();
-    const { initialize } = await import('../public/voice-activator');
+    const { initialize, dispose } = await import('../public/voice-activator');
 
     await initialize({
       engineConfig: {
         assetKeys: { keywordAssetKey: 'keywords-hello-world.txt' },
       },
     });
+    await dispose();
+    await initialize({ wakePhrase: 'hey acme' });
 
-    const payload = bridge.initialize.mock.calls[0]![0] as {
-      engineConfig?: { keywordsAreRawText?: boolean };
-    };
-    // The bundled presets are already tokenized; running them through the
-    // tokenizer would produce a keyword that never matches.
-    expect(payload.engineConfig?.keywordsAreRawText).toBeUndefined();
-    expect(mockWritten.size).toBe(0);
+    for (const call of bridge.initialize.mock.calls) {
+      const payload = call[0] as { engineConfig?: Record<string, unknown> };
+      expect(payload.engineConfig ?? {}).not.toHaveProperty(
+        'keywordsAreRawText'
+      );
+    }
   });
 
   it('supports several phrases in one file', async () => {
@@ -162,7 +164,7 @@ describe('initialize({ wakePhrase })', () => {
     await initialize({ wakePhrase: ['hey acme', 'ok acme'] });
 
     const [, contents] = [...mockWritten.entries()][0]!;
-    expect(contents).toBe('HEY ACME\nOK ACME\n');
+    expect(contents).toBe('\u2581HE Y \u2581A C ME\n\u2581O K \u2581A C ME\n');
   });
 
   it('reuses the file across initialize() calls with the same phrase', async () => {
@@ -229,5 +231,40 @@ describe('initialize({ wakePhrase })', () => {
     ).rejects.toThrow(/requires the on-demand model bundle/);
 
     expect(getStatus().lastError?.code).toBe('wake_phrase_unsupported_root');
+  });
+});
+
+describe('evaluating a generated keywords file', () => {
+  it('sends no raw-text flag to the native evaluator', async () => {
+    jest.resetModules();
+    const evaluateWavFile = jest.fn(async (_options: unknown) => ({
+      detections: [],
+      durationMs: 1000,
+      sampleRate: 16000,
+    }));
+
+    // wake-word-evaluation.ts imports the codegen spec directly as a default
+    // export, not through internal/native-module. Mock the module it actually
+    // imports, in the __esModule shape the other native tests use.
+    jest.doMock('../NativeVoiceActivator', () => ({
+      __esModule: true,
+      default: { evaluateWavFile },
+    }));
+
+    const { evaluateWakeWordCorpus } =
+      await import('../internal/wake-word-evaluation');
+
+    await evaluateWakeWordCorpus({
+      positives: ['/audio/positive.wav'],
+      negatives: [],
+      keywordsPath: '/models/generated-keywords/hey-acme-8b30f51d.txt',
+    });
+
+    expect(evaluateWavFile).toHaveBeenCalledTimes(1);
+    // The flag was what made sherpa-onnx tokenize, and tokenizing a
+    // pre-tokenized file matches nothing. It must not come back.
+    expect(evaluateWavFile.mock.calls[0]![0]).not.toHaveProperty(
+      'keywordsAreRawText'
+    );
   });
 });
