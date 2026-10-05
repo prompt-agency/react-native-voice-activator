@@ -64,16 +64,20 @@ describe('words that stress the segmenter', () => {
   it('segments a word longer than the longest vocabulary piece', () => {
     expect(LONGEST_VOCABULARY_PIECE).toBeLessThan('EXTRAORDINARILY'.length);
     expect(encodeKeywordPhrase('EXTRAORDINARILY LOUD').join('')).toBe(
-      '▁EXTRAORDINARILY▁LOUD'
+      '\u2581EXTRAORDINARILY\u2581LOUD'
     );
   });
 
   it('segments a single letter repeated', () => {
-    expect(encodeKeywordPhrase('ZZZZZZ NOW').join('')).toBe('▁ZZZZZZ▁NOW');
+    expect(encodeKeywordPhrase('ZZZZZZ NOW').join('')).toBe(
+      '\u2581ZZZZZZ\u2581NOW'
+    );
   });
 
   it('segments apostrophes at the start and end of a word', () => {
-    expect(encodeKeywordPhrase("'TIS ACME'").join('')).toBe("▁'TIS▁ACME'");
+    expect(encodeKeywordPhrase("'TIS ACME'").join('')).toBe(
+      "\u2581'TIS\u2581ACME'"
+    );
   });
 
   it('round-trips every token back to the input', () => {
@@ -82,7 +86,7 @@ describe('words that stress the segmenter', () => {
     // wrong phrase. Concatenation is the only check that catches that.
     for (const phrase of ['HEY ACME', "WHAT'S UP NOW", 'OK COMPUTER']) {
       expect(encodeKeywordPhrase(phrase).join('')).toBe(
-        `▁${phrase.split(' ').join('▁')}`
+        `\u2581${phrase.split(' ').join('\u2581')}`
       );
     }
   });

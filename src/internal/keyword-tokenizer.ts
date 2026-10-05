@@ -22,7 +22,7 @@
 import vocabulary from './keyword-vocab.generated.json';
 
 /** SentencePiece's space marker, written escaped so an editor cannot mangle it. */
-const SPACE_MARKER = '▁';
+const SPACE_MARKER = '\u2581';
 
 export class KeywordTokenizerError extends Error {
   constructor(
@@ -76,8 +76,8 @@ export function encodeKeywordPhrase(phrase: string): string[] {
 
   for (let start = 0; start < count; start += 1) {
     const scoreHere = bestScore[start]!;
-    // Unreachable because every piece spanning an unknown character is itself
-    // absent from the vocabulary.
+    // Nothing reached this position, so no candidate can start here. Happens
+    // when an unknown character earlier in the phrase left a gap.
     if (scoreHere === -Infinity) continue;
 
     const limit = Math.min(LONGEST_VOCABULARY_PIECE, count - start);
