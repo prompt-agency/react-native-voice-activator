@@ -365,9 +365,6 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
         configuration = SherpaOnnxAssetRequest(
           modelAssetKey = options.getString("modelPath"),
           keywordAssetKey = options.getString("keywordsPath"),
-          rawTextKeywords =
-            options.hasKey("keywordsAreRawText") &&
-              options.getBoolean("keywordsAreRawText"),
         ),
       )
 
