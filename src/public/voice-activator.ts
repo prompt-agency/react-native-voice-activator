@@ -54,6 +54,7 @@ import {
   getModelBundleStatus,
   modelBundleManifest,
   prepareModelBundle,
+  resolveModelAssetRoot,
   type ModelBundleStatus,
   type ModelPreparationOptions,
 } from '../internal/model-store';
@@ -987,7 +988,10 @@ export const voiceActivator: VoiceActivatorApi = {
         ...resolvedEngineConfig,
         assetKeys: {
           ...resolvedEngineConfig?.assetKeys,
-          modelAssetKey: modelStatus.directory,
+          // The directory holding the model files, not the bundle root: an
+          // absolute modelAssetKey is joined straight onto a file name by both
+          // native loaders, with no recursion into subdirectories.
+          modelAssetKey: resolveModelAssetRoot(modelStatus.directory),
         },
       };
     }

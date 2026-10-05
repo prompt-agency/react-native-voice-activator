@@ -1,7 +1,7 @@
 {
   "algorithm": "sha256",
   "assets": {
-    "sherpa-onnx.xcframework.zip": "4928ddfb332b98a987348c93ada33907c30068433df8baabcefab268198a58ad",
-    "sherpa-onnxruntime.xcframework.zip": "0773431c9769ab426e917a59c21d0f90d418568195219963cb7f1981da9df6b4"
+    "sherpa-onnx.xcframework.zip": "353a09a7f6558cc52b0f21a8b5286e6857d97dbe6a60f894c1c9b9faca53fc4f",
+    "sherpa-onnxruntime.xcframework.zip": "c6b9e6f60d0591df5db01d292b4d2b709e5e0754f99ada93d7f6357155848838"
   }
 }

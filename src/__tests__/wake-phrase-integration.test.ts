@@ -31,6 +31,14 @@ import type { WakeWordDetectedEvent } from '../public/types';
 
 const MODEL_DIR = '/Library/voice-activator/models/1';
 
+/**
+ * Where the model files actually sit inside the bundle, and therefore what
+ * initialize() hands the native loader as modelAssetKey. The bundle root is
+ * one level up; an absolute root is joined straight onto a file name by both
+ * native loaders, so the root has to be this directory and not MODEL_DIR.
+ */
+const MODEL_ASSET_ROOT = `${MODEL_DIR}/SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01`;
+
 describe('initialize({ wakePhrase })', () => {
   function setupMocks() {
     const runtimeBridge = {
@@ -108,15 +116,20 @@ describe('initialize({ wakePhrase })', () => {
     // Plain text, uppercased, one phrase per line — not pre-tokenized.
     expect(contents).toBe('HEY ACME\n');
     expect(contents).not.toContain('▁');
-    // Beside the model bundle, so clearing app storage clears both.
-    expect(path.startsWith(`${MODEL_DIR}/generated-keywords/`)).toBe(true);
+    // Beside the model files, so clearing app storage clears both. This
+    // follows modelAssetKey rather than the bundle root: the keywords file is
+    // documented as living next to the model root, and there is only one
+    // notion of that root.
+    expect(path.startsWith(`${MODEL_ASSET_ROOT}/generated-keywords/`)).toBe(
+      true
+    );
 
     expect(bridge.initialize).toHaveBeenCalledWith(
       expect.objectContaining({
         engineConfig: expect.objectContaining({
           keywordsAreRawText: true,
           assetKeys: expect.objectContaining({
-            modelAssetKey: MODEL_DIR,
+            modelAssetKey: MODEL_ASSET_ROOT,
             keywordAssetKey: path,
           }),
         }),

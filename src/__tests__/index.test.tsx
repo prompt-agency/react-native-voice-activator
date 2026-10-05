@@ -56,6 +56,17 @@ function createDeferred() {
   return { promise, resolve };
 }
 
+/**
+ * What initialize() resolves modelAssetKey to when the caller supplies none:
+ * the directory inside the downloaded bundle that actually holds the model
+ * files, not the bundle root that jest.setup.js reports as `directory`. Both
+ * native loaders join a file name straight onto an absolute root without
+ * recursing, so the extra nesting is load-bearing.
+ */
+const RESOLVED_MODEL_ASSET_KEY =
+  '/mock/voice-activator/models/SherpaOnnxKws/' +
+  'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
+
 describe('public runtime state and event contract', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -371,7 +382,7 @@ describe('public runtime state and event contract', () => {
         // Resolved from the on-demand model bundle because the caller supplied
         // no modelAssetKey of its own.
         assetKeys: {
-          modelAssetKey: '/mock/voice-activator/models',
+          modelAssetKey: RESOLVED_MODEL_ASSET_KEY,
         },
       },
       engineMetadata: {
@@ -452,7 +463,7 @@ describe('public runtime state and event contract', () => {
       engineConfig: {
         sensitivity: 0.5,
         assetKeys: {
-          modelAssetKey: '/mock/voice-activator/models',
+          modelAssetKey: RESOLVED_MODEL_ASSET_KEY,
         },
       },
       engineMetadata: {
@@ -477,7 +488,7 @@ describe('public runtime state and event contract', () => {
         engineConfig: {
           sensitivity: 0.5,
           assetKeys: {
-            modelAssetKey: '/mock/voice-activator/models',
+            modelAssetKey: RESOLVED_MODEL_ASSET_KEY,
           },
         },
         engineMetadata: {
