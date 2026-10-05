@@ -90,8 +90,10 @@ Common causes:
 ## The app disappears during `initialize({ wakePhrase })`
 
 Fixed in 0.1.3. On 0.1.1 and 0.1.2 the process exits mid-initialize with no
-crash report, no signal and no JS error, so nothing reaches `onError`. Under
-`simctl launch --console-pty` the app's stderr shows:
+crash report, no signal and no JS error, so nothing reaches `onError`. On an iOS
+simulator `launchd_sim` logs `exited due to exit(255)` with
+`RBSProcessExitContext| voluntary`, which is the only trace outside the app's own
+stderr. Under `simctl launch --console-pty` that stderr shows:
 
 ```
 sherpa-onnx/csrc/utils.cc:EncodeBase:68 Cannot find ID for token HEY at line: HEY ACME.
@@ -100,7 +102,8 @@ sherpa-onnx/csrc/keyword-spotter-transducer-impl.h:InitKeywords:286 Encode keywo
 
 Those versions wrote a plain-text keywords file, and sherpa-onnx answers a token
 it cannot find in `tokens.txt` by calling `exit(-1)` rather than returning an
-error. Upgrade to 0.1.3, which tokenizes the phrase before writing the file. If a
+error, which the system reports as exit status 255. Upgrade to 0.1.3, which
+tokenizes the phrase before writing the file. If a
 plain-text file is still on the device from the older version it is rewritten on
 the next `initialize()`.
 
