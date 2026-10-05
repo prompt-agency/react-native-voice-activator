@@ -314,16 +314,48 @@ async function assertTokensAreInModelVocabulary(
 ): Promise<void> {
   const tokensPath = `${baseDirectory}/tokens.txt`;
 
+  let fileExists: boolean;
+  try {
+    fileExists = await rnfs.exists(tokensPath);
+  } catch {
+    // exists() itself failed. A filesystem layer that cannot answer whether a
+    // file is there cannot be relied on for the stricter read-and-parse check
+    // either, so this is treated the same as "absent": the on-demand bundle is
+    // hash-verified, so its tokens.txt is always present, and the native asset
+    // loader already fails with a clean, catchable error when a model file is
+    // missing. The known-good on-demand path must not become fragile because a
+    // filesystem query failed.
+    return;
+  }
+
+  if (!fileExists) {
+    // The on-demand bundle is hash-verified, so its tokens.txt is always
+    // present, and the native asset loader already fails with a clean,
+    // catchable error when a model file is missing. There is nothing to verify
+    // against here, and nothing to fail on.
+    return;
+  }
+
   let raw: string;
   try {
     raw = await rnfs.readFile(tokensPath, 'utf8');
-  } catch {
-    // Deliberately skipped, not failed. The on-demand bundle is hash-verified,
-    // so its tokens.txt is always present, and the native asset loader already
-    // fails with a clean, catchable error when a model file is missing. Blocking
-    // on a read error would turn a filesystem hiccup into a hard failure on the
-    // known-good path.
-    return;
+  } catch (cause) {
+    // tokens.txt exists but could not be read: a permissions problem, a
+    // transient I/O error, or a path the JS filesystem layer cannot read while
+    // the native C++ loader can. This is exactly the custom-bundle path this
+    // check exists to protect, so it is a hard failure rather than a skip:
+    // writing possibly mismatched tokens here reaches the exit(-1) this check
+    // guards against, and that failure mode is a silent process exit with no
+    // catchable error on the JS side.
+    throw new WakePhraseModelMismatchError(
+      `The model bundle vocabulary at ${baseDirectory} could not be verified: ` +
+        `tokens.txt exists at ${tokensPath} but could not be read (${String(cause)}). ` +
+        'Writing wakePhrase tokens without verifying them risks terminating the ' +
+        'app. Fix the underlying read failure, or generate a pre-tokenized ' +
+        'keywords file for your own model and pass it as ' +
+        'engineConfig.assetKeys.keywordAssetKey instead of wakePhrase.',
+      []
+    );
   }
 
   // One entry per line, "<piece> <id>": the token is everything before the last

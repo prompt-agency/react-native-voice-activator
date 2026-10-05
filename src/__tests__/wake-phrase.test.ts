@@ -199,6 +199,7 @@ describe('upgrading from a version that wrote plain text', () => {
   async function loadModule() {
     jest.doMock('@dr.pogodin/react-native-fs', () => ({
       mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async (path: string) => stored.has(path)),
       readFile: jest.fn(async (path: string) => {
         const value = stored.get(path);
         if (value === undefined) throw new Error(`ENOENT: ${path}`);
@@ -250,6 +251,7 @@ describe('verifying the phrase against the model bundle vocabulary', () => {
   async function loadModule() {
     jest.doMock('@dr.pogodin/react-native-fs', () => ({
       mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async (path: string) => stored.has(path)),
       readFile: jest.fn(async (path: string) => {
         const value = stored.get(path);
         if (value === undefined) throw new Error(`ENOENT: ${path}`);
@@ -325,17 +327,57 @@ describe('verifying the phrase against the model bundle vocabulary', () => {
     expect([...stored.keys()]).toEqual(['/models/tokens.txt']);
   });
 
-  it('skips verification, rather than failing, when tokens.txt cannot be read', async () => {
-    const { writeWakePhraseKeywords } = await loadModule();
+  it('fails rather than skipping verification when tokens.txt exists but cannot be read', async () => {
+    const { writeWakePhraseKeywords, WakePhraseModelMismatchError } =
+      await loadModule();
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+      mkdir: jest.Mock;
+    };
     stored.set('/models/tokens.txt', UNREADABLE);
+
+    const error = await writeWakePhraseKeywords('hey acme', '/models').then(
+      () => null,
+      (cause: unknown) => cause
+    );
+
+    expect(error).toBeInstanceOf(WakePhraseModelMismatchError);
+    expect(
+      (error as InstanceType<typeof WakePhraseModelMismatchError>).missingTokens
+    ).toEqual([]);
+    expect((error as Error).message).toContain('tokens.txt');
+    expect((error as Error).message).toContain('/models');
+    // This is exactly the path the check protects: a mismatch here reaches
+    // exit(-1), so nothing is written on an unverifiable vocabulary either.
+    expect(rnfs.writeFile).not.toHaveBeenCalled();
+    expect(rnfs.mkdir).not.toHaveBeenCalled();
+  });
+
+  it('skips verification when there is no tokens.txt at all', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
 
     const result = await writeWakePhraseKeywords('hey acme', '/models');
 
     expect(stored.get(result.path)).toBe('\u2581HE Y \u2581A C ME\n');
   });
 
-  it('skips verification when there is no tokens.txt at all', async () => {
-    const { writeWakePhraseKeywords } = await loadModule();
+  it('skips verification when exists() itself fails', async () => {
+    jest.doMock('@dr.pogodin/react-native-fs', () => ({
+      mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async () => {
+        throw new Error('EPERM: cannot stat');
+      }),
+      readFile: jest.fn(async (path: string) => {
+        const value = stored.get(path);
+        if (value === undefined) throw new Error(`ENOENT: ${path}`);
+        return value;
+      }),
+      writeFile: jest.fn(async (path: string, contents: string) => {
+        stored.set(path, contents);
+      }),
+    }));
+    const { writeWakePhraseKeywords } = await import('../internal/wake-phrase');
+    stored.set('/models/tokens.txt', tokensFile('\u2581HE'));
 
     const result = await writeWakePhraseKeywords('hey acme', '/models');
 

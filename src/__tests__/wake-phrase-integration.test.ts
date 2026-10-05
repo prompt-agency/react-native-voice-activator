@@ -18,6 +18,7 @@ jest.mock('@dr.pogodin/react-native-fs', () => ({
   LibraryDirectoryPath: '/Library',
   DocumentDirectoryPath: '/Documents',
   mkdir: jest.fn(async () => undefined),
+  exists: jest.fn(async (p: string) => mockWritten.has(p)),
   readFile: jest.fn(async (p: string) => {
     const value = mockWritten.get(p);
     if (value === undefined) throw new Error(`ENOENT: ${p}`);
