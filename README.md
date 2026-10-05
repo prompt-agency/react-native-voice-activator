@@ -18,6 +18,15 @@ listens for a phrase you choose, entirely on the device, and opens the mic the
 moment it fires. Hand that hot mic to ElevenLabs, LiveKit or OpenAI Realtime, or
 run the whole turn offline and never touch a network.
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="The example app listening: the detection counter stays at zero through several seconds of ordinary speech, then the wake word fires" width="340" />
+</p>
+
+<p align="center">
+  <em>Seconds of ordinary speech, nothing fires. The phrase lands, the gate opens.<br />
+  Recorded with the bundled <code>hey siri</code> keyword on an iOS&nbsp;26 simulator.</em>
+</p>
+
 Every speech-to-speech platform starts from a session that is already running
 and a microphone that is already open. None of them ships the part before that.
 As of September 2026, LiveKit has on-device wake word with Python, Rust and
