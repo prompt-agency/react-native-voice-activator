@@ -15,6 +15,7 @@ import {
   WakePhraseError,
   wakePhraseFileName,
 } from '../internal/wake-phrase';
+import { KeywordTokenizerError } from '../internal/keyword-tokenizer';
 
 describe('normalizing a wake phrase', () => {
   it('uppercases and collapses whitespace', () => {
@@ -89,15 +90,24 @@ describe('rejecting phrases that cannot work', () => {
 });
 
 describe('the generated keywords file', () => {
-  it('writes one plain-text phrase per line', () => {
+  it('writes one pre-tokenized phrase per line', () => {
+    // Matches the shape of the bundled presets: sherpa-onnx reads the keywords
+    // file as space-separated vocabulary pieces and calls exit(-1) on a token
+    // it cannot find, so plain text here terminates the host app.
     expect(buildKeywordsFileContents(['HEY ACME', 'OK ACME'])).toBe(
-      'HEY ACME\nOK ACME\n'
+      '▁HE Y ▁A C ME\n▁O K ▁A C ME\n'
     );
   });
 
-  it('is not pre-tokenized — native tokenizes it via bpe.model', () => {
-    // The bundled presets look like "▁HE LL O ▁WORLD"; generated files must not.
-    expect(buildKeywordsFileContents(['HEY ACME'])).not.toContain('▁');
+  it('is pre-tokenized, like the bundled presets', () => {
+    expect(buildKeywordsFileContents(['HEY ACME'])).toContain('▁');
+  });
+
+  it('rejects a phrase it cannot tokenize rather than writing a blank line', () => {
+    // A blank or partial line is what reaches EncodeBase and exits the process.
+    expect(() => buildKeywordsFileContents(['hey acme'])).toThrow(
+      KeywordTokenizerError
+    );
   });
 
   it('names the file from the phrase, so it is recognisable on disk', () => {
@@ -168,5 +178,56 @@ describe('validateWakePhrase (non-throwing, for UI feedback)', () => {
     // The two must not drift: this delegates to the same normalizer.
     expect(validateWakePhrase('ok acme').valid).toBe(true);
     expect(validateWakePhrase('go').valid).toBe(false);
+  });
+});
+
+describe('upgrading from a version that wrote plain text', () => {
+  const stored = new Map<string, string>();
+
+  beforeEach(() => {
+    jest.resetModules();
+    stored.clear();
+  });
+
+  async function loadModule() {
+    jest.doMock('@dr.pogodin/react-native-fs', () => ({
+      mkdir: jest.fn(async () => undefined),
+      readFile: jest.fn(async (path: string) => {
+        const value = stored.get(path);
+        if (value === undefined) throw new Error(`ENOENT: ${path}`);
+        return value;
+      }),
+      writeFile: jest.fn(async (path: string, contents: string) => {
+        stored.set(path, contents);
+      }),
+    }));
+    return import('../internal/wake-phrase');
+  }
+
+  it('rewrites a stale plain-text file at the same path', async () => {
+    const { writeWakePhraseKeywords, wakePhraseFileName } = await loadModule();
+    const base = '/models';
+    const stalePath = `${base}/generated-keywords/${wakePhraseFileName(['HEY ACME'])}`;
+
+    // Exactly what 0.1.1 and 0.1.2 wrote, at the path this version also picks.
+    stored.set(stalePath, 'HEY ACME\n');
+
+    const result = await writeWakePhraseKeywords('hey acme', base);
+
+    expect(result.path).toBe(stalePath);
+    expect(stored.get(stalePath)).toBe('▁HE Y ▁A C ME\n');
+    expect(stored.get(stalePath)).not.toBe('HEY ACME\n');
+  });
+
+  it('reuses a file that is already tokenized', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+    };
+
+    await writeWakePhraseKeywords('hey acme', '/models');
+    await writeWakePhraseKeywords('hey acme', '/models');
+
+    expect(rnfs.writeFile).toHaveBeenCalledTimes(1);
   });
 });

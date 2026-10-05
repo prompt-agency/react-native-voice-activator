@@ -2,16 +2,22 @@
  * Arbitrary wake phrases, without training a model.
  *
  * The bundled Sherpa-ONNX keyword spotter is open-vocabulary: it detects phrases
- * that were never in its training data. A keywords file normally holds
- * pre-tokenized BPE output, which is why the nine bundled presets look like
- * `▁HE LL O ▁WORLD`. But `simple-sentencepiece` is statically linked into the
- * native library, so setting `modeling_unit = "bpe"` and `bpe_vocab` to the
- * `bpe.model` already in the model bundle lets the native side tokenize plain
- * text itself.
+ * that were never in its training data. What it needs is a keywords file of
+ * pre-tokenized vocabulary pieces, which is why the nine bundled presets look
+ * like `▁HE LL O ▁WORLD`. This module validates a phrase, tokenizes it through
+ * keyword-tokenizer.ts, and writes that file.
  *
- * So a custom wake phrase costs one generated text file — no GPU, no training
- * run, no per-keyword model. This module produces that file.
+ * So a custom wake phrase costs one generated text file: no GPU, no training
+ * run, no per-keyword model.
+ *
+ * Earlier versions wrote plain text and asked the native side to tokenize it by
+ * setting `modeling_unit = "bpe"`. That does not work, and sherpa-onnx answers
+ * an untokenized line by calling exit(-1), which kills the host app with no
+ * crash report and nothing on the JS error path. See
+ * https://github.com/prompt-agency/react-native-voice-activator/issues/31.
  */
+
+import { encodeKeywordPhrase } from './keyword-tokenizer';
 
 export interface WakePhraseValidationIssue {
   phrase: string;
@@ -178,13 +184,16 @@ export function validateWakePhrase(phrase: string): WakePhraseValidation {
 }
 
 /**
- * Body of the keywords file sherpa-onnx reads: one phrase per line.
+ * Body of the keywords file sherpa-onnx reads: one pre-tokenized phrase per
+ * line, space-separated vocabulary pieces, exactly like the bundled presets.
  *
- * With `modeling_unit = "bpe"` the native side tokenizes each line, so this is
- * plain text rather than the pre-tokenized form the bundled presets use.
+ * @throws KeywordTokenizerError if a phrase cannot be tokenized. Callers pass
+ *   normalized phrases, for which this is unreachable, so an exception here is
+ *   a programming error rather than bad user input.
  */
 export function buildKeywordsFileContents(phrases: readonly string[]): string {
-  return `${phrases.join('\n')}\n`;
+  const lines = phrases.map((phrase) => encodeKeywordPhrase(phrase).join(' '));
+  return `${lines.join('\n')}\n`;
 }
 
 /**
