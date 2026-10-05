@@ -151,6 +151,35 @@ function resolveModelRoot(rnfs: RNFS): string {
   return `${base}/voice-activator/models/${modelBundleManifest.bundleVersion}`;
 }
 
+/**
+ * Absolute directory the Sherpa-ONNX model files themselves sit in.
+ *
+ * NOT the same as the bundle root. The manifest nests every model file under
+ * `SherpaOnnxKws/<upstream-model-dir>/`, mirroring the layout of the upstream
+ * release, while the bundle root is the versioned directory that holds that
+ * tree plus `silero_vad.onnx` and the generated keyword files.
+ *
+ * The distinction is load-bearing. Both native loaders resolve an ABSOLUTE
+ * `modelAssetKey` by joining a candidate file name straight onto it — no
+ * recursive search, and the bundle-relative fallbacks are skipped entirely
+ * once the root is absolute (see `resolvePathForAsset` in
+ * `ios/Engines/SherpaOnnx/SherpaOnnxAssetLoader.mm` and `resolveModelAsset` in
+ * the Android loader). Handing them the bundle root made the documented
+ * default flow fail with "Missing bundled Sherpa-ONNX encoder model in
+ * .../models/<version>" even though the file was present two levels down.
+ *
+ * Derived from the manifest rather than hardcoded so the two cannot drift.
+ */
+export function resolveModelAssetRoot(directory: string): string {
+  const encoder = modelBundleManifest.files.find((spec) =>
+    spec.path.split('/').at(-1)?.startsWith('encoder')
+  );
+
+  const nesting = encoder?.path.split('/').slice(0, -1).join('/');
+
+  return nesting ? `${directory}/${nesting}` : directory;
+}
+
 function defaultBaseUrl(): string {
   // Kept in sync with the podspec and the Gradle task, which resolve their own
   // binaries from the matching release tag.

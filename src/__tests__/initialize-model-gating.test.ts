@@ -141,10 +141,59 @@ describe('initialize() model gating', () => {
       expect.objectContaining({
         engineConfig: expect.objectContaining({
           assetKeys: expect.objectContaining({
-            modelAssetKey: '/Library/models/1',
+            modelAssetKey:
+              '/Library/models/1/SherpaOnnxKws/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01',
           }),
         }),
       })
+    );
+  });
+
+  /**
+   * Regression test for the on-demand bundle resolving to the wrong root.
+   *
+   * The manifest nests every model file under
+   * `SherpaOnnxKws/<model-dir>/`, but both native loaders resolve an absolute
+   * modelAssetKey by joining the file name directly onto it — no recursion,
+   * and no bundle fallback once the root is absolute. Passing the bundle root
+   * therefore failed with "Missing bundled Sherpa-ONNX encoder model in
+   * .../models/1" on every iOS run of the documented default flow
+   * (`initialize({ wakePhrase })` with no engineConfig).
+   *
+   * Derived from the manifest rather than hardcoded, so that re-pointing the
+   * bundle at a differently shaped upstream release fails here instead of on
+   * a device.
+   */
+  it('resolves to the directory that actually contains the encoder', async () => {
+    const bridge = setupMocks();
+    mockModelStore({ ready: true, directory: '/Library/models/1' });
+
+    const { modelBundleManifest } = jest.requireActual(
+      '../internal/model-store'
+    ) as {
+      modelBundleManifest: { files: { path: string }[] };
+    };
+
+    const encoder = modelBundleManifest.files.find((file) =>
+      file.path.split('/').at(-1)?.startsWith('encoder')
+    );
+    expect(encoder).toBeDefined();
+
+    const expectedRoot = `/Library/models/1/${encoder!.path
+      .split('/')
+      .slice(0, -1)
+      .join('/')}`;
+
+    const { initialize } = await import('../public/voice-activator');
+
+    await initialize({});
+
+    const passedConfig = bridge.initialize.mock.calls[0]?.[0] as {
+      engineConfig?: { assetKeys?: { modelAssetKey?: string } };
+    };
+
+    expect(passedConfig.engineConfig?.assetKeys?.modelAssetKey).toBe(
+      expectedRoot
     );
   });
 
