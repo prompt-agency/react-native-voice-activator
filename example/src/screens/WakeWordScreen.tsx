@@ -293,8 +293,8 @@ export function WakeWordScreen() {
       setProgressText('');
       await initialize({
         // wakePhrase and keywordAssetKey are mutually exclusive: one generates a
-        // plain-text keywords file the native side tokenizes, the other selects a
-        // pre-tokenized one. Presets pair keywordAssetKey with the bundled
+        // keywords file the package tokenizes before writing, the other selects a
+        // pre-tokenized one that ships with the app. Presets pair keywordAssetKey with the bundled
         // modelAssetKey so they load offline; wakePhrase relies on the
         // on-demand download above and passes no modelAssetKey.
         ...(useCustomPhrase
@@ -428,9 +428,10 @@ export function WakeWordScreen() {
         {useCustomPhrase ? (
           <>
             <Text style={s.hint}>
-              No training, no GPU, no console, no API key. The phrase is
-              tokenized on device using the bpe.model in the bundle, so anything
-              you type here works.
+              No training, no GPU, no console, no API key. The package tokenizes
+              the phrase against the model's own vocabulary and writes the
+              keywords file beside the model bundle, so anything you type here
+              works.
             </Text>
             <TextInput
               value={phraseInput}
