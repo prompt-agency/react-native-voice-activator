@@ -692,9 +692,6 @@ RCT_EXPORT_METHOD(evaluateWavFile
   NSString *keywordsPath = [options[@"keywordsPath"] isKindOfClass:[NSString class]]
                                ? options[@"keywordsPath"]
                                : nil;
-  NSNumber *rawText = [options[@"keywordsAreRawText"] isKindOfClass:[NSNumber class]]
-                          ? options[@"keywordsAreRawText"]
-                          : nil;
   NSNumber *sensitivity = [options[@"sensitivity"] isKindOfClass:[NSNumber class]]
                               ? options[@"sensitivity"]
                               : nil;
@@ -706,7 +703,6 @@ RCT_EXPORT_METHOD(evaluateWavFile
     SherpaOnnxAssetPaths *paths =
         [loader loadAssetPathsWithModelAssetKey:modelPath
                                keywordAssetKey:keywordsPath
-                               rawTextKeywords:(rawText != nil && rawText.boolValue)
                                          error:&assetError];
     if (paths == nil) {
       reject(@"wav_evaluation_failed",

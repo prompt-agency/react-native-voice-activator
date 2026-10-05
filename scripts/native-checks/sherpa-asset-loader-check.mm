@@ -52,7 +52,6 @@ int main(void)
     NSError *error = nil;
     SherpaOnnxAssetPaths *paths = [loader loadAssetPathsWithModelAssetKey:dir
                                                          keywordAssetKey:nil
-                                                         rawTextKeywords:NO
                                                                    error:&error];
     Check(paths != nil, @"resolves rather than erroring");
     if (paths != nil) {
@@ -68,7 +67,6 @@ int main(void)
     error = nil;
     paths = [loader loadAssetPathsWithModelAssetKey:[dir stringByAppendingString:@"/"]
                                     keywordAssetKey:nil
-                                    rawTextKeywords:NO
                                               error:&error];
     Check(paths != nil, @"trailing slash is tolerated");
 
@@ -76,22 +74,19 @@ int main(void)
     error = nil;
     paths = [loader loadAssetPathsWithModelAssetKey:[NSString stringWithFormat:@"file://%@", dir]
                                     keywordAssetKey:nil
-                                    rawTextKeywords:NO
                                               error:&error];
     Check(paths != nil, @"file:// root resolves");
 
-    fprintf(stdout, "wakePhrase shape (raw-text keywords need bpe.model):\n");
+    fprintf(stdout, "wakePhrase shape (a generated absolute keyword path):\n");
     error = nil;
     paths = [loader
         loadAssetPathsWithModelAssetKey:dir
                         keywordAssetKey:[dir stringByAppendingPathComponent:
                                                  @"generated-keywords.txt"]
-                        rawTextKeywords:YES
                                   error:&error];
-    Check(paths != nil, @"absolute keyword path plus bpe.model resolves");
+    Check(paths != nil, @"absolute keyword path resolves");
     if (paths != nil) {
-      Check(paths.bpeVocabPath != nil && [paths.bpeVocabPath hasPrefix:@"/"],
-            @"bpe.model path stays absolute");
+      Check([paths.keywordsPath hasPrefix:@"/"], @"keywords path stays absolute");
     } else {
       fprintf(stdout, "       error: %s\n", error.localizedDescription.UTF8String);
     }
@@ -100,7 +95,6 @@ int main(void)
     error = nil;
     paths = [loader loadAssetPathsWithModelAssetKey:@"/nonexistent/va-model-root"
                                     keywordAssetKey:nil
-                                    rawTextKeywords:NO
                                               error:&error];
     Check(paths == nil, @"missing directory is an error");
     Check(error != nil &&
