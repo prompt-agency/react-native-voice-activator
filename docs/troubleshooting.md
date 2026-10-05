@@ -120,8 +120,8 @@ Nothing errors — the keyword simply never matches. Work through these:
 - **Check the generated file.** `getModelStatus().directory` plus
   `generated-keywords/` is where it lives. It holds tokenized output, one phrase
   per line, so it should look like `▁HE Y ▁A C ME` and not like `HEY ACME`. Plain
-  uppercase text means a file left behind by 0.1.1 or 0.1.2; delete it, or clear
-  app storage, and initialize again.
+  uppercase text means you are looking at a file left behind by 0.1.1 or 0.1.2,
+  which 0.1.3 rewrites on the next `initialize()`.
 - **Confirm the models are the on-demand bundle.** The generated keywords file is
   written next to it, so `wakePhrase` is rejected outright with an app-bundled
   model root.

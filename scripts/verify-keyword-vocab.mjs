@@ -7,6 +7,11 @@
  * against src/internal/model-manifest.json, and this check proves the table, the
  * two checked-in copies of bpe.model, and that manifest all agree. Changing the
  * model bundle without regenerating the table fails here rather than on a device.
+ *
+ * tokens.txt is the file the detector actually consults, so it is pinned to the
+ * manifest too. bpe.model stays in the download manifest purely as the
+ * build-time drift anchor for the generated table: nothing on the device reads it
+ * any more, so do not prune it as dead weight.
  */
 
 import { createHash } from 'node:crypto';
@@ -94,6 +99,35 @@ if (manifestEntry === undefined) {
     `model-manifest.json pins bpe.model ${manifestEntry.sha256} but the checked-in ` +
       `asset is ${iosDigest}, so the downloaded model would not be the one the ` +
       'baked vocabulary describes.'
+  );
+}
+
+// 4. tokens.txt agrees across the manifest and both platforms. This is the chain
+//    that matters at runtime: on the wakePhrase path the detector reads the
+//    DOWNLOADED tokens.txt, while the baked vocabulary table is derived from the
+//    checked-in one. If they ever diverge, a generated keyword lands outside the
+//    downloaded vocabulary and sherpa-onnx's EncodeBase calls exit(-1).
+const iosTokensDigest = sha256(join(IOS_MODEL_DIR, 'tokens.txt'));
+const androidTokensDigest = sha256(join(ANDROID_MODEL_DIR, 'tokens.txt'));
+const manifestTokensEntry = manifest.files.find((file) =>
+  file.path.endsWith('/tokens.txt')
+);
+
+if (manifestTokensEntry === undefined) {
+  failures.push('model-manifest.json has no tokens.txt entry.');
+} else if (manifestTokensEntry.sha256 !== iosTokensDigest) {
+  failures.push(
+    `model-manifest.json pins tokens.txt ${manifestTokensEntry.sha256} but the ` +
+      `checked-in asset is ${iosTokensDigest}. The device reads the downloaded ` +
+      'tokens.txt, so the baked vocabulary would describe a different file than ' +
+      'the one sherpa-onnx looks tokens up in, and a miss there calls exit(-1).'
+  );
+}
+if (androidTokensDigest !== iosTokensDigest) {
+  failures.push(
+    `tokens.txt differs between platforms: iOS ${iosTokensDigest}, Android ` +
+      `${androidTokensDigest}. One platform would reject keywords the other ` +
+      'accepts, and sherpa-onnx answers a rejected token with exit(-1).'
   );
 }
 

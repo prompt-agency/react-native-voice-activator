@@ -36,7 +36,7 @@ static NSString *MakeModelDirectory(void)
                                              attributes:nil
                                                   error:NULL];
   for (NSString *name in @[ @"encoder.onnx", @"decoder.onnx", @"joiner.onnx", @"tokens.txt",
-                            @"keywords.txt", @"bpe.model", @"generated-keywords.txt" ]) {
+                            @"keywords.txt", @"generated-keywords.txt" ]) {
     [[NSData data] writeToFile:[dir stringByAppendingPathComponent:name] atomically:YES];
   }
   return dir;

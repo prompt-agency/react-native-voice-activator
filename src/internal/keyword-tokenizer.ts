@@ -81,8 +81,16 @@ export function encodeKeywordPhrase(phrase: string): string[] {
     if (scoreHere === -Infinity) continue;
 
     const limit = Math.min(LONGEST_VOCABULARY_PIECE, count - start);
-    // Ascending length with a strict comparison means the shortest piece wins
-    // an equal-score tie. That is what reproduces the bundled presets.
+    // Candidates competing for one bestScore[end] differ in their start, not
+    // their length: for a fixed start each length lands on a different end. The
+    // outer loop ascends start, so a strict comparison keeps the first candidate
+    // seen, which is the earliest start and therefore the longest piece.
+    //
+    // The rule is not load-bearing for real input: instrumenting the real
+    // vocabulary finds zero exact-score ties across all nine bundled presets and
+    // all 2066 cases of the SentencePiece oracle corpus, and swapping `>` for
+    // `>=` changes no output anywhere. The presets are reproduced by the unigram
+    // scoring itself, not by the tie-break.
     for (let length = 1; length <= limit; length += 1) {
       const candidate = characters.slice(start, start + length).join('');
       const score = PIECE_SCORES.get(candidate);
