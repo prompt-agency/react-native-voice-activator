@@ -41,6 +41,12 @@ jobs:
         run: |
           /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
 
+      - name: Build library and Expo config plugin
+        run: yarn prepare
+
+      - name: Generate example native projects
+        run: yarn workspace react-native-voice-activator-example prebuild
+
       - name: Build example for Android
         env:
           JAVA_OPTS: "-XX:MaxHeapSize=6g"
@@ -73,6 +79,12 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true
           working-directory: example
+
+      - name: Build library and Expo config plugin
+        run: yarn prepare
+
+      - name: Generate example native projects
+        run: yarn workspace react-native-voice-activator-example prebuild
 
       - name: Install cocoapods
         run: |
