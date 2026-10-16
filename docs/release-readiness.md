@@ -100,8 +100,11 @@ release order:
 If the vendored frameworks have not changed, reuse the exact archives from the
 previous GitHub release and keep the checksum manifest unchanged. Run
 `node scripts/verify-vendor-checksums.mjs --require-assets` after downloading
-them. This also lets pre-release iOS CI build against the published archives;
-newly generated archives are unavailable until the new release exists.
+them. The Release Readiness workflow points its iOS build at the latest
+published release, so it can verify a candidate after its version is bumped.
+Checksum validation still rejects archives that do not match the candidate's
+manifest. When frameworks change, upload the new archives to a prerelease and
+set the workflow's `ios_asset_tag` input to that tag for a pre-release build.
 
 Android works the same way, with the AAR instead of zips: Gradle's
 `fetchSherpaOnnxAar` task downloads
