@@ -267,6 +267,17 @@ export function wakePhraseFileName(phrases: readonly string[]): string {
 type RNFS = typeof import('@dr.pogodin/react-native-fs');
 
 let cachedRnfs: RNFS | null = null;
+let keywordWriteQueue: Promise<void> = Promise.resolve();
+let keywordTempSequence = 0;
+
+function serializeKeywordWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = keywordWriteQueue.then(operation);
+  keywordWriteQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
 
 async function loadRnfs(): Promise<RNFS> {
   if (cachedRnfs) return cachedRnfs;
@@ -314,42 +325,15 @@ async function assertTokensAreInModelVocabulary(
 ): Promise<void> {
   const tokensPath = `${baseDirectory}/tokens.txt`;
 
-  let fileExists: boolean;
-  try {
-    fileExists = await rnfs.exists(tokensPath);
-  } catch {
-    // exists() itself failed. A filesystem layer that cannot answer whether a
-    // file is there cannot be relied on for the stricter read-and-parse check
-    // either, so this is treated the same as "absent": the on-demand bundle is
-    // hash-verified, so its tokens.txt is always present, and the native asset
-    // loader already fails with a clean, catchable error when a model file is
-    // missing. The known-good on-demand path must not become fragile because a
-    // filesystem query failed.
-    return;
-  }
-
-  if (!fileExists) {
-    // The on-demand bundle is hash-verified, so its tokens.txt is always
-    // present, and the native asset loader already fails with a clean,
-    // catchable error when a model file is missing. There is nothing to verify
-    // against here, and nothing to fail on.
-    return;
-  }
-
   let raw: string;
   try {
     raw = await rnfs.readFile(tokensPath, 'utf8');
   } catch (cause) {
-    // tokens.txt exists but could not be read: a permissions problem, a
-    // transient I/O error, or a path the JS filesystem layer cannot read while
-    // the native C++ loader can. This is exactly the custom-bundle path this
-    // check exists to protect, so it is a hard failure rather than a skip:
-    // writing possibly mismatched tokens here reaches the exit(-1) this check
-    // guards against, and that failure mode is a silent process exit with no
-    // catchable error on the JS side.
+    // A missing or unreadable vocabulary cannot prove that the generated
+    // pieces are safe for the native detector to consume.
     throw new WakePhraseModelMismatchError(
       `The model bundle vocabulary at ${baseDirectory} could not be verified: ` +
-        `tokens.txt exists at ${tokensPath} but could not be read (${String(cause)}). ` +
+        `tokens.txt at ${tokensPath} could not be read (${String(cause)}). ` +
         'Writing wakePhrase tokens without verifying them risks terminating the ' +
         'app. Fix the underlying read failure, or generate a pre-tokenized ' +
         'keywords file for your own model and pass it as ' +
@@ -405,34 +389,56 @@ export async function writeWakePhraseKeywords(
   const rnfs = await loadRnfs();
 
   const directory = `${baseDirectory}/generated-keywords`;
-  const path = `${directory}/${wakePhraseFileName(phrases)}`;
+  const basePath = `${directory}/${wakePhraseFileName(phrases)}`;
   const contents = buildKeywordsFileContents(phrases);
 
-  await assertTokensAreInModelVocabulary(
-    rnfs,
-    baseDirectory,
-    phrases,
-    contents
-  );
+  return serializeKeywordWrite(async () => {
+    await assertTokensAreInModelVocabulary(
+      rnfs,
+      baseDirectory,
+      phrases,
+      contents
+    );
 
-  // Reuse only when the contents match: a file whose name collided, or that was
-  // truncated, must be rewritten rather than trusted.
-  try {
-    const existing = await rnfs.readFile(path, 'utf8');
-    if (existing === contents) {
-      return { path, phrases };
+    // Preserve any existing file until the new one is fully published. Older
+    // releases wrote plain text under this name, and iOS moveFile cannot
+    // replace an existing destination atomically.
+    let path = basePath;
+    for (let suffix = 1; suffix <= 100; suffix += 1) {
+      let existing: string;
+      try {
+        existing = await rnfs.readFile(path, 'utf8');
+      } catch {
+        break;
+      }
+      if (existing === contents) {
+        return { path, phrases };
+      }
+      if (suffix === 100) {
+        throw new Error(
+          `Too many conflicting generated keywords files under ${directory}.`
+        );
+      }
+      path = `${basePath.slice(0, -4)}-repair-${suffix}.txt`;
     }
-  } catch {
-    /* not written yet, or unreadable — fall through and write it */
-  }
 
-  await rnfs.mkdir(directory);
-  await rnfs.writeFile(path, contents, 'utf8');
+    await rnfs.mkdir(directory);
+    const temporary = `${path}.tmp-${++keywordTempSequence}`;
+    try {
+      await rnfs.writeFile(temporary, contents, 'utf8');
+      await rnfs.moveFile(temporary, path);
+    } catch (cause) {
+      await rnfs.unlink(temporary).catch(() => undefined);
+      throw cause;
+    }
 
-  return { path, phrases };
+    return { path, phrases };
+  });
 }
 
 /** @internal Test seam for the lazily-imported peer. */
 export function __resetWakePhraseForTests(): void {
   cachedRnfs = null;
+  keywordWriteQueue = Promise.resolve();
+  keywordTempSequence = 0;
 }

@@ -155,10 +155,11 @@ out of band instead:
   VOICEACTIVATOR_SHERPA_BASE_URL=file:///path/to/zips pod install
   ```
 
-  Or place the extracted frameworks under `ios/Vendor/SherpaOnnx/` before
-  `pod install`; the `prepare_command` skips anything already present. The
-  environment variable is the one that works on a hosted CI builder, where the
-  checkout is fresh and nothing can be pre-placed.
+  You can also place the matching verified `.zip` archives under
+  `ios/Vendor/SherpaOnnx/` before `pod install`. The podspec checks each archive's
+  SHA-256 and extracts it on every install. Extracted frameworks alone are not
+  accepted. The environment variable works on hosted CI builders with fresh
+  checkouts.
 
 Both paths still verify the checksum.
 

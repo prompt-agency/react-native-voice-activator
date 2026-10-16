@@ -114,6 +114,16 @@ export class ModelPreparationError extends Error {
 type RNFS = typeof import('@dr.pogodin/react-native-fs');
 
 let cachedRnfs: RNFS | null = null;
+let modelMutationQueue: Promise<void> = Promise.resolve();
+
+function serializeModelMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = modelMutationQueue.then(operation);
+  modelMutationQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
 
 async function loadRnfs(): Promise<RNFS> {
   if (cachedRnfs) return cachedRnfs;
@@ -236,7 +246,7 @@ export async function getModelBundleStatus(): Promise<ModelBundleStatus> {
  * calling this on every app launch costs a few stat and hash calls once the
  * bundle is complete.
  */
-export async function prepareModelBundle(
+async function prepareModelBundleUnlocked(
   options: ModelPreparationOptions = {}
 ): Promise<ModelPreparationResult> {
   const rnfs = await loadRnfs();
@@ -349,14 +359,23 @@ export async function prepareModelBundle(
   return { directory, downloaded, verified };
 }
 
+export function prepareModelBundle(
+  options: ModelPreparationOptions = {}
+): Promise<ModelPreparationResult> {
+  return serializeModelMutation(() => prepareModelBundleUnlocked(options));
+}
+
 /** Delete the stored bundle. Mainly useful for tests and for reclaiming space. */
-export async function clearModelBundle(): Promise<void> {
-  const rnfs = await loadRnfs();
-  const directory = resolveModelRoot(rnfs);
-  await rnfs.unlink(directory).catch(() => undefined);
+export function clearModelBundle(): Promise<void> {
+  return serializeModelMutation(async () => {
+    const rnfs = await loadRnfs();
+    const directory = resolveModelRoot(rnfs);
+    await rnfs.unlink(directory).catch(() => undefined);
+  });
 }
 
 /** @internal Test seam so the lazily-imported peer can be reset between tests. */
 export function __resetModelStoreForTests(): void {
   cachedRnfs = null;
+  modelMutationQueue = Promise.resolve();
 }

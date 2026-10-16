@@ -27,6 +27,16 @@ jest.mock('@dr.pogodin/react-native-fs', () => ({
   writeFile: jest.fn(async (p: string, contents: string) => {
     mockWritten.set(p, contents);
   }),
+  unlink: jest.fn(async (p: string) => {
+    mockWritten.delete(p);
+  }),
+  moveFile: jest.fn(async (from: string, to: string) => {
+    const contents = mockWritten.get(from);
+    if (contents === undefined) throw new Error(`ENOENT: ${from}`);
+    if (mockWritten.has(to)) throw new Error(`EEXIST: ${to}`);
+    mockWritten.delete(from);
+    mockWritten.set(to, contents);
+  }),
 }));
 
 import type { WakeWordDetectedEvent } from '../public/types';
@@ -102,6 +112,13 @@ describe('initialize({ wakePhrase })', () => {
   beforeEach(() => {
     jest.resetModules();
     mockWritten.clear();
+    const vocabulary = require('../internal/keyword-vocab.generated.json') as {
+      pieces: Array<[string, number]>;
+    };
+    mockWritten.set(
+      `${MODEL_ASSET_ROOT}/tokens.txt`,
+      vocabulary.pieces.map(([piece], index) => `${piece} ${index}`).join('\n')
+    );
     setupMocks();
   });
 
@@ -111,7 +128,9 @@ describe('initialize({ wakePhrase })', () => {
 
     await initialize({ wakePhrase: 'hey acme' });
 
-    const [written] = [...mockWritten.entries()];
+    const [written] = [...mockWritten.entries()].filter(([path]) =>
+      path.includes('/generated-keywords/')
+    );
     expect(written).toBeDefined();
     const [path, contents] = written!;
 
@@ -164,7 +183,9 @@ describe('initialize({ wakePhrase })', () => {
 
     await initialize({ wakePhrase: ['hey acme', 'ok acme'] });
 
-    const [, contents] = [...mockWritten.entries()][0]!;
+    const [, contents] = [...mockWritten.entries()].find(([path]) =>
+      path.includes('/generated-keywords/')
+    )!;
     expect(contents).toBe('\u2581HE Y \u2581A C ME\n\u2581O K \u2581A C ME\n');
   });
 
@@ -180,7 +201,7 @@ describe('initialize({ wakePhrase })', () => {
 
     // Written once; the second call found matching contents already on disk.
     expect(rnfs.writeFile).toHaveBeenCalledTimes(1);
-    expect(mockWritten.size).toBe(1);
+    expect(mockWritten.size).toBe(2);
   });
 
   it('writes a different file when the phrase changes', async () => {
@@ -190,7 +211,7 @@ describe('initialize({ wakePhrase })', () => {
     await dispose();
     await initialize({ wakePhrase: 'ok acme' });
 
-    expect(mockWritten.size).toBe(2);
+    expect(mockWritten.size).toBe(3);
   });
 
   it('rejects an invalid phrase before touching the native runtime', async () => {
