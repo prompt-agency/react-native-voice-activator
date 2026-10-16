@@ -54,7 +54,7 @@ jobs:
           yarn workspace react-native-voice-activator-example build:android
 
   build-ios:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     env:
       XCODE_VERSION: 16.3
