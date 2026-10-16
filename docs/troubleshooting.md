@@ -89,7 +89,7 @@ Common causes:
 
 ## The app disappears during `initialize({ wakePhrase })`
 
-Fixed in 0.1.3. On 0.1.1 and 0.1.2 the process exits mid-initialize with no
+Fixed in 0.2.0. On 0.1.1 and 0.1.2 the process exits mid-initialize with no
 crash report, no signal and no JS error, so nothing reaches `onError`. On an iOS
 simulator `launchd_sim` logs `exited due to exit(255)` with
 `RBSProcessExitContext| voluntary`, which is the only trace outside the app's own
@@ -102,7 +102,7 @@ sherpa-onnx/csrc/keyword-spotter-transducer-impl.h:InitKeywords:286 Encode keywo
 
 Those versions wrote a plain-text keywords file, and sherpa-onnx answers a token
 it cannot find in `tokens.txt` by calling `exit(-1)` rather than returning an
-error, which the system reports as exit status 255. Upgrade to 0.1.3, which
+error, which the system reports as exit status 255. Upgrade to 0.2.0, which
 tokenizes the phrase before writing the file. If a
 plain-text file is still on the device from the older version it is rewritten on
 the next `initialize()`.
@@ -121,7 +121,7 @@ Nothing errors — the keyword simply never matches. Work through these:
   `generated-keywords/` is where it lives. It holds tokenized output, one phrase
   per line, so it should look like `▁HE Y ▁A C ME` and not like `HEY ACME`. Plain
   uppercase text means you are looking at a file left behind by 0.1.1 or 0.1.2,
-  which 0.1.3 rewrites on the next `initialize()`.
+  which 0.2.0 rewrites on the next `initialize()`.
 - **Confirm the models are the on-demand bundle.** The generated keywords file is
   written next to it, so `wakePhrase` is rejected outright with an app-bundled
   model root.
