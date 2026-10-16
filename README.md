@@ -371,10 +371,9 @@ That is the whole setup. No training run, no GPU, no vendor console, no
 per-keyword model, no API key.
 
 The bundled keyword spotter is **open-vocabulary**: it detects phrases that were
-never in its training data. `bpe.model` ships in the model bundle and
-`simple-sentencepiece` is linked into the native library, so the phrase is
-tokenized on device. The package writes a small plain-text keywords file beside
-the model bundle and reuses it across launches.
+never in its training data. The package tokenizes your phrase against the model's
+own vocabulary, writes the resulting keywords file beside the model bundle, and
+reuses it across launches. No training run, no per-keyword model.
 
 Several triggers at once:
 

@@ -177,6 +177,44 @@ describe('preparing the model bundle', () => {
     expect(result.verified).toHaveLength(modelBundleManifest.files.length);
   });
 
+  it('serializes overlapping preparations of the same bundle', async () => {
+    let releaseFirstDownload!: () => void;
+    let signalFirstDownload!: () => void;
+    const firstDownloadStarted = new Promise<void>((resolve) => {
+      signalFirstDownload = resolve;
+    });
+    const firstDownloadBlocked = new Promise<void>((resolve) => {
+      releaseFirstDownload = resolve;
+    });
+    downloadsCorrectly();
+    const writeDownload = mockDownloadBehaviour;
+    let downloadCount = 0;
+    mockDownloadBehaviour = async (url, toFile) => {
+      if (++downloadCount === 1) {
+        signalFirstDownload();
+        await firstDownloadBlocked;
+      }
+      await writeDownload(url, toFile);
+    };
+
+    const first = prepareModelBundle();
+    await firstDownloadStarted;
+    const second = prepareModelBundle();
+    expect(mockDownloadCalls).toHaveLength(1);
+
+    releaseFirstDownload();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult.downloaded).toHaveLength(
+      modelBundleManifest.files.length
+    );
+    expect(secondResult.downloaded).toEqual([]);
+    expect(secondResult.verified).toHaveLength(
+      modelBundleManifest.files.length
+    );
+    expect(mockDownloadCalls).toHaveLength(modelBundleManifest.files.length);
+    expect((await getModelBundleStatus()).ready).toBe(true);
+  });
+
   it('re-downloads only the files that are missing', async () => {
     seedCompleteBundle();
     const victim = modelBundleManifest.files[2]!;

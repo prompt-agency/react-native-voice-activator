@@ -81,11 +81,6 @@ internal class WakeWordRuntimeCoordinator(
     detectorAssetRequest = SherpaOnnxAssetRequest(
       modelAssetKey = engineConfig.readOptionalString("assetKeys", "modelAssetKey"),
       keywordAssetKey = engineConfig.readOptionalString("assetKeys", "keywordAssetKey"),
-      rawTextKeywords =
-        engineConfig
-          ?.takeIf { it.hasKey("keywordsAreRawText") }
-          ?.getBoolean("keywordsAreRawText")
-          ?: false,
     )
 
     // A second initialize() while detection is running would otherwise free the

@@ -397,6 +397,7 @@ async function deleteEnrollment(userId: string) {
 | `configuration` / `wake_phrase_invalid` | A `wakePhrase` failed validation (not recoverable) | Message lists every problem; see the phrase rules |
 | `configuration` / `wake_phrase_conflict` | Both `wakePhrase` and `keywordAssetKey` were supplied (not recoverable) | Pick one |
 | `configuration` / `wake_phrase_unsupported_root` | `wakePhrase` used with an app-bundled `modelAssetKey` (not recoverable) | Generate a keywords file offline, pass `keywordAssetKey` |
+| `configuration` / `wake_phrase_model_incompatible` | The model bundle at `modelAssetKey` has a different vocabulary than the one `wakePhrase` tokenizes against (not recoverable) | Use the on-demand bundle, or pass a `keywordAssetKey` generated for your own model |
 | `internal` | Unexpected runtime error | File a bug; include `getStatus().lastError.message` |
 
 All errors carry `recoverable: boolean`, answering only: can the same call with the same options succeed?

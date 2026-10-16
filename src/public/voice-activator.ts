@@ -60,8 +60,10 @@ import {
 } from '../internal/model-store';
 import {
   WakePhraseError,
+  WakePhraseModelMismatchError,
   writeWakePhraseKeywords,
 } from '../internal/wake-phrase';
+import { KeywordTokenizerError } from '../internal/keyword-tokenizer';
 
 let activeEngineRuntime: VoiceActivatorEngineRuntime | null = null;
 let engineRuntimeRunning = false;
@@ -769,6 +771,28 @@ function rejectConfiguration(code: string, message: string): Promise<void> {
   return Promise.reject(new Error(message));
 }
 
+/**
+ * Map a wakePhrase preparation failure onto a typed error code.
+ *
+ * WakePhraseError and KeywordTokenizerError share `wake_phrase_invalid` because
+ * from the caller's perspective they are the same fault: a phrase the package
+ * cannot turn into a keywords file. Mapping the tokenizer error to
+ * `wake_phrase_write_failed` instead would report the one failure that error
+ * exists to diagnose as a filesystem problem.
+ */
+function resolveWakePhraseFailureCode(cause: unknown): string {
+  if (cause instanceof WakePhraseModelMismatchError) {
+    return 'wake_phrase_model_incompatible';
+  }
+  if (
+    cause instanceof WakePhraseError ||
+    cause instanceof KeywordTokenizerError
+  ) {
+    return 'wake_phrase_invalid';
+  }
+  return 'wake_phrase_write_failed';
+}
+
 function rejectModelsUnavailable(detail: string): Promise<void> {
   const error: WakeWordError = {
     category: 'configuration',
@@ -1001,8 +1025,8 @@ export const voiceActivator: VoiceActivatorApi = {
         return rejectConfiguration(
           'wake_phrase_conflict',
           'Pass either wakePhrase or engineConfig.assetKeys.keywordAssetKey, not ' +
-            'both. wakePhrase generates a plain-text keywords file that the native ' +
-            'side tokenizes; keywordAssetKey selects a pre-tokenized file.'
+            'both. wakePhrase generates a tokenized keywords file; ' +
+            'keywordAssetKey selects one you supply.'
         );
       }
 
@@ -1025,9 +1049,7 @@ export const voiceActivator: VoiceActivatorApi = {
         );
       } catch (cause) {
         return rejectConfiguration(
-          cause instanceof WakePhraseError
-            ? 'wake_phrase_invalid'
-            : 'wake_phrase_write_failed',
+          resolveWakePhraseFailureCode(cause),
           cause instanceof Error
             ? cause.message
             : 'Could not prepare the wake phrase keywords file.'
@@ -1036,7 +1058,6 @@ export const voiceActivator: VoiceActivatorApi = {
 
       resolvedEngineConfig = {
         ...resolvedEngineConfig,
-        keywordsAreRawText: true,
         assetKeys: {
           ...resolvedEngineConfig?.assetKeys,
           keywordAssetKey: generated.path,

@@ -29,7 +29,6 @@ NSError *SherpaAssetError(NSString *message)
                          joinerPath:(NSString *)joinerPath
                          tokensPath:(NSString *)tokensPath
                        keywordsPath:(NSString *)keywordsPath
-                       bpeVocabPath:(nullable NSString *)bpeVocabPath
 {
   self = [super init];
   if (self) {
@@ -38,7 +37,6 @@ NSError *SherpaAssetError(NSString *message)
     _joinerPath = [joinerPath copy];
     _tokensPath = [tokensPath copy];
     _keywordsPath = [keywordsPath copy];
-    _bpeVocabPath = [bpeVocabPath copy];
   }
   return self;
 }
@@ -127,7 +125,6 @@ NSError *SherpaAssetError(NSString *message)
 
 - (nullable SherpaOnnxAssetPaths *)loadAssetPathsWithModelAssetKey:(nullable NSString *)modelAssetKey
                                                    keywordAssetKey:(nullable NSString *)keywordAssetKey
-                                                  rawTextKeywords:(BOOL)rawTextKeywords
                                                              error:(NSError * _Nullable * _Nullable)error
 {
   // Only a TRAILING slash is noise. A leading slash is load-bearing: it is what
@@ -204,27 +201,11 @@ NSError *SherpaAssetError(NSString *message)
     return nil;
   }
 
-  // A generated wakePhrase keywords file is plain text, so sherpa-onnx needs
-  // bpe.model to tokenize it. The bundled presets are already tokenized and must
-  // not go through that path, hence the explicit flag rather than always loading
-  // the vocabulary when it happens to be present.
-  NSString *bpeVocabPath = nil;
-  if (rawTextKeywords) {
-    bpeVocabPath = [self resolvePathForAsset:@"bpe.model"
-                                    rootPath:modelRoot
-                                bundleSearch:bundleSearch
-                                       error:error];
-    if (bpeVocabPath == nil) {
-      return nil;
-    }
-  }
-
   return [[SherpaOnnxAssetPaths alloc] initWithEncoderPath:encoderPath
                                                decoderPath:decoderPath
                                                 joinerPath:joinerPath
                                                 tokensPath:tokensPath
-                                              keywordsPath:keywordsPath
-                                              bpeVocabPath:bpeVocabPath];
+                                              keywordsPath:keywordsPath];
 }
 
 @end

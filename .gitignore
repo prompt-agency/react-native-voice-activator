@@ -130,3 +130,6 @@ research/
 # Staged model files for release upload (see scripts/package-models.mjs)
 dist-models/
 coverage/
+
+# Subagent-driven development scratch (ledgers, briefs, review packages).
+.superpowers/

@@ -50,12 +50,12 @@ internal class SherpaOnnxDetector(
         debug = false,
         provider = "cpu",
         modelType = "",
-        // Setting these switches sherpa-onnx from expecting a pre-tokenized
-        // keywords file to tokenizing plain text itself, via the
-        // simple-sentencepiece implementation linked into the native library.
-        // That is what makes an arbitrary wakePhrase work with no training.
-        modelingUnit = if (assets.bpeVocab != null) "bpe" else "",
-        bpeVocab = assets.bpeVocab ?: "",
+        // The keywords file is pre-tokenized by
+        // src/internal/keyword-tokenizer.ts, so these stay empty. Setting them
+        // does NOT make sherpa-onnx tokenize plain text: it exits the process.
+        // See https://github.com/prompt-agency/react-native-voice-activator/issues/31.
+        modelingUnit = "",
+        bpeVocab = "",
       ),
       maxActivePaths = 4,
       keywordsFile = assets.keywords,

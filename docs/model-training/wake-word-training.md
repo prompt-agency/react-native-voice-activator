@@ -9,9 +9,15 @@
 > await initialize({ wakePhrase: 'hey acme' });
 > ```
 >
-> The bundled keyword spotter is open-vocabulary, and the phrase is tokenized on
-> device using the `bpe.model` already in the model bundle. See
+> The bundled keyword spotter is open-vocabulary. The package tokenizes your
+> phrase against the model's own vocabulary, writes the resulting keywords file
+> beside the model bundle, and reuses it across launches. See
 > [Wake Words](../../README.md#wake-words).
+>
+> Note that `wakePhrase` tokenizes against the bundled model's vocabulary, so a
+> fine-tuned or replacement bundle whose vocabulary differs needs a pre-tokenized
+> keywords file generated for that model, passed as
+> `engineConfig.assetKeys.keywordAssetKey`, instead of `wakePhrase`.
 >
 > This guide covers the remaining cases: fine-tuning the acoustic model for a
 > phrase the open-vocabulary path detects poorly, a non-English language, or a

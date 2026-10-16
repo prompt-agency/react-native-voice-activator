@@ -158,5 +158,11 @@ describe('reliability validation contract', () => {
     expect(reliabilityDoc).toContain(
       'A passed physical-device run must replace those null placeholders with measured values'
     );
+
+    // The sweep path carried its own keywordsAreRawText flag, and setting it made
+    // sherpa-onnx exit(-1) on a pre-tokenized file. The field is gone from
+    // WakeWordEvaluationCorpus, so an example using it would not compile, and would
+    // document the crash this branch removed. See issue #31.
+    expect(reliabilityDoc).not.toContain('keywordsAreRawText');
   });
 });

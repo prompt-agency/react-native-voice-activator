@@ -16,12 +16,24 @@ await initialize({ wakePhrase: 'hey acme' });
 
 This replaces the previous guidance, which pointed at an Icefall training
 pipeline for anything outside the nine bundled demo keywords. The keyword spotter
-was always open-vocabulary; the package now exposes that. `bpe.model` was already
-in the bundle, and `simple-sentencepiece` is linked into the native library, so
-the phrase is tokenized on device.
+was always open-vocabulary; the package now exposes that by tokenizing the phrase
+against the model's own vocabulary and generating the keywords file for you.
 
 `engineConfig.assetKeys.keywordAssetKey` still works for a pre-tokenized file and
 is mutually exclusive with `wakePhrase`.
+
+### `keywordsAreRawText` is removed
+
+**Breaking, if you used it.** Both `keywordsAreRawText` fields are gone: the one
+on the native engine configuration, and `WakeWordEvaluationCorpus.keywordsAreRawText`,
+which was public API and appeared in a copy-pasteable sweep example.
+
+No replacement is needed. The flag asked the native side to tokenize a plain-text
+keywords file, which never worked: sherpa-onnx answers a token it cannot find in
+`tokens.txt` by calling `exit(-1)`, so passing it to a sweep terminated the host
+process with no error. The keywords file is now tokenized before it is written, so
+there is nothing left to flag. Delete the property from your call; everything else
+about the call is unchanged.
 
 On Android this required the asset loader to accept absolute filesystem paths,
 which it previously rejected.

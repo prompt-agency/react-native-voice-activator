@@ -78,7 +78,6 @@ const sweep = await sweepWakeWordSensitivity({
   negatives: negativeWavPaths,   // must never fire
   modelPath: directory,
   keywordsPath: generatedKeywordsPath,
-  keywordsAreRawText: true,
 });
 
 // Highest detection rate that stays under 0.5 false accepts per hour.

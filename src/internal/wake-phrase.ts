@@ -2,20 +2,44 @@
  * Arbitrary wake phrases, without training a model.
  *
  * The bundled Sherpa-ONNX keyword spotter is open-vocabulary: it detects phrases
- * that were never in its training data. A keywords file normally holds
- * pre-tokenized BPE output, which is why the nine bundled presets look like
- * `▁HE LL O ▁WORLD`. But `simple-sentencepiece` is statically linked into the
- * native library, so setting `modeling_unit = "bpe"` and `bpe_vocab` to the
- * `bpe.model` already in the model bundle lets the native side tokenize plain
- * text itself.
+ * that were never in its training data. What it needs is a keywords file of
+ * pre-tokenized vocabulary pieces, which is why the nine bundled presets look
+ * like `▁HE LL O ▁WORLD`. This module validates a phrase, tokenizes it through
+ * keyword-tokenizer.ts, and writes that file.
  *
- * So a custom wake phrase costs one generated text file — no GPU, no training
- * run, no per-keyword model. This module produces that file.
+ * So a custom wake phrase costs one generated text file: no GPU, no training
+ * run, no per-keyword model.
+ *
+ * Earlier versions wrote plain text and asked the native side to tokenize it by
+ * setting `modeling_unit = "bpe"`. That does not work, and sherpa-onnx answers
+ * an untokenized line by calling exit(-1), which kills the host app with no
+ * crash report and nothing on the JS error path. See
+ * https://github.com/prompt-agency/react-native-voice-activator/issues/31.
  */
+
+import { encodeKeywordPhrase } from './keyword-tokenizer';
 
 export interface WakePhraseValidationIssue {
   phrase: string;
   reason: string;
+}
+
+/**
+ * The model bundle on disk does not share the vocabulary this package tokenizes
+ * against, so at least one generated token is absent from its `tokens.txt`.
+ *
+ * Distinct from WakePhraseError because the phrase is fine and the caller's only
+ * remedies are different: use the on-demand bundle, or supply a keywords file
+ * generated for their own model.
+ */
+export class WakePhraseModelMismatchError extends Error {
+  constructor(
+    message: string,
+    readonly missingTokens: string[]
+  ) {
+    super(message);
+    this.name = 'WakePhraseModelMismatchError';
+  }
 }
 
 export class WakePhraseError extends Error {
@@ -178,13 +202,29 @@ export function validateWakePhrase(phrase: string): WakePhraseValidation {
 }
 
 /**
- * Body of the keywords file sherpa-onnx reads: one phrase per line.
+ * Body of the keywords file sherpa-onnx reads: one pre-tokenized phrase per
+ * line, space-separated vocabulary pieces, exactly like the bundled presets.
  *
- * With `modeling_unit = "bpe"` the native side tokenizes each line, so this is
- * plain text rather than the pre-tokenized form the bundled presets use.
+ * @throws KeywordTokenizerError if a phrase cannot be tokenized. Callers pass
+ *   normalized phrases, for which this is unreachable, so an exception here is
+ *   a programming error rather than bad user input.
+ * @throws WakePhraseError if the phrase list is empty, for the same reason: the
+ *   only alternative output would be a file holding one blank line.
  */
 export function buildKeywordsFileContents(phrases: readonly string[]): string {
-  return `${phrases.join('\n')}\n`;
+  // Guarded explicitly, symmetrically with encodeKeywordPhrase's empty-phrase
+  // guard: joining no lines would produce "\n", a keywords file whose only line
+  // is blank, and a blank line is exactly what sherpa-onnx answers by calling
+  // exit(-1). normalizeWakePhrases makes this unreachable today, but a future
+  // caller reaching it must not get a process-killing file.
+  if (phrases.length === 0) {
+    throw new WakePhraseError(
+      'Cannot build a keywords file from an empty phrase list.'
+    );
+  }
+
+  const lines = phrases.map((phrase) => encodeKeywordPhrase(phrase).join(' '));
+  return `${lines.join('\n')}\n`;
 }
 
 /**
@@ -227,6 +267,17 @@ export function wakePhraseFileName(phrases: readonly string[]): string {
 type RNFS = typeof import('@dr.pogodin/react-native-fs');
 
 let cachedRnfs: RNFS | null = null;
+let keywordWriteQueue: Promise<void> = Promise.resolve();
+let keywordTempSequence = 0;
+
+function serializeKeywordWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = keywordWriteQueue.then(operation);
+  keywordWriteQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
 
 async function loadRnfs(): Promise<RNFS> {
   if (cachedRnfs) return cachedRnfs;
@@ -251,6 +302,79 @@ export interface WakePhraseKeywordsFile {
 }
 
 /**
+ * Verify the tokens we are about to write against the vocabulary the native
+ * detector will actually consult.
+ *
+ * The tokenizer segments against a table baked from the on-demand bundle's
+ * `bpe.model`, but the detector points `tokens` at `<baseDirectory>/tokens.txt`,
+ * and an app may pass its own absolute `modelAssetKey`: a fine-tuned or
+ * replacement Sherpa-ONNX keyword-spotter bundle has a different vocabulary.
+ * Without this check such a mismatch reaches sherpa-onnx's EncodeBase, which
+ * calls exit(-1) and kills the host app with no signal, no crash report and
+ * nothing on the JS error path. That is issue #31 reproduced:
+ * https://github.com/prompt-agency/react-native-voice-activator/issues/31.
+ *
+ * So the real file is read rather than a proxy for it, which costs one read of a
+ * roughly 5 KB file per initialize() that uses wakePhrase.
+ */
+async function assertTokensAreInModelVocabulary(
+  rnfs: RNFS,
+  baseDirectory: string,
+  phrases: readonly string[],
+  contents: string
+): Promise<void> {
+  const tokensPath = `${baseDirectory}/tokens.txt`;
+
+  let raw: string;
+  try {
+    raw = await rnfs.readFile(tokensPath, 'utf8');
+  } catch (cause) {
+    // A missing or unreadable vocabulary cannot prove that the generated
+    // pieces are safe for the native detector to consume.
+    throw new WakePhraseModelMismatchError(
+      `The model bundle vocabulary at ${baseDirectory} could not be verified: ` +
+        `tokens.txt at ${tokensPath} could not be read (${String(cause)}). ` +
+        'Writing wakePhrase tokens without verifying them risks terminating the ' +
+        'app. Fix the underlying read failure, or generate a pre-tokenized ' +
+        'keywords file for your own model and pass it as ' +
+        'engineConfig.assetKeys.keywordAssetKey instead of wakePhrase.',
+      []
+    );
+  }
+
+  // One entry per line, "<piece> <id>": the token is everything before the last
+  // space, matching how scripts/verify-keyword-vocab.mjs parses the same file.
+  const vocabulary = new Set<string>();
+  for (const line of raw.split('\n')) {
+    if (line.length === 0) continue;
+    vocabulary.add(line.slice(0, line.lastIndexOf(' ')));
+  }
+
+  const missing: string[] = [];
+  for (const token of contents.split(/\s+/)) {
+    if (token.length === 0) continue;
+    if (!vocabulary.has(token) && !missing.includes(token)) {
+      missing.push(token);
+    }
+  }
+
+  if (missing.length === 0) return;
+
+  const sample = missing.slice(0, 5).join(', ');
+  throw new WakePhraseModelMismatchError(
+    `The model bundle at ${baseDirectory} has a different vocabulary than the one ` +
+      `this package tokenizes wakePhrase against: ${missing.length} token` +
+      `${missing.length > 1 ? 's' : ''} of ${phrases.map((phrase) => `"${phrase}"`).join(', ')} ` +
+      `${missing.length > 1 ? 'are' : 'is'} missing from its tokens.txt (${sample}). ` +
+      'Writing them would make sherpa-onnx terminate the app. Either use the ' +
+      'on-demand model bundle, or generate a pre-tokenized keywords file for your ' +
+      'own model and pass it as engineConfig.assetKeys.keywordAssetKey instead of ' +
+      'wakePhrase.',
+    missing
+  );
+}
+
+/**
  * Write (or reuse) the keywords file for a set of phrases.
  *
  * Content-addressed, so re-initialising with the same phrase is a no-op beyond a
@@ -265,27 +389,56 @@ export async function writeWakePhraseKeywords(
   const rnfs = await loadRnfs();
 
   const directory = `${baseDirectory}/generated-keywords`;
-  const path = `${directory}/${wakePhraseFileName(phrases)}`;
+  const basePath = `${directory}/${wakePhraseFileName(phrases)}`;
   const contents = buildKeywordsFileContents(phrases);
 
-  // Reuse only when the contents match: a file whose name collided, or that was
-  // truncated, must be rewritten rather than trusted.
-  try {
-    const existing = await rnfs.readFile(path, 'utf8');
-    if (existing === contents) {
-      return { path, phrases };
+  return serializeKeywordWrite(async () => {
+    await assertTokensAreInModelVocabulary(
+      rnfs,
+      baseDirectory,
+      phrases,
+      contents
+    );
+
+    // Preserve any existing file until the new one is fully published. Older
+    // releases wrote plain text under this name, and iOS moveFile cannot
+    // replace an existing destination atomically.
+    let path = basePath;
+    for (let suffix = 1; suffix <= 100; suffix += 1) {
+      let existing: string;
+      try {
+        existing = await rnfs.readFile(path, 'utf8');
+      } catch {
+        break;
+      }
+      if (existing === contents) {
+        return { path, phrases };
+      }
+      if (suffix === 100) {
+        throw new Error(
+          `Too many conflicting generated keywords files under ${directory}.`
+        );
+      }
+      path = `${basePath.slice(0, -4)}-repair-${suffix}.txt`;
     }
-  } catch {
-    /* not written yet, or unreadable — fall through and write it */
-  }
 
-  await rnfs.mkdir(directory);
-  await rnfs.writeFile(path, contents, 'utf8');
+    await rnfs.mkdir(directory);
+    const temporary = `${path}.tmp-${++keywordTempSequence}`;
+    try {
+      await rnfs.writeFile(temporary, contents, 'utf8');
+      await rnfs.moveFile(temporary, path);
+    } catch (cause) {
+      await rnfs.unlink(temporary).catch(() => undefined);
+      throw cause;
+    }
 
-  return { path, phrases };
+    return { path, phrases };
+  });
 }
 
 /** @internal Test seam for the lazily-imported peer. */
 export function __resetWakePhraseForTests(): void {
   cachedRnfs = null;
+  keywordWriteQueue = Promise.resolve();
+  keywordTempSequence = 0;
 }

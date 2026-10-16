@@ -70,53 +70,43 @@ Pod::Spec.new do |s|
     fetch_framework() {
       name="$1"
       expected="$2"
-      # A cache hit used to return early on directory existence alone, so a
-      # framework left by an earlier build was reused forever with no integrity
-      # check. The digest of the zip it came from is now recorded beside it, which
-      # catches the cases that actually bite: a truncated or corrupt download, and
-      # a framework left over from a different package version.
-      #
-      # It is not a defence against a local attacker — anyone who can write to
-      # node_modules can write the stamp too. Android's fetchSherpaOnnxAar can
-      # re-hash its single .aar directly; a directory tree has no comparable
-      # digest, hence the stamp.
-      stamp="$VENDOR_DIR/$name.sha256"
-      if [ -d "$VENDOR_DIR/$name" ]; then
-        if [ ! -f "$stamp" ]; then
-          # Predates the stamp. Adopt it rather than deleting: it was almost
-          # certainly verified when it was downloaded, and deleting it strands any
-          # checkout whose matching release is not published yet.
-          echo "[VoiceActivator] $name has no recorded digest; adopting the existing framework."
-          printf '%s' "$expected" > "$stamp"
-          return 0
+      # Verify the cached archive on every install and extract it again. A
+      # digest stamp beside an extracted directory cannot prove its contents,
+      # and an unstamped directory must never be adopted as verified.
+      archive="$VENDOR_DIR/$name.zip"
+      if [ -f "$archive" ]; then
+        actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        if [ "$actual" != "$expected" ]; then
+          echo "[VoiceActivator] Cached $name.zip has the wrong checksum; downloading again."
+          rm -f "$archive"
         fi
-        if [ "$(cat "$stamp")" = "$expected" ]; then
-          return 0
-        fi
-        echo "[VoiceActivator] $name was built from a different version; re-downloading."
-        rm -rf "$VENDOR_DIR/$name" "$stamp"
       fi
 
-      echo "[VoiceActivator] Downloading $name..."
-      curl -fL --retry 3 --retry-delay 2 "$BASE_URL/$name.zip" -o "$WORK_DIR/$name.zip"
-
-      actual="$(shasum -a 256 "$WORK_DIR/$name.zip" | awk '{print $1}')"
-      if [ "$actual" != "$expected" ]; then
-        echo "[VoiceActivator] Checksum mismatch for $name.zip." >&2
-        echo "[VoiceActivator]   expected $expected" >&2
-        echo "[VoiceActivator]   actual   $actual" >&2
-        echo "[VoiceActivator] Refusing to link an unverified binary." >&2
-        exit 1
+      if [ ! -f "$archive" ]; then
+        echo "[VoiceActivator] Downloading $name..."
+        curl -fL --retry 3 --retry-delay 2 "$BASE_URL/$name.zip" -o "$WORK_DIR/$name.zip"
+        actual="$(shasum -a 256 "$WORK_DIR/$name.zip" | awk '{print $1}')"
+        if [ "$actual" != "$expected" ]; then
+          echo "[VoiceActivator] Checksum mismatch for $name.zip." >&2
+          echo "[VoiceActivator]   expected $expected" >&2
+          echo "[VoiceActivator]   actual   $actual" >&2
+          echo "[VoiceActivator] Refusing to link an unverified binary." >&2
+          exit 1
+        fi
+        mv "$WORK_DIR/$name.zip" "$archive"
       fi
 
-      # Unpack to the side, then move into place, so an interrupted install can
-      # never leave a half-extracted framework that looks complete next run.
+      # Refresh the extracted directory from the verified archive, so local
+      # changes to a prior extraction cannot reach the linker.
       rm -rf "$WORK_DIR/extract"
       mkdir -p "$WORK_DIR/extract"
-      unzip -q "$WORK_DIR/$name.zip" -d "$WORK_DIR/extract"
+      unzip -q "$archive" -d "$WORK_DIR/extract"
+      if [ ! -d "$WORK_DIR/extract/$name" ]; then
+        echo "[VoiceActivator] $name.zip did not contain $name." >&2
+        exit 1
+      fi
       rm -rf "$VENDOR_DIR/$name"
       mv "$WORK_DIR/extract/$name" "$VENDOR_DIR/$name"
-      printf '%s' "$expected" > "$stamp"
     }
 
     fetch_framework "sherpa-onnx.xcframework" "#{sherpa_onnx_sha}"

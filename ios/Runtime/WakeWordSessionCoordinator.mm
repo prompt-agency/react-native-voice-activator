@@ -151,16 +151,9 @@ static NSDictionary *VoiceActivatorMakeError(
   NSString *keywordAssetKey = [assetKeys[@"keywordAssetKey"] isKindOfClass:[NSString class]]
       ? assetKeys[@"keywordAssetKey"]
       : nil;
-  NSNumber *rawTextKeywordsValue =
-      [engineConfig[@"keywordsAreRawText"] isKindOfClass:[NSNumber class]]
-          ? engineConfig[@"keywordsAreRawText"]
-          : nil;
-  BOOL rawTextKeywords = rawTextKeywordsValue != nil && rawTextKeywordsValue.boolValue;
-
   SherpaOnnxAssetPaths *assetPaths =
       [_assetLoader loadAssetPathsWithModelAssetKey:modelAssetKey
                                     keywordAssetKey:keywordAssetKey
-                                    rawTextKeywords:rawTextKeywords
                                               error:&assetError];
   // Stop the tap before reconfiguring. configureWithAssetPaths: drains the
   // processing queue, but an installed tap would keep delivering buffers while

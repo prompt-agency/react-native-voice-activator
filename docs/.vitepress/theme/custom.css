@@ -10,3 +10,21 @@
 .VPHero:not(.has-image) .tagline {
   max-width: 720px;
 }
+
+/* The Buy Me a Coffee script injects its button as the first child of <body>,
+   where it sits in normal flow underneath the fixed nav bar and covers the
+   logo. Float it in the bottom-right corner instead. */
+.bmc-btn-container {
+  position: fixed;
+  top: auto;
+  right: 24px;
+  bottom: 24px;
+  left: auto;
+  width: auto;
+  z-index: 10;
+}
+
+.bmc-btn {
+  transform: scale(0.8);
+  transform-origin: bottom right;
+}

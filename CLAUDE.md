@@ -79,6 +79,17 @@ fixture's declared metrics into `latest-results.json` and starts no detector).
 Do not quote a figure from that file as evidence. See
 `docs/reliability-validation.md`.
 
+**Wake phrase tokenization**: `wakePhrase` is tokenized in TypeScript
+(`src/internal/keyword-tokenizer.ts`) before the keywords file is written,
+because sherpa-onnx's `EncodeBase` answers a token missing from `tokens.txt` by
+calling `exit(-1)`: no signal, no crash report, nothing on the JS error path.
+The model bundle's `bpe.model` is a **unigram** SentencePiece model despite its
+name, so the encoder is Viterbi maximum-score segmentation, not pair merging.
+The vocabulary is generated into `src/internal/keyword-vocab.generated.json` by
+`yarn generate:keyword-vocab` and guarded by `scripts/verify-keyword-vocab.mjs`
+in `yarn lint`. Do not set `modeling_unit` / `bpe_vocab` on the native config to
+make sherpa-onnx tokenize plain text: that was issue #31, and it does not work.
+
 **Event system**: Two separate `EventEmitter` instances—`runtimeEvents` (wake word lifecycle) and `sessionEvents` (conversation turns). Hooks subscribe to these; `voice-activator.ts` emits to both.
 
 **Contract tests**: `src/__tests__/documentation-contract.test.ts` and `reliability-validation-contract.test.ts` verify external-facing documentation links and reliability claims programmatically. These run as part of `yarn lint`.

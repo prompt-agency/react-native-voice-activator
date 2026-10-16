@@ -15,6 +15,8 @@ import {
   WakePhraseError,
   wakePhraseFileName,
 } from '../internal/wake-phrase';
+import { KeywordTokenizerError } from '../internal/keyword-tokenizer';
+import vocabulary from '../internal/keyword-vocab.generated.json';
 
 describe('normalizing a wake phrase', () => {
   it('uppercases and collapses whitespace', () => {
@@ -89,15 +91,30 @@ describe('rejecting phrases that cannot work', () => {
 });
 
 describe('the generated keywords file', () => {
-  it('writes one plain-text phrase per line', () => {
+  it('writes one pre-tokenized phrase per line', () => {
+    // Matches the shape of the bundled presets: sherpa-onnx reads the keywords
+    // file as space-separated vocabulary pieces and calls exit(-1) on a token
+    // it cannot find, so plain text here terminates the host app.
     expect(buildKeywordsFileContents(['HEY ACME', 'OK ACME'])).toBe(
-      'HEY ACME\nOK ACME\n'
+      '\u2581HE Y \u2581A C ME\n\u2581O K \u2581A C ME\n'
     );
   });
 
-  it('is not pre-tokenized — native tokenizes it via bpe.model', () => {
-    // The bundled presets look like "▁HE LL O ▁WORLD"; generated files must not.
-    expect(buildKeywordsFileContents(['HEY ACME'])).not.toContain('▁');
+  it('is pre-tokenized, like the bundled presets', () => {
+    expect(buildKeywordsFileContents(['HEY ACME'])).toContain('\u2581');
+  });
+
+  it('rejects a phrase it cannot tokenize rather than writing a blank line', () => {
+    // A blank or partial line is what reaches EncodeBase and exits the process.
+    expect(() => buildKeywordsFileContents(['hey acme'])).toThrow(
+      KeywordTokenizerError
+    );
+  });
+
+  it('refuses an empty phrase list rather than writing a blank line', () => {
+    // "\n" is a keywords file whose only line is blank, and a blank line is what
+    // sherpa-onnx answers with exit(-1).
+    expect(() => buildKeywordsFileContents([])).toThrow(WakePhraseError);
   });
 
   it('names the file from the phrase, so it is recognisable on disk', () => {
@@ -168,5 +185,299 @@ describe('validateWakePhrase (non-throwing, for UI feedback)', () => {
     // The two must not drift: this delegates to the same normalizer.
     expect(validateWakePhrase('ok acme').valid).toBe(true);
     expect(validateWakePhrase('go').valid).toBe(false);
+  });
+});
+
+describe('upgrading from a version that wrote plain text', () => {
+  const stored = new Map<string, string>();
+
+  beforeEach(() => {
+    jest.resetModules();
+    stored.clear();
+    stored.set(
+      '/models/tokens.txt',
+      (vocabulary.pieces as Array<[string, number]>)
+        .map(([piece], index) => `${piece} ${index}`)
+        .join('\n')
+    );
+  });
+
+  async function loadModule() {
+    jest.doMock('@dr.pogodin/react-native-fs', () => ({
+      mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async (path: string) => stored.has(path)),
+      readFile: jest.fn(async (path: string) => {
+        const value = stored.get(path);
+        if (value === undefined) throw new Error(`ENOENT: ${path}`);
+        return value;
+      }),
+      writeFile: jest.fn(async (path: string, contents: string) => {
+        stored.set(path, contents);
+      }),
+      unlink: jest.fn(async (path: string) => {
+        stored.delete(path);
+      }),
+      moveFile: jest.fn(async (from: string, to: string) => {
+        const contents = stored.get(from);
+        if (contents === undefined) throw new Error(`ENOENT: ${from}`);
+        if (stored.has(to)) throw new Error(`EEXIST: ${to}`);
+        stored.delete(from);
+        stored.set(to, contents);
+      }),
+    }));
+    return import('../internal/wake-phrase');
+  }
+
+  it('keeps a stale plain-text file while publishing a tokenized one', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    const base = '/models';
+    const stalePath = `${base}/generated-keywords/${wakePhraseFileName(['HEY ACME'])}`;
+
+    // Exactly what 0.1.1 and 0.1.2 wrote, at the path this version also picks.
+    stored.set(stalePath, 'HEY ACME\n');
+
+    const result = await writeWakePhraseKeywords('hey acme', base);
+
+    expect(result.path).not.toBe(stalePath);
+    expect(result.path).toContain('-repair-1.txt');
+    expect(stored.get(stalePath)).toBe('HEY ACME\n');
+    expect(stored.get(result.path)).toBe('\u2581HE Y \u2581A C ME\n');
+  });
+
+  it('keeps the old file when publishing the replacement fails', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    const stalePath = `/models/generated-keywords/${wakePhraseFileName(['HEY ACME'])}`;
+    stored.set(stalePath, 'HEY ACME\n');
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      moveFile: jest.Mock;
+    };
+    rnfs.moveFile.mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(
+      writeWakePhraseKeywords('hey acme', '/models')
+    ).rejects.toThrow('disk full');
+    expect(stored.get(stalePath)).toBe('HEY ACME\n');
+    expect([...stored.keys()].some((key) => key.includes('.tmp-'))).toBe(false);
+
+    const result = await writeWakePhraseKeywords('hey acme', '/models');
+    expect(stored.get(result.path)).toBe('\u2581HE Y \u2581A C ME\n');
+  });
+
+  it('reuses a file that is already tokenized', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+    };
+
+    await writeWakePhraseKeywords('hey acme', '/models');
+    await writeWakePhraseKeywords('hey acme', '/models');
+
+    expect(rnfs.writeFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('verifying the phrase against the model bundle vocabulary', () => {
+  const stored = new Map<string, string>();
+
+  beforeEach(() => {
+    jest.resetModules();
+    stored.clear();
+  });
+
+  async function loadModule() {
+    jest.doMock('@dr.pogodin/react-native-fs', () => ({
+      mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async (path: string) => stored.has(path)),
+      readFile: jest.fn(async (path: string) => {
+        const value = stored.get(path);
+        if (value === undefined) throw new Error(`ENOENT: ${path}`);
+        if (value === UNREADABLE) throw new Error(`EIO: ${path}`);
+        return value;
+      }),
+      writeFile: jest.fn(async (path: string, contents: string) => {
+        stored.set(path, contents);
+      }),
+      unlink: jest.fn(async (path: string) => {
+        stored.delete(path);
+      }),
+      moveFile: jest.fn(async (from: string, to: string) => {
+        const contents = stored.get(from);
+        if (contents === undefined) throw new Error(`ENOENT: ${from}`);
+        if (stored.has(to)) throw new Error(`EEXIST: ${to}`);
+        stored.delete(from);
+        stored.set(to, contents);
+      }),
+    }));
+    return import('../internal/wake-phrase');
+  }
+
+  /** Sentinel contents the readFile mock turns into a read error. */
+  const UNREADABLE = '\u0000unreadable';
+
+  /**
+   * A tokens.txt built from the real vocabulary, so the fixture cannot drift from
+   * the table the tokenizer segments against. `omit` removes one entry, which is
+   * how a different keyword-spotter bundle looks from here.
+   */
+  function tokensFile(omit?: string): string {
+    return (vocabulary.pieces as Array<[string, number]>)
+      .map(([piece], index) => (piece === omit ? null : `${piece} ${index}`))
+      .filter((line): line is string => line !== null)
+      .join('\n');
+  }
+
+  it('writes the file when the bundle vocabulary contains every token', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    stored.set('/models/tokens.txt', tokensFile());
+
+    const result = await writeWakePhraseKeywords('hey acme', '/models');
+
+    expect(stored.get(result.path)).toBe('\u2581HE Y \u2581A C ME\n');
+  });
+
+  it('throws when the bundle vocabulary is missing a token the phrase needs', async () => {
+    const { writeWakePhraseKeywords, WakePhraseModelMismatchError } =
+      await loadModule();
+    // The real vocabulary minus one piece "HEY ACME" actually tokenizes to.
+    stored.set('/models/tokens.txt', tokensFile('\u2581HE'));
+
+    const error = await writeWakePhraseKeywords('hey acme', '/models').then(
+      () => null,
+      (cause: unknown) => cause
+    );
+
+    expect(error).toBeInstanceOf(WakePhraseModelMismatchError);
+    expect(
+      (error as InstanceType<typeof WakePhraseModelMismatchError>).missingTokens
+    ).toEqual(['\u2581HE']);
+    expect((error as Error).message).toContain('\u2581HE');
+    expect((error as Error).message).toContain('/models');
+  });
+
+  it('writes nothing at all when the vocabulary mismatches', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+      mkdir: jest.Mock;
+    };
+    stored.set('/models/tokens.txt', tokensFile('\u2581HE'));
+
+    await expect(
+      writeWakePhraseKeywords('hey acme', '/models')
+    ).rejects.toThrow();
+
+    // A partially written keywords file would be worse than none: sherpa-onnx
+    // reads whatever is there and exits the process on a token it cannot find.
+    expect(rnfs.writeFile).not.toHaveBeenCalled();
+    expect(rnfs.mkdir).not.toHaveBeenCalled();
+    expect([...stored.keys()]).toEqual(['/models/tokens.txt']);
+  });
+
+  it('fails rather than skipping verification when tokens.txt exists but cannot be read', async () => {
+    const { writeWakePhraseKeywords, WakePhraseModelMismatchError } =
+      await loadModule();
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+      mkdir: jest.Mock;
+    };
+    stored.set('/models/tokens.txt', UNREADABLE);
+
+    const error = await writeWakePhraseKeywords('hey acme', '/models').then(
+      () => null,
+      (cause: unknown) => cause
+    );
+
+    expect(error).toBeInstanceOf(WakePhraseModelMismatchError);
+    expect(
+      (error as InstanceType<typeof WakePhraseModelMismatchError>).missingTokens
+    ).toEqual([]);
+    expect((error as Error).message).toContain('tokens.txt');
+    expect((error as Error).message).toContain('/models');
+    // This is exactly the path the check protects: a mismatch here reaches
+    // exit(-1), so nothing is written on an unverifiable vocabulary either.
+    expect(rnfs.writeFile).not.toHaveBeenCalled();
+    expect(rnfs.mkdir).not.toHaveBeenCalled();
+  });
+
+  it('fails before writing when tokens.txt is missing', async () => {
+    const { writeWakePhraseKeywords, WakePhraseModelMismatchError } =
+      await loadModule();
+
+    await expect(
+      writeWakePhraseKeywords('hey acme', '/models')
+    ).rejects.toThrow(WakePhraseModelMismatchError);
+    expect([...stored.keys()]).toEqual([]);
+  });
+
+  it('verifies by reading tokens.txt even when exists() would fail', async () => {
+    jest.doMock('@dr.pogodin/react-native-fs', () => ({
+      mkdir: jest.fn(async () => undefined),
+      exists: jest.fn(async () => {
+        throw new Error('EPERM: cannot stat');
+      }),
+      readFile: jest.fn(async (path: string) => {
+        const value = stored.get(path);
+        if (value === undefined) throw new Error(`ENOENT: ${path}`);
+        return value;
+      }),
+      writeFile: jest.fn(async (path: string, contents: string) => {
+        stored.set(path, contents);
+      }),
+      unlink: jest.fn(async (path: string) => {
+        stored.delete(path);
+      }),
+      moveFile: jest.fn(async (from: string, to: string) => {
+        const contents = stored.get(from);
+        if (contents === undefined) throw new Error(`ENOENT: ${from}`);
+        if (stored.has(to)) throw new Error(`EEXIST: ${to}`);
+        stored.delete(from);
+        stored.set(to, contents);
+      }),
+    }));
+    const { writeWakePhraseKeywords, WakePhraseModelMismatchError } =
+      await import('../internal/wake-phrase');
+    stored.set('/models/tokens.txt', tokensFile('\u2581HE'));
+
+    await expect(
+      writeWakePhraseKeywords('hey acme', '/models')
+    ).rejects.toThrow(WakePhraseModelMismatchError);
+    expect([...stored.keys()]).toEqual(['/models/tokens.txt']);
+  });
+
+  it('publishes a complete file once for concurrent requests', async () => {
+    const { writeWakePhraseKeywords } = await loadModule();
+    stored.set('/models/tokens.txt', tokensFile());
+    const rnfs = jest.requireMock('@dr.pogodin/react-native-fs') as {
+      writeFile: jest.Mock;
+      moveFile: jest.Mock;
+    };
+    let signalWrite!: () => void;
+    let releaseWrite!: () => void;
+    const writeStarted = new Promise<void>((resolve) => {
+      signalWrite = resolve;
+    });
+    const writeBlocked = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    rnfs.writeFile.mockImplementationOnce(
+      async (path: string, contents: string) => {
+        signalWrite();
+        await writeBlocked;
+        stored.set(path, contents);
+      }
+    );
+
+    const first = writeWakePhraseKeywords('hey acme', '/models');
+    await writeStarted;
+    const second = writeWakePhraseKeywords('hey acme', '/models');
+    expect(rnfs.writeFile).toHaveBeenCalledTimes(1);
+    expect(rnfs.writeFile.mock.calls[0]![0]).toMatch(/\.tmp-\d+$/);
+
+    releaseWrite();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult.path).toBe(secondResult.path);
+    expect(stored.get(firstResult.path)).toBe('\u2581HE Y \u2581A C ME\n');
+    expect(rnfs.writeFile).toHaveBeenCalledTimes(1);
+    expect(rnfs.moveFile).toHaveBeenCalledTimes(1);
   });
 });
