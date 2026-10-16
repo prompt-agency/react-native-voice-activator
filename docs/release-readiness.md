@@ -87,7 +87,8 @@ covered by npm's own integrity chain rather than trusting a mutable GitHub
 release asset.
 
 Because zip output is not byte-reproducible, the manifest only describes the
-exact zips that produced it. The release order is therefore fixed:
+exact zips that produced it. If the vendored frameworks have changed, use this
+release order:
 
 1. `yarn package:ios-vendor` — builds both zips and rewrites the manifest
 2. commit `ios/vendor-checksums.json`
@@ -95,6 +96,12 @@ exact zips that produced it. The release order is therefore fixed:
    `verify-vendor-checksums.mjs --require-assets` and aborts if the artifacts on
    disk no longer match the committed manifest
 4. those same zips are uploaded as the `v<version>` release assets
+
+If the vendored frameworks have not changed, reuse the exact archives from the
+previous GitHub release and keep the checksum manifest unchanged. Run
+`node scripts/verify-vendor-checksums.mjs --require-assets` after downloading
+them. This also lets pre-release iOS CI build against the published archives;
+newly generated archives are unavailable until the new release exists.
 
 Android works the same way, with the AAR instead of zips: Gradle's
 `fetchSherpaOnnxAar` task downloads
