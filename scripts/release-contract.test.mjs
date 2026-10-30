@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { expectedAssets, releaseNotes, verifyReleaseMetadata } from './release-contract.mjs';
+import {
+  expectedAssets,
+  releaseNotes,
+  verifyReleaseMetadata,
+  verifyTagConfiguration,
+} from './release-contract.mjs';
 
 const digest = 'a'.repeat(64);
 const ios = { algorithm: 'sha256', assets: { ios: digest } };
@@ -46,4 +51,10 @@ test('release metadata rejects corruption and incomplete uploads', () => {
     const changed = { ...release.assets.at(-1), ...change };
     assert.throws(() => verifyReleaseMetadata({ ...release, assets: [...release.assets.slice(0, -1), changed] }, assets, 'v0.2.2'));
   }
+});
+
+test('release tags match the existing v<version> scheme', () => {
+  const config = { packages: { '.': { 'include-component-in-tag': false, 'include-v-in-tag': true } } };
+  assert.doesNotThrow(() => verifyTagConfiguration(config));
+  assert.throws(() => verifyTagConfiguration({ packages: { '.': { 'include-v-in-tag': true } } }), /component prefix/);
 });

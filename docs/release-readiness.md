@@ -52,7 +52,8 @@ version that points at it.
 1. Merge normal PRs with Conventional Commit titles. `release-please.yml`
    opens or updates a release PR that bumps `package.json`, the release
    manifest, and `CHANGELOG.md`. Review the version, notes, and remaining
-   device evidence before merging it.
+   device evidence before merging it. The Release Please configuration must
+   search the existing `v<version>` tags without a package-name prefix.
 2. On the merge to `main`, `publish.yml` checks whether the package version is
    already on npm. For a new version it runs every Release Readiness job,
    downloads the last release's checksum-matching native archives, packages
