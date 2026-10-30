@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.png" alt="react-native-voice-activator" width="100%" />
+  <img src="docs/assets/microphone-handoff.jpg" alt="A microphone between purple and orange sound waves, illustrating voice handoff" width="100%" />
 </p>
 
 # react-native-voice-activator
