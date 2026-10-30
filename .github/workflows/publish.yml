@@ -1,72 +1,172 @@
 name: Publish
 
-# Publishes to npm when a GitHub release is published, which is the correct
-# order: the release carries the vendored binaries and model assets that the
-# podspec, the Gradle task and prepareModels() download, so it must exist before
-# the npm version that points at it.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Git tag to publish from, e.g. v0.1.1'
-        required: true
+      asset_source_tag:
+        description: Published or prerelease tag with checksum-matching native archives
+        required: false
+        type: string
 
 permissions:
   contents: read
-  # Required for npm trusted publishing. This is what replaces a long-lived
-  # NPM_TOKEN, and it is also what makes npm generate a provenance attestation
-  # automatically, with no --provenance flag.
-  id-token: write
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  preflight:
     runs-on: ubuntu-latest
-
+    outputs:
+      should_release: ${{ steps.version.outputs.should_release }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Deliberately NOT ./.github/actions/setup: that pins Node from .nvmrc
-      # (20.19.0), and trusted publishing needs Node >= 22.14.0 with npm
-      # >= 11.5.1. Node 24 is what npm's own documented example uses, and it
-      # ships npm 11 already, so no global npm install is needed. The rest of CI
-      # stays on the .nvmrc pin; only this job takes the newer toolchain.
-      - name: Setup Node for publishing
+      - name: Check merged version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "$GITHUB_REF" != 'refs/heads/main' ]; then
+            echo 'Releases can only run from main.' >&2
+            exit 1
+          fi
+          node scripts/release-contract.mjs check
+          version=$(node -p "require('./package.json').version")
+          tag="v${version}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          status=$(curl --retry 3 --silent --show-error --location --output /tmp/npm-version.json --write-out '%{http_code}' "https://registry.npmjs.org/react-native-voice-activator/${version}")
+          case "$status" in
+            200)
+              gh release view "$tag" > /dev/null
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "npm registry returned HTTP $status for $tag" >&2
+              exit 1
+              ;;
+          esac
+
+  readiness:
+    needs: preflight
+    if: needs.preflight.outputs.should_release == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      ios_asset_tag: ${{ inputs.asset_source_tag || '' }}
+
+  release_assets:
+    needs: [preflight, readiness]
+    if: needs.preflight.outputs.should_release == 'true' && needs.readiness.result == 'success'
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.preflight.outputs.tag }}
+      ASSET_SOURCE_TAG: ${{ inputs.asset_source_tag || '' }}
+
+    steps:
+      - name: Checkout merged release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify release identity and stage archives
+        run: |
+          node scripts/release-contract.mjs check
+          git fetch --tags origin
+          existing_commit=$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" || true)
+          if [ -n "$existing_commit" ] && [ "$existing_commit" != "$GITHUB_SHA" ]; then
+            echo "Tag $TAG points at $existing_commit, expected $GITHUB_SHA" >&2
+            exit 1
+          fi
+          if ! gh release view "$TAG" > /dev/null 2>&1 && [ -n "$existing_commit" ]; then
+            echo "Tag $TAG exists without a release. Investigate before publishing." >&2
+            exit 1
+          fi
+          source_tag="$ASSET_SOURCE_TAG"
+          if [ -z "$source_tag" ]; then
+            source_tag=$(gh release list --exclude-drafts --exclude-pre-releases --limit 10 --json tagName --jq "map(select(.tagName != \"$TAG\"))[0].tagName")
+          fi
+          if [ -z "$source_tag" ]; then
+            echo "No earlier published release is available as a binary source." >&2
+            exit 1
+          fi
+          gh release download "$source_tag" --pattern 'sherpa-onnx.xcframework.zip' --dir .
+          gh release download "$source_tag" --pattern 'sherpa-onnxruntime.xcframework.zip' --dir .
+          mkdir -p android/libs
+          gh release download "$source_tag" --pattern 'sherpa-onnx-static-link-onnxruntime-1.12.29.aar' --dir android/libs
+          node scripts/verify-vendor-checksums.mjs --require-assets
+          node scripts/package-models.mjs
+
+      - name: Create or complete GitHub release
+        run: |
+          node scripts/release-contract.mjs notes /tmp/release-notes.md
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TAG" --notes-file /tmp/release-notes.md
+          fi
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = "true" ]; then
+            gh release upload "$TAG" \
+              sherpa-onnx.xcframework.zip \
+              sherpa-onnxruntime.xcframework.zip \
+              android/libs/sherpa-onnx-static-link-onnxruntime-1.12.29.aar \
+              dist-models/* --clobber
+          fi
+          gh release view "$TAG" --json tagName,assets > /tmp/release-metadata.json
+          node scripts/release-contract.mjs verify-metadata /tmp/release-metadata.json
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = "true" ]; then
+            gh release edit "$TAG" --draft=false
+          fi
+          node scripts/verify-published-release-assets.mjs
+
+  publish:
+    needs: [preflight, release_assets]
+    if: needs.preflight.outputs.should_release == 'true' && needs.release_assets.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout merged release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node for trusted publishing
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4.4.0
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          # npm's own guidance: never cache the package manager in a release
-          # build.
           package-manager-cache: false
-
-      # OIDC is only possible when the runner granted an id-token. If these are
-      # empty the publish will fail as an anonymous request, and npm reports
-      # that as a 404 rather than an auth error, which is easy to misread as a
-      # missing package. Fail loudly and early instead.
-      - name: Check the OIDC token is available
-        run: |
-          node --version
-          npm --version
-          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-            echo "::error::No OIDC token. id-token: write is not in effect, so npm cannot use trusted publishing."
-            exit 1
-          fi
-          echo "OIDC request URL is present."
 
       - name: Install dependencies
         run: |
           corepack enable
           yarn install --immutable
 
-      - name: Verify the release assets resolve before publishing
-        run: yarn verify:release-assets
+      - name: Recheck published release assets
+        run: node scripts/verify-published-release-assets.mjs
 
-      # No NODE_AUTH_TOKEN and no --provenance: OIDC supplies a short-lived
-      # credential, and npm attaches provenance by itself for a public repo.
-      - name: Publish
+      - name: Build npm package
+        run: yarn prepare
+
+      - name: Check trusted publishing identity
+        run: |
+          node --version
+          npm --version
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "No OIDC token is available for npm trusted publishing." >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
         run: npm publish

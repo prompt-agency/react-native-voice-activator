@@ -49,12 +49,27 @@ release assets are missing is unusable, so the GitHub release, carrying the
 XCFrameworks, the AAR and the model bundle, must exist **before** the npm
 version that points at it.
 
-1. Stage the artifacts and commit the manifests, as described below.
-2. `yarn release` — `release-it` bumps the version, tags, and creates the GitHub
-   release with its assets. It does **not** publish to npm
-   (`release-it.npm.publish` is `false`).
-3. Publishing the release fires `.github/workflows/publish.yml`, which
-   re-verifies that every asset resolves and then runs `npm publish`.
+1. Merge normal PRs with Conventional Commit titles. `release-please.yml`
+   opens or updates a release PR that bumps `package.json`, the release
+   manifest, and `CHANGELOG.md`. Review the version, notes, and remaining
+   device evidence before merging it.
+2. On the merge to `main`, `publish.yml` checks whether the package version is
+   already on npm. For a new version it runs every Release Readiness job,
+   downloads the last release's checksum-matching native archives, packages
+   the model files, and creates a draft GitHub release.
+3. The `npm-publish` environment requires approval from `ilirhushi` before the
+   release-assets job starts. This approval is required for both push-triggered
+   runs and manual retries. Approving the job authorizes publication.
+4. The workflow verifies the exact 19 uploaded asset names, digests, and model
+   sizes, publishes the GitHub release, downloads and verifies the public
+   assets, and then publishes to npm using OIDC. A failed run can be retried
+   with `workflow_dispatch`; an already published npm version is skipped.
+
+When native binaries change, stage their new archives in a prerelease and pass
+that tag as `asset_source_tag` when dispatching `publish.yml`. The same tag is
+used for the iOS and Android readiness builds. A routine release needs no
+manual asset handling. The older `yarn release` command remains available for
+exceptional manual recovery, but do not run it alongside the automated flow.
 
 ### One-time setup on npmjs.com
 
@@ -70,6 +85,13 @@ Required before the workflow can publish. Package settings → Publishing access
 Until that exists, the workflow's publish step fails with an authentication
 error. That is the intended failure: npm will not accept an OIDC identity it has
 not been told to trust.
+
+For release PRs to run CI automatically, create a GitHub App with Contents and
+Pull requests write access, install it on this repository, set repository
+variable `RELEASE_APP_ID` and secret `RELEASE_APP_PRIVATE_KEY`. Without the App,
+the workflow falls back to `GITHUB_TOKEN`; GitHub then requires a maintainer to
+approve CI on the generated release PR. Repository Actions settings must allow
+Actions to create pull requests.
 
 ### Why the publish job does not use `./.github/actions/setup`
 
@@ -92,9 +114,9 @@ release order:
 
 1. `yarn package:ios-vendor` — builds both zips and rewrites the manifest
 2. commit `ios/vendor-checksums.json`
-3. release; `release-it`'s `before:init` hook re-runs
-   `verify-vendor-checksums.mjs --require-assets` and aborts if the artifacts on
-   disk no longer match the committed manifest
+3. upload the new zips to a prerelease and dispatch `publish.yml` with its tag
+   after merging the release PR; the workflow verifies the files against the
+   committed manifest before upload
 4. those same zips are uploaded as the `v<version>` release assets
 
 If the vendored frameworks have not changed, reuse the exact archives from the
@@ -120,9 +142,8 @@ Gradle build fails closed on Android, rather than linking an unverified binary.
 `yarn verify:release-assets` is the gate for this. It downloads every asset the
 podspec, the Gradle task and `prepareModels()` resolve from
 `releases/download/v<version>/`, and checks each one against the manifest that
-pins it. `release-it` runs it automatically in `after:release`, before the
-local artifacts are cleaned up. Run it again by hand if a release is ever
-re-uploaded, and do not announce a version until it passes.
+pins it. `publish.yml` runs it before npm publication. Run it again by hand if
+a release is ever re-uploaded, and do not announce a version until it passes.
 
 Note what the earlier checks do *not* cover:
 `verify-vendor-checksums.mjs --require-assets` proves only that the **local**
@@ -142,9 +163,9 @@ Release order:
 
 1. `yarn generate:model-manifest` — rewrites the manifest from the files on disk
 2. commit `src/internal/model-manifest.json`
-3. release; `release-it`'s `before:init` hook runs `scripts/package-models.mjs`,
-   which stages `dist-models/` and fails if any file is missing or disagrees with
-   the committed manifest
+3. `publish.yml` runs `scripts/package-models.mjs`, which stages
+   `dist-models/` and fails if any file is missing or disagrees with the
+   committed manifest
 4. every file in `dist-models/` is uploaded as a `v<version>` release asset
 
 **A published version whose model assets are missing is unusable**:
