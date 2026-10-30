@@ -1,0 +1,45 @@
+name: Propose Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Wait until the current version is published
+        id: registry
+        run: |
+          version=$(node -p "require('./package.json').version")
+          status=$(curl --retry 3 --silent --show-error --location --output /tmp/npm-version.json --write-out '%{http_code}' "https://registry.npmjs.org/react-native-voice-activator/${version}")
+          case "$status" in
+            200) echo 'published=true' >> "$GITHUB_OUTPUT" ;;
+            404) echo 'published=false' >> "$GITHUB_OUTPUT" ;;
+            *) echo "npm registry returned HTTP $status" >&2; exit 1 ;;
+          esac
+
+      - name: Create GitHub App token
+        if: ${{ steps.registry.outputs.published == 'true' && vars.RELEASE_APP_ID != '' }}
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open or update release PR
+        if: ${{ steps.registry.outputs.published == 'true' }}
+        uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
+        with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
+          skip-github-release: true

@@ -1,6 +1,11 @@
 name: Release Readiness
 
 on:
+  workflow_call:
+    inputs:
+      ios_asset_tag:
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       ios_asset_tag:
@@ -58,7 +63,16 @@ jobs:
       - name: Build example for Android
         env:
           JAVA_OPTS: "-XX:MaxHeapSize=6g"
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ASSET_TAG: ${{ inputs.ios_asset_tag }}
         run: |
+          asset_tag="${ASSET_TAG:-$(gh release view --json tagName --jq .tagName)}"
+          if [[ ! "$asset_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "Invalid Android asset tag: $asset_tag" >&2
+            exit 1
+          fi
+          export ORG_GRADLE_PROJECT_VoiceActivator_packageVersion="${asset_tag#v}"
           yarn workspace react-native-voice-activator-example build:android
 
   build-ios:
