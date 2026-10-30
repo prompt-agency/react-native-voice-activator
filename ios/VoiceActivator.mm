@@ -6,7 +6,7 @@
 #import "Engines/SherpaOnnx/SherpaOnnxSpeakerEmbedding.h"
 #import "Engines/SherpaOnnx/SherpaOnnxTTS.h"
 #import "Runtime/AudioPlayback.h"
-#import "Runtime/AudioSessionManager.h"
+#import "Runtime/VoiceActivatorAudioSessionManager.h"
 #import "Runtime/VADCapture.h"
 #import "Runtime/WakeWordSessionCoordinator.h"
 
@@ -22,7 +22,7 @@ NSString *const kVADPCMFrameEventName = @"VoiceActivatorOnVADPCMFrame";
 @implementation VoiceActivator {
   WakeWordSessionCoordinator *_sessionCoordinator;
   AudioPlayback *_audioPlayback;
-  AudioSessionManager *_audioSessionManager;
+  VoiceActivatorAudioSessionManager *_audioSessionManager;
   VADCapture *_vadCapture;
   SherpaOnnxTTS *_sherpaOnnxTTS;
   SherpaOnnxSpeakerEmbedding *_speakerEmbedding;
@@ -46,7 +46,7 @@ RCT_EXPORT_MODULE()
   if (self) {
     _sessionCoordinator = [WakeWordSessionCoordinator new];
     _audioPlayback = [AudioPlayback new];
-    _audioSessionManager = [AudioSessionManager new];
+    _audioSessionManager = [VoiceActivatorAudioSessionManager new];
     _vadCapture = [VADCapture new];
     _sherpaOnnxTTS = [SherpaOnnxTTS new];
     _speakerEmbedding = [SherpaOnnxSpeakerEmbedding new];
