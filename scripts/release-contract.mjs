@@ -67,6 +67,13 @@ export function verifyReleaseMetadata(release, assets, tag) {
   }
 }
 
+export function verifyTagConfiguration(config) {
+  const root = config.packages?.['.'];
+  if (root?.['include-component-in-tag'] !== false || root?.['include-v-in-tag'] !== true) {
+    throw new Error('Release Please must search for v<version> tags without a component prefix');
+  }
+}
+
 async function main() {
   const command = process.argv[2];
   const pkg = await readJson('package.json');
@@ -74,6 +81,7 @@ async function main() {
   if (manifest['.'] !== pkg.version) {
     throw new Error(`Release manifest ${manifest['.']} differs from package ${pkg.version}`);
   }
+  verifyTagConfiguration(await readJson('release-please-config.json'));
   const notes = releaseNotes(await readFile(join(ROOT, 'CHANGELOG.md'), 'utf8'), pkg.version);
   if (command === 'check') {
     console.log(`Release contract valid for v${pkg.version}`);
