@@ -1,10 +1,10 @@
 # ElevenLabs Agents: wake word to hot mic
 
 [ElevenLabs Agents](https://elevenlabs.io/docs/eleven-agents/libraries/react-native)
-runs the whole conversation: turn detection, transcription, the LLM and speech,
-all server-side over WebRTC. What it does not do is decide *when the
-conversation starts*. Its React Native SDK opens the microphone on a button
-press and keeps it open.
+runs the conversation: turn detection, transcription, the LLM and speech. Its
+React Native SDK uses LiveKit's WebRTC implementation for audio transport, but
+the app connects to an ElevenLabs agent through the ElevenLabs SDK. The app
+decides when to start that session.
 
 This example puts a wake phrase in front of it. The app idles on-device with no
 network traffic, and the moment someone says "hey acme" it hands a live
@@ -33,8 +33,40 @@ yarn add react-native-voice-activator
 yarn add @elevenlabs/react-native @livekit/react-native @livekit/react-native-webrtc livekit-client
 ```
 
-ElevenLabs' SDK is built on LiveKit's WebRTC implementation, which is why those
-three come along.
+The LiveKit packages above are dependencies required by the ElevenLabs React
+Native SDK. This example does not create a LiveKit room, fetch a LiveKit token,
+or use LiveKit's React Native APIs. Those steps belong to the separate
+[LiveKit guide](./livekit-agent-handoff.md).
+
+For an Expo app, install the native config plugins too:
+
+```bash
+npx expo install @livekit/react-native-expo-plugin @config-plugins/react-native-webrtc
+```
+
+Add both plugins and microphone permission to your Expo config before building:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc"
+    ],
+    "ios": {
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Listen for a wake phrase and talk to the agent."
+      }
+    },
+    "android": {
+      "permissions": ["RECORD_AUDIO"]
+    }
+  }
+}
+```
+
+See [ElevenLabs' Expo setup](https://elevenlabs.io/docs/eleven-agents/guides/integrations/expo-react-native)
+for the full platform setup.
 
 **Expo Go will not work**, for either package. Use a development build:
 
