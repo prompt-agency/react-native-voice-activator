@@ -91,9 +91,9 @@ internal class SherpaOnnxDetector(
     )
   }
 
-  fun processSamples(samples: FloatArray, sampleRate: Int) {
-    val activeSpotter = keywordSpotter ?: return
-    val activeStream = stream ?: return
+  fun processSamples(samples: FloatArray, sampleRate: Int): String? {
+    val activeSpotter = keywordSpotter ?: return null
+    val activeStream = stream ?: return null
 
     activeStream.acceptWaveform(samples, sampleRate)
 
@@ -103,10 +103,18 @@ internal class SherpaOnnxDetector(
 
     val result = activeSpotter.getResult(activeStream)
     if (result.keyword.isNullOrBlank()) {
-      return
+      return null
     }
 
-    onDetected(result.keyword)
+    val keyword = result.keyword
+    onDetected(keyword)
+    activeSpotter.reset(activeStream)
+    return keyword
+  }
+
+  fun reset() {
+    val activeSpotter = keywordSpotter ?: return
+    val activeStream = stream ?: return
     activeSpotter.reset(activeStream)
   }
 

@@ -4,6 +4,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 #import <cstdlib>
+#import <cmath>
 #import <cstring>
 #import <dispatch/dispatch.h>
 
@@ -205,6 +206,77 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
   });
 }
 
+- (NSString *)decodeSamples:(const float *)samples
+                     count:(int32_t)count
+                sampleRate:(int32_t)sampleRate
+{
+  if (_spotter == nullptr || _stream == nullptr) {
+    return nil;
+  }
+  SherpaOnnxOnlineStreamAcceptWaveform(_stream, sampleRate, samples, count);
+  while (SherpaOnnxIsKeywordStreamReady(_spotter, _stream)) {
+    SherpaOnnxDecodeKeywordStream(_spotter, _stream);
+  }
+  const SherpaOnnxKeywordResult *result =
+      SherpaOnnxGetKeywordResult(_spotter, _stream);
+  if (result == nullptr) {
+    return nil;
+  }
+  NSString *keyword = result->keyword != nullptr
+                          ? [NSString stringWithUTF8String:result->keyword]
+                          : nil;
+  SherpaOnnxDestroyKeywordResult(result);
+  if (keyword.length == 0) {
+    return nil;
+  }
+  SherpaOnnxResetKeywordStream(_spotter, _stream);
+  return keyword;
+}
+
+- (NSString *)processExternalPCM:(NSData *)data
+                      sampleRate:(int32_t)sampleRate
+                           error:(NSError * _Nullable * _Nullable)error
+{
+  if (sampleRate != 16000 || data.length == 0 || data.length % sizeof(float) != 0 ||
+      data.length > 16000 * sizeof(float)) {
+    if (error != nil) *error = SherpaError(@"External audio must contain 1 to 16000 float32 samples at 16 kHz.");
+    return nil;
+  }
+  const float *samples = (const float *)data.bytes;
+  for (NSUInteger i = 0; i < data.length / sizeof(float); ++i) {
+    if (!std::isfinite(samples[i]) || samples[i] < -1.0f || samples[i] > 1.0f) {
+      if (error != nil) *error = SherpaError(@"External audio samples must be finite and between -1 and 1.");
+      return nil;
+    }
+  }
+  __block NSString *keyword = nil;
+  void (^process)(void) = ^{
+    keyword = [self decodeSamples:samples
+                           count:(int32_t)(data.length / sizeof(float))
+                      sampleRate:sampleRate];
+  };
+  if (dispatch_get_specific(kSherpaProcessingQueueKey) == kSherpaProcessingQueueKey) {
+    process();
+  } else {
+    dispatch_sync(_processingQueue, process);
+  }
+  return keyword;
+}
+
+- (void)resetExternalStream
+{
+  void (^reset)(void) = ^{
+    if (self->_spotter != nullptr && self->_stream != nullptr) {
+      SherpaOnnxResetKeywordStream(self->_spotter, self->_stream);
+    }
+  };
+  if (dispatch_get_specific(kSherpaProcessingQueueKey) == kSherpaProcessingQueueKey) {
+    reset();
+  } else {
+    dispatch_sync(_processingQueue, reset);
+  }
+}
+
 - (void)processBuffer:(AVAudioPCMBuffer *)buffer
 {
   // _spotter and _stream are deliberately NOT read here.
@@ -247,26 +319,10 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
       return;
     }
 
-    SherpaOnnxOnlineStreamAcceptWaveform(self->_stream, sampleRate, mono, (int32_t)frameLength);
+    NSString *keyword = [self decodeSamples:mono
+                                     count:(int32_t)frameLength
+                                sampleRate:sampleRate];
     free(mono);
-
-    while (SherpaOnnxIsKeywordStreamReady(self->_spotter, self->_stream)) {
-      SherpaOnnxDecodeKeywordStream(self->_spotter, self->_stream);
-    }
-
-    const SherpaOnnxKeywordResult *result =
-        SherpaOnnxGetKeywordResult(self->_spotter, self->_stream);
-    if (result == nullptr || result->keyword == nullptr || strlen(result->keyword) == 0) {
-      if (result != nullptr) {
-        SherpaOnnxDestroyKeywordResult(result);
-      }
-      return;
-    }
-
-    NSString *keyword = [NSString stringWithUTF8String:result->keyword];
-    SherpaOnnxDestroyKeywordResult(result);
-    SherpaOnnxResetKeywordStream(self->_spotter, self->_stream);
-
     if (keyword.length == 0) {
       return;
     }

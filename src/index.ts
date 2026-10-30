@@ -25,6 +25,12 @@ export {
   startAudioCapture,
   AUDIO_CAPTURE_SAMPLE_RATE,
 } from './public/audio-capture';
+export { createExternalAudioDetector } from './public/external-audio-detector';
+export type {
+  ExternalAudioDetector,
+  ExternalAudioDetectorOptions,
+  ExternalAudioDetection,
+} from './public/external-audio-detector';
 export type {
   AudioCaptureFrame,
   AudioCaptureSubscription,
