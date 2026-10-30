@@ -3,7 +3,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
- * AudioSessionManager — TTS audio session route selection and interruption handling.
+ * VoiceActivatorAudioSessionManager: TTS audio session route selection and interruption handling.
  *
  * Manages output route preference for TTS playback (speaker / earpiece / bluetooth / default)
  * and observes AVAudioSession interruptions during active playback.
@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
  * Does NOT affect the wake word session (PlayAndRecord / Measurement) managed by
  * VoiceActivatorAudioSessionController — those are separate concerns.
  */
-@interface AudioSessionManager : NSObject
+@interface VoiceActivatorAudioSessionManager : NSObject
 
 /** Current desired output route. Defaults to @"default". */
 @property (nonatomic, readonly) NSString *desiredRoute;

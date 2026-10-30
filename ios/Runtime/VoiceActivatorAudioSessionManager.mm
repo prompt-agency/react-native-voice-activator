@@ -1,9 +1,9 @@
-#import "AudioSessionManager.h"
+#import "VoiceActivatorAudioSessionManager.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import "VoiceActivatorInterruptionObserver.h"
 
-@implementation AudioSessionManager {
+@implementation VoiceActivatorAudioSessionManager {
   NSString *_desiredRoute;
   VoiceActivatorInterruptionObserver *_interruptionObserver;
   void (^_interruptionHandler)(BOOL began, BOOL shouldResume);

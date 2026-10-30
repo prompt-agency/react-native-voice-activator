@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
  * streaming starts; restores session on stop.
  *
  * NOTE: iOS audio routing and session management is expanded in Story 11-3
- * (AudioSessionManager). This class only manages the playback category locally.
+ * (VoiceActivatorAudioSessionManager). This class only manages the playback category locally.
  */
 @interface AudioPlayback : NSObject
 
@@ -56,7 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param filePath        Absolute local file path
  * @param earpieceOutput  Session category for standalone WAV playback when not streaming;
- *                        must match AudioSessionManager route (earpiece vs speaker/default).
+ *                        must match VoiceActivatorAudioSessionManager route (earpiece vs speaker/default).
  * @param completion      Called with nil on success, NSError on failure
  */
 - (void)playWavFile:(NSString *)filePath

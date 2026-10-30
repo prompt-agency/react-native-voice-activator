@@ -105,7 +105,7 @@ describe('VoiceActivatorOnRuntimeInterruption event', () => {
     const subscription = addWakeWordListener('interruption', interruptionSpy);
 
     // Emit the interruption event through the runtime event system directly.
-    // (In production this is triggered by the iOS AudioSessionManager via
+    // (In production this is triggered by the iOS VoiceActivatorAudioSessionManager via
     // kRuntimeInterruptionEventName, which flows through NativeEventEmitter →
     // setRuntimeInterruptionHandler → emitRuntimeEvent.)
     const { emitRuntimeEvent } = await import('../internal/runtime-events');
