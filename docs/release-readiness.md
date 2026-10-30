@@ -57,10 +57,7 @@ version that points at it.
    already on npm. For a new version it runs every Release Readiness job,
    downloads the last release's checksum-matching native archives, packages
    the model files, and creates a draft GitHub release.
-3. The `npm-publish` environment requires approval from `ilirhushi` before the
-   release-assets job starts. This approval is required for both push-triggered
-   runs and manual retries. Approving the job authorizes publication.
-4. The workflow verifies the exact 19 uploaded asset names, digests, and model
+3. The workflow verifies the exact 19 uploaded asset names, digests, and model
    sizes, publishes the GitHub release, downloads and verifies the public
    assets, and then publishes to npm using OIDC. A failed run can be retried
    with `workflow_dispatch`; an already published npm version is skipped.

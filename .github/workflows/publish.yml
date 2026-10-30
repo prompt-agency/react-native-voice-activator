@@ -67,7 +67,6 @@ jobs:
     needs: [preflight, readiness]
     if: needs.preflight.outputs.should_release == 'true' && needs.readiness.result == 'success'
     runs-on: ubuntu-latest
-    environment: npm-publish
     permissions:
       contents: write
     env:
