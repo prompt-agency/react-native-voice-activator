@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/prompt-agency/react-native-voice-activator/compare/v0.2.0...v0.2.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **ios:** namespace audio session manager ([3e22d1e](https://github.com/prompt-agency/react-native-voice-activator/commit/3e22d1e7e29decae013ea99a4a8501720b1fa5e7))
+
 # [0.2.0](https://github.com/prompt-agency/react-native-voice-activator/compare/v0.1.2...v0.2.0) (2026-10-17)
 
 
