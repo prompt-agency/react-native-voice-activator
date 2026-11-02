@@ -71,6 +71,7 @@ identity of the package.
 - [Installation](#installation)
 - [Quickstart](#quickstart)
 - [Models Are Downloaded On Demand](#models-are-downloaded-on-demand)
+- [Use Your Own Audio Stream](#use-your-own-audio-stream)
 - [Conversation Session](#conversation-session)
 - [Wake Words](#wake-words)
 - [Optional: Speech-to-Text](#optional-speech-to-text)
@@ -301,6 +302,42 @@ await initialize({
 ```
 
 On Android that is a path relative to `android/app/src/main/assets/`, or an absolute filesystem path. On iOS it is a bundle-relative directory or an absolute path.
+
+## Use Your Own Audio Stream
+
+If your app already captures microphone audio, create an independent detector
+and feed it 16 kHz mono `Float32Array` frames. The detector does not open another
+microphone or change the managed wake-word session.
+
+```ts
+import {
+  createExternalAudioDetector,
+  prepareModels,
+} from 'react-native-voice-activator';
+
+await prepareModels();
+const detector = await createExternalAudioDetector({ wakePhrase: 'hey acme' });
+
+// Call this for each frame from your existing 16 kHz mono audio source.
+async function onAudioFrame(pcmFloat32: Float32Array) {
+  const { keyword } = await detector.processFrame(pcmFloat32);
+  if (keyword) {
+    // Stop or hand off your existing microphone stream here.
+  }
+}
+
+// When your audio source ends:
+await detector.dispose();
+```
+
+Frames can also be base64 little-endian float32 PCM, matching the payload from
+`startAudioCapture()`. Await each call before feeding the next frame. At most two
+frames may be in flight; additional calls reject with a backpressure error so
+an overloaded detector cannot build an unbounded queue. The next accepted frame
+resets detector history after a drop. `reset()` clears audio
+history when your source starts a new session. Detection returns a matched
+keyword or `null`; Sherpa-ONNX does not provide a comparable per-frame
+probability through this path.
 
 ## Conversation Session
 

@@ -67,6 +67,15 @@ export interface Spec extends TurboModule {
     options: CodegenTypes.UnsafeObject
   ): Promise<CodegenTypes.UnsafeObject>;
 
+  createExternalDetector(options: CodegenTypes.UnsafeObject): Promise<string>;
+  processExternalDetectorFrame(
+    detectorId: string,
+    pcmBase64: string,
+    sampleRate: number
+  ): Promise<CodegenTypes.UnsafeObject>;
+  resetExternalDetector(detectorId: string): Promise<void>;
+  disposeExternalDetector(detectorId: string): Promise<void>;
+
   // Phase 1 — Anti-Spoofing (SPOOF-01)
   // Returns spoof probability 0-1 (stub: returns 0.0 until anti-spoofing model available)
   detectSpoofing(pcmBase64: string, sampleRate: number): Promise<number>;

@@ -13,6 +13,7 @@ import {
   WhisperRNSTTAdapter,
 } from 'react-native-voice-activator';
 import { ensureRyanSherpaAssets } from '../sherpa-tts-utils';
+import { ExternalAudioCard } from './ExternalAudioCard';
 import { Btn, C, SectionCard, StatusPill } from '../shared';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -117,7 +118,11 @@ export function ManualScreen() {
       setTtsProgress('Step 2/2: Synthesising…');
       setTtsStatus('speaking');
 
-      const adapter = new SherpaOnnxTTSAdapter({ modelPath, tokensPath, dataDir });
+      const adapter = new SherpaOnnxTTSAdapter({
+        modelPath,
+        tokensPath,
+        dataDir,
+      });
       ttsRef.current = adapter;
       await adapter.speak(ttsText);
 
@@ -145,15 +150,17 @@ export function ManualScreen() {
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       {/* Header */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>④ Speech Engines</Text>
+        <Text style={s.heroTitle}>④ Audio and Speech Engines</Text>
         <Text style={s.heroSub}>
-          Test the speech adapters independently.{' '}
-          <Text style={s.heroCode}>WhisperRNSTTAdapter</Text> transcribes your voice
-          locally — no cloud. <Text style={s.heroCode}>SherpaOnnxTTSAdapter</Text>{' '}
-          (Ryan voice) synthesizes speech on-device. Both run fully offline.
-          Models download on first use.
+          Test the external audio wake detector and speech adapters
+          independently. <Text style={s.heroCode}>WhisperRNSTTAdapter</Text>{' '}
+          transcribes your voice locally.{' '}
+          <Text style={s.heroCode}>SherpaOnnxTTSAdapter</Text> (Ryan voice)
+          synthesizes speech on-device. Models download on first use.
         </Text>
       </View>
+
+      <ExternalAudioCard />
 
       {/* STT — WhisperRN */}
       <SectionCard title="Speech-to-Text (whisper.rn — iOS + Android)">
@@ -213,9 +220,7 @@ export function ManualScreen() {
             active={ttsStatus === 'loading' || ttsStatus === 'speaking'}
           />
         </View>
-        {ttsProgress ? (
-          <Text style={s.progressText}>{ttsProgress}</Text>
-        ) : null}
+        {ttsProgress ? <Text style={s.progressText}>{ttsProgress}</Text> : null}
         <TextInput
           style={s.textInput}
           value={ttsText}

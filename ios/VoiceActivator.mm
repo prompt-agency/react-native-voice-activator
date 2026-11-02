@@ -1,6 +1,7 @@
 #import "VoiceActivator.h"
 
 #import "Engines/SherpaOnnx/SherpaOnnxAssetLoader.h"
+#import "Engines/SherpaOnnx/SherpaOnnxDetector.h"
 #import "Engines/SherpaOnnx/SherpaOnnxDenoiser.h"
 #import "Engines/SherpaOnnx/SherpaOnnxOfflineEvaluator.h"
 #import "Engines/SherpaOnnx/SherpaOnnxSpeakerEmbedding.h"
@@ -9,6 +10,7 @@
 #import "Runtime/VoiceActivatorAudioSessionManager.h"
 #import "Runtime/VADCapture.h"
 #import "Runtime/WakeWordSessionCoordinator.h"
+#import <cmath>
 
 namespace {
 NSString *const kWakeWordDetectedEventName = @"VoiceActivatorOnWakeWordDetected";
@@ -27,6 +29,7 @@ NSString *const kVADPCMFrameEventName = @"VoiceActivatorOnVADPCMFrame";
   SherpaOnnxTTS *_sherpaOnnxTTS;
   SherpaOnnxSpeakerEmbedding *_speakerEmbedding;
   SherpaOnnxDenoiser *_denoiser;
+  NSMutableDictionary<NSString *, SherpaOnnxDetector *> *_externalDetectors;
   NSString *_speakerModelPath;
   NSString *_denoiserModelPath;
   NSUInteger _lastSynthesisCallId;
@@ -51,6 +54,7 @@ RCT_EXPORT_MODULE()
     _sherpaOnnxTTS = [SherpaOnnxTTS new];
     _speakerEmbedding = [SherpaOnnxSpeakerEmbedding new];
     _denoiser = [SherpaOnnxDenoiser new];
+    _externalDetectors = [NSMutableDictionary new];
     _lastSynthesisCallId = 0;
 
     __weak __typeof(self) weakSelf = self;
@@ -205,6 +209,12 @@ RCT_EXPORT_METHOD(dispose
   // modelPath — contrary to what dispose() implies, and holding a TTS model in
   // memory for the life of the process.
   [_sherpaOnnxTTS dispose];
+  @synchronized(_externalDetectors) {
+    for (SherpaOnnxDetector *detector in _externalDetectors.allValues) {
+      [detector dispose];
+    }
+    [_externalDetectors removeAllObjects];
+  }
 
   resolve(nil);
 }
@@ -728,6 +738,105 @@ RCT_EXPORT_METHOD(evaluateWavFile
 
     resolve(result);
   });
+}
+
+RCT_EXPORT_METHOD(createExternalDetector
+                  : (NSDictionary *)options resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  NSString *modelPath = [options[@"modelPath"] isKindOfClass:[NSString class]]
+                            ? options[@"modelPath"] : nil;
+  NSString *keywordsPath = [options[@"keywordsPath"] isKindOfClass:[NSString class]]
+                               ? options[@"keywordsPath"] : nil;
+  NSNumber *sensitivity = [options[@"sensitivity"] isKindOfClass:[NSNumber class]]
+                              ? options[@"sensitivity"] : nil;
+  if (modelPath.length == 0 || keywordsPath.length == 0 || sensitivity == nil ||
+      !std::isfinite(sensitivity.doubleValue) || sensitivity.doubleValue < 0 ||
+      sensitivity.doubleValue > 1) {
+    reject(@"external_detector_create_failed", @"Valid modelPath, keywordsPath, and sensitivity are required.", nil);
+    return;
+  }
+  NSError *error = nil;
+  SherpaOnnxAssetPaths *paths = [[SherpaOnnxAssetLoader new]
+      loadAssetPathsWithModelAssetKey:modelPath
+                       keywordAssetKey:keywordsPath
+                                error:&error];
+  if (paths == nil) {
+    reject(@"external_detector_create_failed", error.localizedDescription, error);
+    return;
+  }
+  SherpaOnnxDetector *detector = [SherpaOnnxDetector new];
+  if (![detector configureWithAssetPaths:paths
+                             sensitivity:sensitivity.doubleValue
+                                   error:&error]) {
+    [detector dispose];
+    reject(@"external_detector_create_failed", error.localizedDescription, error);
+    return;
+  }
+  NSString *detectorId = NSUUID.UUID.UUIDString;
+  @synchronized(_externalDetectors) {
+    _externalDetectors[detectorId] = detector;
+  }
+  resolve(detectorId);
+}
+
+RCT_EXPORT_METHOD(processExternalDetectorFrame
+                  : (NSString *)detectorId pcmBase64
+                  : (NSString *)pcmBase64 sampleRate
+                  : (double)sampleRate resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  NSData *data = [[NSData alloc] initWithBase64EncodedString:pcmBase64 options:0];
+  if (data == nil || sampleRate != 16000) {
+    reject(@"external_detector_frame_failed", @"External audio must be base64 float32 PCM at 16 kHz.", nil);
+    return;
+  }
+  NSError *error = nil;
+  NSString *keyword = nil;
+  @synchronized(_externalDetectors) {
+    SherpaOnnxDetector *detector = _externalDetectors[detectorId];
+    if (detector == nil) {
+      reject(@"external_detector_frame_failed", @"External detector is disposed or unknown.", nil);
+      return;
+    }
+    keyword = [detector processExternalPCM:data sampleRate:16000 error:&error];
+  }
+  if (error != nil) {
+    reject(@"external_detector_frame_failed", error.localizedDescription, error);
+  } else {
+    resolve(@{ @"keyword" : keyword ?: [NSNull null] });
+  }
+}
+
+RCT_EXPORT_METHOD(resetExternalDetector
+                  : (NSString *)detectorId resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  @synchronized(_externalDetectors) {
+    SherpaOnnxDetector *detector = _externalDetectors[detectorId];
+    if (detector == nil) {
+      reject(@"external_detector_reset_failed", @"External detector is disposed or unknown.", nil);
+      return;
+    }
+    [detector resetExternalStream];
+  }
+  resolve(nil);
+}
+
+RCT_EXPORT_METHOD(disposeExternalDetector
+                  : (NSString *)detectorId resolve
+                  : (RCTPromiseResolveBlock)resolve reject
+                  : (RCTPromiseRejectBlock)reject)
+{
+  @synchronized(_externalDetectors) {
+    SherpaOnnxDetector *detector = _externalDetectors[detectorId];
+    [detector dispose];
+    [_externalDetectors removeObjectForKey:detectorId];
+  }
+  resolve(nil);
 }
 
 // ── SPOOF-01: detectSpoofing (stub) ───────────────────────────────────────────

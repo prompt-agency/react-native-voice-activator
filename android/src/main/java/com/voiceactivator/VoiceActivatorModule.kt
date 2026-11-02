@@ -2,6 +2,7 @@ package com.voiceactivator
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Base64
 import com.facebook.react.bridge.Promise
 import com.k2fsa.sherpa.onnx.WaveReader
 import com.voiceactivator.Engines.SherpaOnnx.SherpaOnnxAssetRequest
@@ -20,6 +21,10 @@ import com.voiceactivator.Runtime.AudioRouteMonitor
 import com.voiceactivator.Runtime.ServiceLauncher
 import com.voiceactivator.Runtime.VADCapture
 import com.voiceactivator.Runtime.WakeWordRuntimeCoordinator
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @ReactModule(name = VoiceActivatorModule.NAME)
 class VoiceActivatorModule(reactContext: ReactApplicationContext) :
@@ -29,6 +34,7 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   private val speakerEmbedding = SherpaOnnxSpeakerEmbedding(reactContext.assets)
   private val denoiser = SherpaOnnxDenoiser(reactContext.assets)
   private val tts = SherpaOnnxTTS()
+  private val externalDetectors = ConcurrentHashMap<String, SherpaOnnxDetector>()
   @Volatile private var isSynthesizing = false
   private var speakerModelPath: String? = null
   private var denoiserModelPath: String? = null
@@ -98,6 +104,9 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
   override fun dispose(promise: Promise) {
     try {
       runtimeCoordinator.dispose()
+      val detectors = externalDetectors.values.toList()
+      externalDetectors.clear()
+      detectors.forEach { detector -> synchronized(detector) { detector.release() } }
       speakerEmbedding.release()
       denoiser.release()
       tts.release()
@@ -393,6 +402,95 @@ class VoiceActivatorModule(reactContext: ReactApplicationContext) :
       )
     } catch (error: Throwable) {
       promise.reject("wav_evaluation_failed", error.message, error)
+    }
+  }
+
+  override fun createExternalDetector(options: ReadableMap, promise: Promise) {
+    try {
+      val modelPath = options.getString("modelPath")
+        ?: throw IllegalArgumentException("modelPath is required.")
+      val keywordsPath = options.getString("keywordsPath")
+        ?: throw IllegalArgumentException("keywordsPath is required.")
+      val sensitivity = options.getDouble("sensitivity")
+      require(sensitivity.isFinite() && sensitivity in 0.0..1.0) {
+        "sensitivity must be between 0 and 1."
+      }
+      val detector = SherpaOnnxDetector(
+        context = reactApplicationContext.applicationContext,
+        onDetected = {},
+      )
+      try {
+        detector.initialize(
+          sensitivity,
+          SherpaOnnxAssetRequest(modelPath, keywordsPath),
+        )
+      } catch (error: Throwable) {
+        detector.release()
+        throw error
+      }
+      val id = UUID.randomUUID().toString()
+      externalDetectors[id] = detector
+      promise.resolve(id)
+    } catch (error: Throwable) {
+      promise.reject("external_detector_create_failed", error.message, error)
+    }
+  }
+
+  override fun processExternalDetectorFrame(
+    detectorId: String,
+    pcmBase64: String,
+    sampleRate: Double,
+    promise: Promise,
+  ) {
+    try {
+      require(sampleRate == 16000.0) { "External audio must be 16 kHz." }
+      val bytes = Base64.decode(pcmBase64, Base64.NO_WRAP)
+      require(bytes.isNotEmpty() && bytes.size % 4 == 0 && bytes.size <= 64000) {
+        "External audio must contain 1 to 16000 float32 samples."
+      }
+      val floats = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+      val samples = FloatArray(floats.remaining())
+      floats.get(samples)
+      require(samples.all { it.isFinite() && it in -1.0f..1.0f }) {
+        "External audio samples must be finite and between -1 and 1."
+      }
+      val detector = externalDetectors[detectorId]
+        ?: throw IllegalStateException("External detector is disposed or unknown.")
+      val keyword = synchronized(detector) {
+        require(externalDetectors[detectorId] === detector) {
+          "External detector is disposed or unknown."
+        }
+        detector.processSamples(samples, 16000)
+      }
+      promise.resolve(Arguments.createMap().apply { putString("keyword", keyword) })
+    } catch (error: Throwable) {
+      promise.reject("external_detector_frame_failed", error.message, error)
+    }
+  }
+
+  override fun resetExternalDetector(detectorId: String, promise: Promise) {
+    try {
+      val detector = externalDetectors[detectorId]
+        ?: throw IllegalStateException("External detector is disposed or unknown.")
+      synchronized(detector) {
+        require(externalDetectors[detectorId] === detector) {
+          "External detector is disposed or unknown."
+        }
+        detector.reset()
+      }
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("external_detector_reset_failed", error.message, error)
+    }
+  }
+
+  override fun disposeExternalDetector(detectorId: String, promise: Promise) {
+    try {
+      val detector = externalDetectors.remove(detectorId)
+      if (detector != null) synchronized(detector) { detector.release() }
+      promise.resolve(null)
+    } catch (error: Throwable) {
+      promise.reject("external_detector_dispose_failed", error.message, error)
     }
   }
 

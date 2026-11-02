@@ -23,6 +23,11 @@ typedef void (^SherpaOnnxErrorHandler)(NSError *error);
 - (BOOL)resumeAudioInputAfterSecondaryCapture:(NSError * _Nullable * _Nullable)error;
 - (void)dispose;
 - (void)flushPendingWork;
+/** Process app-owned 16 kHz float32 mono audio without opening the microphone. */
+- (nullable NSString *)processExternalPCM:(NSData *)data
+                               sampleRate:(int32_t)sampleRate
+                                    error:(NSError * _Nullable * _Nullable)error;
+- (void)resetExternalStream;
 
 @end
 
