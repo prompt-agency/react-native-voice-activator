@@ -105,7 +105,7 @@ jobs:
           gh release download "$source_tag" --pattern 'sherpa-onnx.xcframework.zip' --dir .
           gh release download "$source_tag" --pattern 'sherpa-onnxruntime.xcframework.zip' --dir .
           mkdir -p android/libs
-          gh release download "$source_tag" --pattern 'sherpa-onnx-static-link-onnxruntime-1.12.29.aar' --dir android/libs
+          gh release download "$source_tag" --pattern 'sherpa-onnx-static-link-onnxruntime-1.12.29.aar' --dir android/libs --clobber
           node scripts/verify-vendor-checksums.mjs --require-assets
           node scripts/package-models.mjs
 
