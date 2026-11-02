@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/prompt-agency/react-native-voice-activator/compare/v0.2.1...v0.3.0) (2026-11-02)
+
+
+### Features
+
+* add external audio wake detector ([#45](https://github.com/prompt-agency/react-native-voice-activator/issues/45)) ([18e65aa](https://github.com/prompt-agency/react-native-voice-activator/commit/18e65aae08710b87a31ef189e35bab0ab74172fd))
+
 ## [0.2.1](https://github.com/prompt-agency/react-native-voice-activator/compare/v0.2.0...v0.2.1) (2026-10-30)
 
 
