@@ -41,6 +41,12 @@ const INITIAL: ExternalTestSnapshot = {
   error: null,
 };
 
+// The example capture emits up to 512 samples every 32 ms. Send about half a
+// second at a time so bridge round trips do not discard the microphone stream.
+const CAPTURE_FRAME_BYTES = 512 * Float32Array.BYTES_PER_ELEMENT;
+const BATCH_BYTES = 8192 * Float32Array.BYTES_PER_ELEMENT;
+const MAX_PENDING_BYTES = BATCH_BYTES * 4;
+
 /** Owns the detector and microphone used by the example's test card. */
 export class ExternalAudioTestSession {
   private generation = 0;
@@ -51,6 +57,9 @@ export class ExternalAudioTestSession {
   private frameTask: Promise<void> | null = null;
   private processing = false;
   private gap = false;
+  private pendingChunks: string[] = [];
+  private pendingBytes = 0;
+  private pendingFrames = 0;
   private lastStatsEmitAt = 0;
   private current: ExternalTestSnapshot = { ...INITIAL };
 
@@ -79,6 +88,9 @@ export class ExternalAudioTestSession {
     const generation = ++this.generation;
     this.processing = false;
     this.gap = false;
+    this.pendingChunks = [];
+    this.pendingBytes = 0;
+    this.pendingFrames = 0;
     this.update({ ...INITIAL, phase: 'preparing' });
     const task = this.startRun(phrase, generation);
     this.startTask = task;
@@ -134,12 +146,43 @@ export class ExternalAudioTestSession {
     generation: number
   ): void {
     if (generation !== this.generation) return;
-    if (this.processing) {
-      this.gap = true;
-      this.update({ dropped: this.current.dropped + 1 }, false);
+    let chunk: string;
+    try {
+      chunk = atob(pcmBase64);
+      if (
+        chunk.length === 0 ||
+        chunk.length > CAPTURE_FRAME_BYTES ||
+        chunk.length % Float32Array.BYTES_PER_ELEMENT !== 0
+      ) {
+        throw new Error('Capture returned an invalid PCM frame size.');
+      }
+    } catch (error) {
+      this.stopWithError(String(error)).catch(() => undefined);
       return;
     }
+    if (this.pendingBytes + chunk.length > MAX_PENDING_BYTES) {
+      const dropped = this.pendingFrames + 1;
+      this.pendingChunks = [];
+      this.pendingBytes = 0;
+      this.pendingFrames = 0;
+      this.gap = true;
+      this.update({ dropped: this.current.dropped + dropped }, false);
+      return;
+    }
+    this.pendingChunks.push(chunk);
+    this.pendingBytes += chunk.length;
+    this.pendingFrames += 1;
+    this.processPending(detector, generation);
+  }
+
+  private processPending(detector: Detector, generation: number): void {
+    if (this.processing || this.pendingBytes < BATCH_BYTES) return;
     this.processing = true;
+    const pcmBase64 = btoa(this.pendingChunks.join(''));
+    const frames = this.pendingFrames;
+    this.pendingChunks = [];
+    this.pendingBytes = 0;
+    this.pendingFrames = 0;
     const resetBefore = this.gap;
     this.gap = false;
     const task = (async () => {
@@ -148,7 +191,7 @@ export class ExternalAudioTestSession {
       if (generation !== this.generation) return;
       this.update(
         {
-          frames: this.current.frames + 1,
+          frames: this.current.frames + frames,
           ...(keyword
             ? {
                 detections: this.current.detections + 1,
@@ -163,6 +206,9 @@ export class ExternalAudioTestSession {
     const clearFrame = () => {
       this.processing = false;
       if (this.frameTask === task) this.frameTask = null;
+      if (generation === this.generation) {
+        this.processPending(detector, generation);
+      }
     };
     task.then(clearFrame, (error) => {
       this.gap = true;
@@ -184,6 +230,9 @@ export class ExternalAudioTestSession {
   private stopRun(error: string | null): Promise<void> {
     if (this.stopTask) return this.stopTask;
     ++this.generation;
+    this.pendingChunks = [];
+    this.pendingBytes = 0;
+    this.pendingFrames = 0;
     this.update({ phase: 'stopping', progress: '' });
     const task = (async () => {
       await this.startTask?.catch(() => undefined);
@@ -219,6 +268,9 @@ export class ExternalAudioTestSession {
   async reset(): Promise<void> {
     if (this.current.phase !== 'listening' || !this.detector) return;
     this.gap = false;
+    this.pendingChunks = [];
+    this.pendingBytes = 0;
+    this.pendingFrames = 0;
     try {
       await this.detector.reset();
       this.update({ lastKeyword: null });

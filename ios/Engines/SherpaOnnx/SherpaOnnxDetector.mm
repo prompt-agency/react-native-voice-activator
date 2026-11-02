@@ -216,21 +216,21 @@ void *const kSherpaProcessingQueueKey = (void *)&kSherpaProcessingQueueKey;
   SherpaOnnxOnlineStreamAcceptWaveform(_stream, sampleRate, samples, count);
   while (SherpaOnnxIsKeywordStreamReady(_spotter, _stream)) {
     SherpaOnnxDecodeKeywordStream(_spotter, _stream);
+    const SherpaOnnxKeywordResult *result =
+        SherpaOnnxGetKeywordResult(_spotter, _stream);
+    if (result == nullptr) {
+      continue;
+    }
+    NSString *keyword = result->keyword != nullptr
+                            ? [NSString stringWithUTF8String:result->keyword]
+                            : nil;
+    SherpaOnnxDestroyKeywordResult(result);
+    if (keyword.length > 0) {
+      SherpaOnnxResetKeywordStream(_spotter, _stream);
+      return keyword;
+    }
   }
-  const SherpaOnnxKeywordResult *result =
-      SherpaOnnxGetKeywordResult(_spotter, _stream);
-  if (result == nullptr) {
-    return nil;
-  }
-  NSString *keyword = result->keyword != nullptr
-                          ? [NSString stringWithUTF8String:result->keyword]
-                          : nil;
-  SherpaOnnxDestroyKeywordResult(result);
-  if (keyword.length == 0) {
-    return nil;
-  }
-  SherpaOnnxResetKeywordStream(_spotter, _stream);
-  return keyword;
+  return nil;
 }
 
 - (NSString *)processExternalPCM:(NSData *)data
